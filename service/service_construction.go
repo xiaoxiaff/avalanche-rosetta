@@ -648,7 +648,10 @@ func (s ConstructionService) CreateOperationDescription(
 	return s.createOperationDescription(firstCurrency, mapper.OpErc20Transfer), nil
 }
 
-func (s ConstructionService) createOperationDescription(currency *types.Currency, opType string) []*parser.OperationDescription {
+func (s ConstructionService) createOperationDescription(
+	currency *types.Currency,
+	opType string,
+) []*parser.OperationDescription {
 	var descriptions []*parser.OperationDescription
 
 	send := parser.OperationDescription{
