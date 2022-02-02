@@ -77,10 +77,9 @@ func (s ConstructionService) ConstructionMetadata(
 		nonce = input.Nonce.Uint64()
 	}
 
-	var gasPrice *big.Int
-	if input.GasPrice == nil {
-		gasPrice, err = s.client.SuggestGasPrice(ctx)
-		if err != nil {
+	gasPrice := input.GasPrice
+	if gasPrice == nil {
+		if gasPrice, err = s.client.SuggestGasPrice(ctx); err != nil {
 			return nil, wrapError(errClientError, err)
 		}
 
@@ -91,22 +90,18 @@ func (s ConstructionService) ConstructionMetadata(
 			)
 			newGasPrice.Int(gasPrice)
 		}
-	} else {
-		gasPrice = input.GasPrice
 	}
 
 	var gasLimit uint64
 	if input.GasLimit == nil {
 		if input.Currency == nil || types.Hash(input.Currency) == types.Hash(mapper.AvaxCurrency) {
 			gasLimit, err = s.getNativeTransferGasLimit(ctx, input.To, input.From, input.Value)
-			if err != nil {
-				return nil, wrapError(errClientError, err)
-			}
 		} else {
 			gasLimit, err = s.getErc20TransferGasLimit(ctx, input.To, input.From, input.Value, input.Currency)
-			if err != nil {
-				return nil, wrapError(errClientError, err)
-			}
+		}
+
+		if err != nil {
+			return nil, wrapError(errClientError, err)
 		}
 	} else {
 		gasLimit = input.GasLimit.Uint64()
@@ -718,43 +713,35 @@ func (s ConstructionService) createOperationDescriptionERC20(
 	return descriptions
 }
 
-func (s ConstructionService) getNativeTransferGasLimit(ctx context.Context, toAddress string,
-	fromAddress string, value *big.Int) (uint64, error) {
-	if len(toAddress) == 0 || value == nil {
+func (s ConstructionService) getNativeTransferGasLimit(ctx context.Context, to string, from string, value *big.Int) (uint64, error) {
+	if len(to) == 0 || value == nil {
 		// We guard against malformed inputs that may have been generated using
 		// a previous version of avalanche-rosetta.
 		return nativeTransferGasLimit, nil
 	}
-	to := ethcommon.HexToAddress(toAddress)
-	gasLimit, err := s.client.EstimateGas(ctx, interfaces.CallMsg{
-		From:  ethcommon.HexToAddress(fromAddress),
-		To:    &to,
+
+	toAddr := ethcommon.HexToAddress(to)
+
+	return s.client.EstimateGas(ctx, interfaces.CallMsg{
+		From:  ethcommon.HexToAddress(from),
+		To:    &toAddr,
 		Value: value,
 	})
-	if err != nil {
-		return 0, err
-	}
-	return gasLimit, nil
 }
 
-func (s ConstructionService) getErc20TransferGasLimit(ctx context.Context, toAddress string,
-	fromAddress string, value *big.Int, currency *types.Currency) (uint64, error) {
+func (s ConstructionService) getErc20TransferGasLimit(ctx context.Context, to string, from string, value *big.Int, currency *types.Currency) (uint64, error) {
 	contract, ok := currency.Metadata[mapper.ContractAddressMetadata]
-	if len(toAddress) == 0 || value == nil || !ok {
+	if len(to) == 0 || value == nil || !ok {
 		return erc20TransferGasLimit, nil
 	}
-	// ToAddress for erc20 transfers is the contract address
 	contractAddress := ethcommon.HexToAddress(contract.(string))
-	data := generateErc20TransferData(toAddress, value)
-	gasLimit, err := s.client.EstimateGas(ctx, interfaces.CallMsg{
-		From: ethcommon.HexToAddress(fromAddress),
+
+	return s.client.EstimateGas(ctx, interfaces.CallMsg{
+		From: ethcommon.HexToAddress(from),
+		// ERC20 Transfers send to the contract address
 		To:   &contractAddress,
-		Data: data,
+		Data: generateErc20TransferData(to, value),
 	})
-	if err != nil {
-		return 0, err
-	}
-	return gasLimit, nil
 }
 
 func generateErc20TransferData(toAddress string, value *big.Int) []byte {
