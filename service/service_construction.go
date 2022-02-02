@@ -635,9 +635,9 @@ func (s ConstructionService) CreateOperationDescription(
 	}
 
 	if types.Hash(firstCurrency) == types.Hash(mapper.AvaxCurrency) {
-		return s.createOperationDescriptionNative(), nil
+		return s.createOperationDescription(firstCurrency, mapper.OpCall), nil
 	}
-	firstContract, firstOk := firstCurrency.Metadata[mapper.ContractAddressMetadata].(string)
+	_, firstOk := firstCurrency.Metadata[mapper.ContractAddressMetadata].(string)
 	_, secondOk := secondCurrency.Metadata[mapper.ContractAddressMetadata].(string)
 
 	// Not Native Avax, we require contractInfo in metadata
@@ -645,48 +645,14 @@ func (s ConstructionService) CreateOperationDescription(
 		return nil, fmt.Errorf("non-native currency must have contractAddress in metadata")
 	}
 
-	return s.createOperationDescriptionERC20(firstContract, firstCurrency), nil
+	return s.createOperationDescription(firstCurrency, mapper.OpErc20Transfer), nil
 }
 
-func (s ConstructionService) createOperationDescriptionNative() []*parser.OperationDescription {
+func (s ConstructionService) createOperationDescription(currency *types.Currency, opType string) []*parser.OperationDescription {
 	var descriptions []*parser.OperationDescription
-
-	nativeSend := parser.OperationDescription{
-		Type: mapper.OpCall,
-		Account: &parser.AccountDescription{
-			Exists: true,
-		},
-		Amount: &parser.AmountDescription{
-			Exists:   true,
-			Sign:     parser.NegativeAmountSign,
-			Currency: mapper.AvaxCurrency,
-		},
-	}
-	nativeReceive := parser.OperationDescription{
-		Type: mapper.OpCall,
-		Account: &parser.AccountDescription{
-			Exists: true,
-		},
-		Amount: &parser.AmountDescription{
-			Exists:   true,
-			Sign:     parser.PositiveAmountSign,
-			Currency: mapper.AvaxCurrency,
-		},
-	}
-
-	descriptions = append(descriptions, &nativeSend)
-	descriptions = append(descriptions, &nativeReceive)
-	return descriptions
-}
-
-func (s ConstructionService) createOperationDescriptionERC20(
-	contractAddress string, currencyInfo *types.Currency,
-) []*parser.OperationDescription {
-	var descriptions []*parser.OperationDescription
-	currency := mapper.Erc20Currency(currencyInfo.Symbol, currencyInfo.Decimals, contractAddress)
 
 	send := parser.OperationDescription{
-		Type: mapper.OpErc20Transfer,
+		Type: opType,
 		Account: &parser.AccountDescription{
 			Exists: true,
 		},
@@ -696,8 +662,9 @@ func (s ConstructionService) createOperationDescriptionERC20(
 			Currency: currency,
 		},
 	}
+
 	receive := parser.OperationDescription{
-		Type: mapper.OpErc20Transfer,
+		Type: opType,
 		Account: &parser.AccountDescription{
 			Exists: true,
 		},
@@ -710,10 +677,16 @@ func (s ConstructionService) createOperationDescriptionERC20(
 
 	descriptions = append(descriptions, &send)
 	descriptions = append(descriptions, &receive)
+
 	return descriptions
 }
 
-func (s ConstructionService) getNativeTransferGasLimit(ctx context.Context, to string, from string, value *big.Int) (uint64, error) {
+func (s ConstructionService) getNativeTransferGasLimit(
+	ctx context.Context,
+	to string,
+	from string,
+	value *big.Int,
+) (uint64, error) {
 	if len(to) == 0 || value == nil {
 		// We guard against malformed inputs that may have been generated using
 		// a previous version of avalanche-rosetta.
@@ -729,7 +702,13 @@ func (s ConstructionService) getNativeTransferGasLimit(ctx context.Context, to s
 	})
 }
 
-func (s ConstructionService) getErc20TransferGasLimit(ctx context.Context, to string, from string, value *big.Int, currency *types.Currency) (uint64, error) {
+func (s ConstructionService) getErc20TransferGasLimit(
+	ctx context.Context,
+	to string,
+	from string,
+	value *big.Int,
+	currency *types.Currency,
+) (uint64, error) {
 	contract, ok := currency.Metadata[mapper.ContractAddressMetadata]
 	if len(to) == 0 || value == nil || !ok {
 		return erc20TransferGasLimit, nil
@@ -744,11 +723,11 @@ func (s ConstructionService) getErc20TransferGasLimit(ctx context.Context, to st
 	})
 }
 
-func generateErc20TransferData(toAddress string, value *big.Int) []byte {
-	to := ethcommon.HexToAddress(toAddress)
+func generateErc20TransferData(to string, value *big.Int) []byte {
+	toAddr := ethcommon.HexToAddress(to)
 	methodID := getTransferMethodID()
 
-	paddedAddress := ethcommon.LeftPadBytes(to.Bytes(), requiredPaddingBytes)
+	paddedAddress := ethcommon.LeftPadBytes(toAddr.Bytes(), requiredPaddingBytes)
 	paddedAmount := ethcommon.LeftPadBytes(value.Bytes(), requiredPaddingBytes)
 
 	var data []byte
@@ -773,9 +752,8 @@ func parseErc20TransferData(data []byte) (*ethcommon.Address, *big.Int, error) {
 }
 
 func getTransferMethodID() []byte {
-	transferSignature := []byte(transferFnSignature) // do not include spaces in the string
+	transferSignature := []byte(transferFnSignature)
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write(transferSignature)
-	methodID := hash.Sum(nil)[:4]
-	return methodID
+	return hash.Sum(nil)[:4]
 }
