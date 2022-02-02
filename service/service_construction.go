@@ -716,6 +716,7 @@ func (s ConstructionService) getErc20TransferGasLimit(
 	if len(to) == 0 || value == nil || !ok {
 		return erc20TransferGasLimit, nil
 	}
+
 	contractAddress := ethcommon.HexToAddress(contract.(string))
 
 	return s.client.EstimateGas(ctx, interfaces.CallMsg{
