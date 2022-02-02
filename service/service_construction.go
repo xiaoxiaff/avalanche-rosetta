@@ -9,6 +9,7 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/parser"
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
+	"github.com/coinbase/rosetta-sdk-go/utils"
 	"golang.org/x/crypto/sha3"
 
 	ethtypes "github.com/ava-labs/coreth/core/types"
@@ -94,7 +95,7 @@ func (s ConstructionService) ConstructionMetadata(
 
 	var gasLimit uint64
 	if input.GasLimit == nil {
-		if input.Currency == nil || types.Hash(input.Currency) == types.Hash(mapper.AvaxCurrency) {
+		if input.Currency == nil || utils.Equal(input.Currency, mapper.AvaxCurrency) {
 			gasLimit, err = s.getNativeTransferGasLimit(ctx, input.To, input.From, input.Value)
 		} else {
 			gasLimit, err = s.getErc20TransferGasLimit(ctx, input.To, input.From, input.Value, input.Currency)
@@ -431,7 +432,7 @@ func (s ConstructionService) ConstructionPayloads(
 	}
 	var transferData []byte
 	var sendToAddress ethcommon.Address
-	if types.Hash(fromCurrency) == types.Hash(mapper.AvaxCurrency) {
+	if utils.Equal(fromCurrency, mapper.AvaxCurrency) {
 		transferData = []byte{}
 		sendToAddress = ethcommon.HexToAddress(checkTo)
 	} else {
@@ -623,65 +624,59 @@ func (s ConstructionService) CreateOperationDescription(
 		return nil, fmt.Errorf("invalid number of operations")
 	}
 
-	firstCurrency := operations[0].Amount.Currency
-	secondCurrency := operations[1].Amount.Currency
+	currency := operations[0].Amount.Currency
 
-	if firstCurrency == nil || secondCurrency == nil {
+	if currency == nil || operations[1].Amount.Currency == nil {
 		return nil, fmt.Errorf("invalid currency on operation")
 	}
 
-	if types.Hash(firstCurrency) != types.Hash(secondCurrency) {
+	if !utils.Equal(currency, operations[1].Amount.Currency) {
 		return nil, fmt.Errorf("currency info doesn't match between the operations")
 	}
 
-	if types.Hash(firstCurrency) == types.Hash(mapper.AvaxCurrency) {
-		return s.createOperationDescription(firstCurrency, mapper.OpCall), nil
-	}
-	_, firstOk := firstCurrency.Metadata[mapper.ContractAddressMetadata].(string)
-	_, secondOk := secondCurrency.Metadata[mapper.ContractAddressMetadata].(string)
+	opType := mapper.OpCall
+	if !utils.Equal(currency, mapper.AvaxCurrency) {
+		if _, ok := currency.Metadata[mapper.ContractAddressMetadata].(string); !ok {
+			return nil, fmt.Errorf("contractAddress must be populated in currency metadata")
+		}
 
-	// Not Native Avax, we require contractInfo in metadata
-	if !firstOk || !secondOk {
-		return nil, fmt.Errorf("non-native currency must have contractAddress in metadata")
+		opType = mapper.OpErc20Transfer
 	}
 
-	return s.createOperationDescription(firstCurrency, mapper.OpErc20Transfer), nil
+	return s.createOperationDescription(currency, opType), nil
 }
 
 func (s ConstructionService) createOperationDescription(
 	currency *types.Currency,
 	opType string,
 ) []*parser.OperationDescription {
-	var descriptions []*parser.OperationDescription
-
-	send := parser.OperationDescription{
-		Type: opType,
-		Account: &parser.AccountDescription{
-			Exists: true,
+	return []*parser.OperationDescription{
+		// Send
+		{
+			Type: opType,
+			Account: &parser.AccountDescription{
+				Exists: true,
+			},
+			Amount: &parser.AmountDescription{
+				Exists:   true,
+				Sign:     parser.NegativeAmountSign,
+				Currency: currency,
+			},
 		},
-		Amount: &parser.AmountDescription{
-			Exists:   true,
-			Sign:     parser.NegativeAmountSign,
-			Currency: currency,
+
+		// Receive
+		{
+			Type: opType,
+			Account: &parser.AccountDescription{
+				Exists: true,
+			},
+			Amount: &parser.AmountDescription{
+				Exists:   true,
+				Sign:     parser.PositiveAmountSign,
+				Currency: currency,
+			},
 		},
 	}
-
-	receive := parser.OperationDescription{
-		Type: opType,
-		Account: &parser.AccountDescription{
-			Exists: true,
-		},
-		Amount: &parser.AmountDescription{
-			Exists:   true,
-			Sign:     parser.PositiveAmountSign,
-			Currency: currency,
-		},
-	}
-
-	descriptions = append(descriptions, &send)
-	descriptions = append(descriptions, &receive)
-
-	return descriptions
 }
 
 func (s ConstructionService) getNativeTransferGasLimit(
