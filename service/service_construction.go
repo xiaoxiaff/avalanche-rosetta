@@ -632,8 +632,10 @@ func (s ConstructionService) CreateOperationDescription(
 		return nil, fmt.Errorf("currency info doesn't match between the operations")
 	}
 
-	opType := mapper.OpCall
-	if !utils.Equal(currency, mapper.AvaxCurrency) {
+	var opType string
+	if utils.Equal(currency, mapper.AvaxCurrency) {
+		opType = mapper.OpCall
+	} else {
 		if _, ok := currency.Metadata[mapper.ContractAddressMetadata].(string); !ok {
 			return nil, fmt.Errorf("contractAddress must be populated in currency metadata")
 		}
