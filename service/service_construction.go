@@ -22,13 +22,6 @@ import (
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
-const (
-	genericTransferBytesLength = 68
-	requiredPaddingBytes       = 32
-	transferFnSignature        = "transfer(address,uint256)" // do not include spaces in the string
-
-)
-
 // ConstructionService implements /construction/* endpoints
 type ConstructionService struct {
 	config *Config
@@ -54,6 +47,8 @@ func (s ConstructionService) ConstructionMetadata(
 	ctx context.Context,
 	req *types.ConstructionMetadataRequest,
 ) (*types.ConstructionMetadataResponse, *types.Error) {
+	var err error
+
 	if s.config.IsOfflineMode() {
 		return nil, errUnavailableOffline
 	}
@@ -68,7 +63,6 @@ func (s ConstructionService) ConstructionMetadata(
 	}
 
 	var nonce uint64
-	var err error
 	if input.Nonce == nil {
 		nonce, err = s.client.NonceAt(ctx, ethcommon.HexToAddress(input.From), nil)
 		if err != nil {
@@ -110,22 +104,19 @@ func (s ConstructionService) ConstructionMetadata(
 		gasLimit = input.GasLimit.Uint64()
 	}
 
-	metadata := &metadata{
+	metadataMap, err := marshalJSONMap(&metadata{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
 		GasLimit: gasLimit,
-	}
-
-	metadataMap, err := marshalJSONMap(metadata)
+	})
 	if err != nil {
 		return nil, wrapError(errInternalError, err)
 	}
 
-	suggestedFee := gasPrice.Int64() * int64(gasLimit)
 	return &types.ConstructionMetadataResponse{
 		Metadata: metadataMap,
 		SuggestedFee: []*types.Amount{
-			mapper.AvaxAmount(big.NewInt(suggestedFee)),
+			mapper.AvaxAmount(big.NewInt(gasPrice.Int64() * int64(gasLimit))),
 		},
 	}, nil
 }
@@ -280,10 +271,11 @@ func (s ConstructionService) ConstructionParse(
 		tx.From = msg.From().Hex()
 	}
 
-	var opMethod string
 	var value *big.Int
+	var opMethod string
 	var toAddressHex string
-	// Erc20 transfer
+
+	// ERC-20 transfer
 	if len(tx.Data) != 0 {
 		toAddress, amountSent, err := parseErc20TransferData(tx.Data)
 		if err != nil {
@@ -299,78 +291,70 @@ func (s ConstructionService) ConstructionParse(
 		toAddressHex = tx.To
 	}
 
-	// Ensure valid from address
 	checkFrom, ok := ChecksumAddress(tx.From)
 	if !ok {
 		return nil, wrapError(errInvalidInput, fmt.Errorf("%s is not a valid address", tx.From))
 	}
 
-	// Ensure valid to address
 	checkTo, ok := ChecksumAddress(toAddressHex)
 	if !ok {
 		return nil, wrapError(errInvalidInput, fmt.Errorf("%s is not a valid address", tx.To))
 	}
 
-	ops := []*types.Operation{
-		{
-			Type: opMethod,
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: 0,
-			},
-			Account: &types.AccountIdentifier{
-				Address: checkFrom,
-			},
-			Amount: &types.Amount{
-				Value:    new(big.Int).Neg(value).String(),
-				Currency: tx.Currency,
-			},
-		},
-		{
-			Type: opMethod,
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: 1,
-			},
-			RelatedOperations: []*types.OperationIdentifier{
-				{
-					Index: 0,
-				},
-			},
-			Account: &types.AccountIdentifier{
-				Address: checkTo,
-			},
-			Amount: &types.Amount{
-				Value:    value.String(),
-				Currency: tx.Currency,
-			},
-		},
-	}
-
-	metadata := &parseMetadata{
+	metaMap, err := marshalJSONMap(&parseMetadata{
 		Nonce:    tx.Nonce,
 		GasPrice: tx.GasPrice,
 		GasLimit: tx.GasLimit,
 		ChainID:  tx.ChainID,
-	}
-	metaMap, err := marshalJSONMap(metadata)
+	})
 	if err != nil {
 		return nil, wrapError(errInternalError, err)
 	}
 
+	signers := []*types.AccountIdentifier{}
 	if req.Signed {
-		return &types.ConstructionParseResponse{
-			Operations: ops,
-			AccountIdentifierSigners: []*types.AccountIdentifier{
-				{
-					Address: checkFrom,
-				},
+		signers = []*types.AccountIdentifier{
+			{
+				Address: checkFrom,
 			},
-			Metadata: metaMap,
-		}, nil
+		}
 	}
 
 	return &types.ConstructionParseResponse{
-		Operations:               ops,
-		AccountIdentifierSigners: []*types.AccountIdentifier{},
+		Operations: []*types.Operation{
+			{
+				Type: opMethod,
+				OperationIdentifier: &types.OperationIdentifier{
+					Index: 0,
+				},
+				Account: &types.AccountIdentifier{
+					Address: checkFrom,
+				},
+				Amount: &types.Amount{
+					Value:    new(big.Int).Neg(value).String(),
+					Currency: tx.Currency,
+				},
+			},
+			{
+				Type: opMethod,
+				OperationIdentifier: &types.OperationIdentifier{
+					Index: 1,
+				},
+				RelatedOperations: []*types.OperationIdentifier{
+					{
+						Index: 0,
+					},
+				},
+				Account: &types.AccountIdentifier{
+					Address: checkTo,
+				},
+				Amount: &types.Amount{
+					Value:    value.String(),
+					Currency: tx.Currency,
+				},
+			},
+		},
+		AccountIdentifierSigners: signers,
 		Metadata:                 metaMap,
 	}, nil
 }
@@ -683,9 +667,9 @@ func (s ConstructionService) getNativeTransferGasLimit(
 	from string,
 	value *big.Int,
 ) (uint64, error) {
+	// Guard against malformed inputs that may have been generated using
+	// a previous version of avalanche-rosetta.
 	if len(to) == 0 || value == nil {
-		// We guard against malformed inputs that may have been generated using
-		// a previous version of avalanche-rosetta.
 		return nativeTransferGasLimit, nil
 	}
 
@@ -714,7 +698,7 @@ func (s ConstructionService) getErc20TransferGasLimit(
 
 	return s.client.EstimateGas(ctx, interfaces.CallMsg{
 		From: ethcommon.HexToAddress(from),
-		// ERC20 Transfers send to the contract address
+		// ERC-20 transfers send to the contract address
 		To:   &contractAddress,
 		Data: generateErc20TransferData(to, value),
 	})
@@ -724,6 +708,7 @@ func generateErc20TransferData(to string, value *big.Int) []byte {
 	toAddr := ethcommon.HexToAddress(to)
 	methodID := getTransferMethodID()
 
+	requiredPaddingBytes := 32
 	paddedAddress := ethcommon.LeftPadBytes(toAddr.Bytes(), requiredPaddingBytes)
 	paddedAmount := ethcommon.LeftPadBytes(value.Bytes(), requiredPaddingBytes)
 
@@ -735,6 +720,7 @@ func generateErc20TransferData(to string, value *big.Int) []byte {
 }
 
 func parseErc20TransferData(data []byte) (*ethcommon.Address, *big.Int, error) {
+	genericTransferBytesLength := 68
 	if len(data) != genericTransferBytesLength {
 		return nil, nil, fmt.Errorf("incorrect length for data array")
 	}
@@ -749,7 +735,7 @@ func parseErc20TransferData(data []byte) (*ethcommon.Address, *big.Int, error) {
 }
 
 func getTransferMethodID() []byte {
-	transferSignature := []byte(transferFnSignature)
+	transferSignature := []byte("transfer(address,uint256)")
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write(transferSignature)
 	return hash.Sum(nil)[:4]
