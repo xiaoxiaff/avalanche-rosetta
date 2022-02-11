@@ -708,9 +708,8 @@ func generateErc20TransferData(to string, value *big.Int) []byte {
 	toAddr := ethcommon.HexToAddress(to)
 	methodID := getTransferMethodID()
 
-	requiredPaddingBytes := 32
-	paddedAddress := ethcommon.LeftPadBytes(toAddr.Bytes(), requiredPaddingBytes)
-	paddedAmount := ethcommon.LeftPadBytes(value.Bytes(), requiredPaddingBytes)
+	paddedAddress := ethcommon.LeftPadBytes(toAddr.Bytes(), 32)
+	paddedAmount := ethcommon.LeftPadBytes(value.Bytes(), 32)
 
 	var data []byte
 	data = append(data, methodID...)
@@ -720,23 +719,23 @@ func generateErc20TransferData(to string, value *big.Int) []byte {
 }
 
 func parseErc20TransferData(data []byte) (*ethcommon.Address, *big.Int, error) {
-	genericTransferBytesLength := 68
-	if len(data) != genericTransferBytesLength {
+	if len(data) != 68 {
 		return nil, nil, fmt.Errorf("incorrect length for data array")
 	}
-	methodID := getTransferMethodID()
-	if hexutil.Encode(data[:4]) != hexutil.Encode(methodID) {
+
+	methodBytes, addrBytes, amtBytes := data[:4], data[5:36], data[37:]
+
+	if hexutil.Encode(methodBytes) != hexutil.Encode(getTransferMethodID()) {
 		return nil, nil, fmt.Errorf("incorrect methodID signature")
 	}
 
-	address := ethcommon.BytesToAddress(data[5:36])
-	amount := new(big.Int).SetBytes(data[37:])
-	return &address, amount, nil
+	address := ethcommon.BytesToAddress(addrBytes)
+	return &address, new(big.Int).SetBytes(amtBytes), nil
 }
 
 func getTransferMethodID() []byte {
-	transferSignature := []byte("transfer(address,uint256)")
+	transferFnSignature := []byte("transfer(address,uint256)")
 	hash := sha3.NewLegacyKeccak256()
-	hash.Write(transferSignature)
+	hash.Write(transferFnSignature)
 	return hash.Sum(nil)[:4]
 }
