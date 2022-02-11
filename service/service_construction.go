@@ -632,18 +632,16 @@ func (s ConstructionService) CreateOperationDescription(
 		return nil, fmt.Errorf("currency info doesn't match between the operations")
 	}
 
-	var opType string
 	if utils.Equal(currency, mapper.AvaxCurrency) {
-		opType = mapper.OpCall
-	} else {
-		if _, ok := currency.Metadata[mapper.ContractAddressMetadata].(string); !ok {
-			return nil, fmt.Errorf("contractAddress must be populated in currency metadata")
-		}
-
-		opType = mapper.OpErc20Transfer
+		return s.createOperationDescription(currency, mapper.OpCall), nil
 	}
 
-	return s.createOperationDescription(currency, opType), nil
+	// ERC-20s must have contract address in metadata
+	if _, ok := currency.Metadata[mapper.ContractAddressMetadata].(string); !ok {
+		return nil, fmt.Errorf("contractAddress must be populated in currency metadata")
+	}
+
+	return s.createOperationDescription(currency, mapper.OpErc20Transfer), nil
 }
 
 func (s ConstructionService) createOperationDescription(
