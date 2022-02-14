@@ -682,6 +682,7 @@ func (s ConstructionService) getNativeTransferGasLimit(
 	})
 }
 
+// Ref: https://goethereumbook.org/en/transfer-tokens/#set-gas-limit
 func (s ConstructionService) getErc20TransferGasLimit(
 	ctx context.Context,
 	to string,
@@ -698,12 +699,12 @@ func (s ConstructionService) getErc20TransferGasLimit(
 
 	return s.client.EstimateGas(ctx, interfaces.CallMsg{
 		From: ethcommon.HexToAddress(from),
-		// ERC-20 transfers send to the contract address
 		To:   &contractAddress,
 		Data: generateErc20TransferData(to, value),
 	})
 }
 
+// Ref: https://goethereumbook.org/en/transfer-tokens/#forming-the-data-field
 func generateErc20TransferData(to string, value *big.Int) []byte {
 	toAddr := ethcommon.HexToAddress(to)
 	methodID := getTransferMethodID()
@@ -718,6 +719,7 @@ func generateErc20TransferData(to string, value *big.Int) []byte {
 	return data
 }
 
+// Ref: https://goethereumbook.org/en/transfer-tokens/#forming-the-data-field
 func parseErc20TransferData(data []byte) (*ethcommon.Address, *big.Int, error) {
 	if len(data) != 68 {
 		return nil, nil, fmt.Errorf("incorrect length for data array")
@@ -733,6 +735,7 @@ func parseErc20TransferData(data []byte) (*ethcommon.Address, *big.Int, error) {
 	return &address, new(big.Int).SetBytes(amtBytes), nil
 }
 
+// Ref: https://goethereumbook.org/en/transfer-tokens/#forming-the-data-field
 func getTransferMethodID() []byte {
 	transferFnSignature := []byte("transfer(address,uint256)")
 	hash := sha3.NewLegacyKeccak256()
