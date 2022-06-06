@@ -20,6 +20,7 @@ const (
 
 	PChainNetworkIdentifier = "P"
 	PChainIDAlias           = "P"
+	CChainNetWorkIdentifier = "C"
 
 	OpCall          = "CALL"
 	OpFee           = "FEE"
