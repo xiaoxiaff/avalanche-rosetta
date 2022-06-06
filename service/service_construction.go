@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ava-labs/avalanchego/utils/formatting"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	"math/big"
 
 	"github.com/ava-labs/avalanchego/utils/crypto"
@@ -150,16 +152,37 @@ func (s ConstructionService) ConstructionHash(
 		return nil, wrapError(errInvalidInput, err)
 	}
 
-	var signedTx ethtypes.Transaction
-	if err := signedTx.UnmarshalJSON(wrappedTx.SignedTransaction); err != nil {
-		return nil, wrapError(errInvalidInput, err)
-	}
+	if isPChain(req.NetworkIdentifier) {
+		txHex := string(wrappedTx.SignedTransaction)
+		txByte, err := formatting.Decode(formatting.Hex, txHex)
+		if err != nil {
+			return nil, wrapError(errInvalidInput, err)
+		}
 
-	return &types.TransactionIdentifierResponse{
-		TransactionIdentifier: &types.TransactionIdentifier{
-			Hash: signedTx.Hash().Hex(),
-		},
-	}, nil
+		txHash256 := hashing.ComputeHash256(txByte)
+		pHash, err := formatting.EncodeWithChecksum(formatting.CB58, txHash256)
+		if err != nil {
+			return nil, wrapError(errInvalidInput, err)
+		}
+
+		return &types.TransactionIdentifierResponse{
+			TransactionIdentifier: &types.TransactionIdentifier{
+				Hash: pHash,
+			},
+		}, nil
+
+	} else {
+		var signedTx ethtypes.Transaction
+		if err := signedTx.UnmarshalJSON(wrappedTx.SignedTransaction); err != nil {
+			return nil, wrapError(errInvalidInput, err)
+		}
+		return &types.TransactionIdentifierResponse{
+			TransactionIdentifier: &types.TransactionIdentifier{
+				Hash: signedTx.Hash().Hex(),
+			},
+		}, nil
+
+	}
 }
 
 // ConstructionCombine implements /construction/combine endpoint.
