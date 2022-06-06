@@ -194,6 +194,30 @@ func TestContructionHash(t *testing.T) {
 		assert.Equal(t, errInvalidInput.Code, err.Code)
 	})
 
+	t.Run("P-chain valid transaction", func(t *testing.T) {
+		//signed := "0x000000000012000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000070000000037d300180000000000000000000000010000000176da56a4600f1ba6f40fc3735f71e3f06c31d75900000002b9a824340e1b94f27500cdfcbf8eaa9d4ee5e57b2823cb8b158de17689916c74000000043d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000000081b3200000000100000000b9a824340e1b94f27500cdfcbf8eaa9d4ee5e57b2823cb8b158de17689916c74000000083d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000384570f80000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000070000000000e4e1c00000000000000000000000010000000176da56a4600f1ba6f40fc3735f71e3f06c31d75900000002000000090000000170d3d671d2456d96d0a773b9f3e1ec8a7ed52cd739ff51eafb7359de57193ddf618d3438a33535306702fe91bd3a93030bebf07773f0dc4297ddfb11b417601d00000000090000000170d3d671d2456d96d0a773b9f3e1ec8a7ed52cd739ff51eafb7359de57193ddf618d3438a33535306702fe91bd3a93030bebf07773f0dc4297ddfb11b417601d00"
+		signed := "0x00000000000e000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8724b400000000000000000000000100000001790b9fc4f62b8eb2d2cf0177bda1ecc882a2d19e000000018be2098b614618321c855b6c7ca1cce33006902727d2a05f3ae7d5b18c14e24f000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000007721eeb4000000010000000000000000d325c150d0fec89b706ab5fd75ae7506a9912a9e00000000629a465500000000629b97d5000000003b9aca00000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b9aca0000000000000000000000000100000001790b9fc4f62b8eb2d2cf0177bda1ecc882a2d19e0000000b00000000000000000000000100000001e35e8550c1f09e1d3f6b97292eed8a1a76dcdd8a000000010000000900000001ebd189ad5e808ac24b69d8548980759067ce3b8b8caf9ece3ce3d032c5ec433d59e3767ffbbb2f9940894dd2eb96e6f93942b5535137a46097d124571b8dcf5700f323bc66"
+		request := signedTransactionWrapper{SignedTransaction: []byte(signed), Currency: nil}
+
+		json, marshalErr := json.Marshal(request)
+		assert.Nil(t, marshalErr)
+
+		resp, err := service.ConstructionHash(context.Background(), &types.ConstructionHashRequest{
+			NetworkIdentifier: &types.NetworkIdentifier{
+				SubNetworkIdentifier: &types.SubNetworkIdentifier{
+					Network: mapper.PChainNetworkIdentifier,
+				},
+			},
+			SignedTransaction: string(json),
+		})
+		assert.Nil(t, err)
+		assert.Equal(
+			t,
+			"etWqwTN1YwhakxLnMDp7q6yaf4m7VJu4uB4vC4fEtNrFe9sDy",
+			resp.TransactionIdentifier.Hash,
+		)
+	})
+
 	t.Run("valid transaction", func(t *testing.T) {
 		signed := `{"nonce":"0x6","gasPrice":"0x6d6e2edc00","gas":"0x5208","to":"0x85ad9d1fcf50b72255e4288dca0ad29f5f509409","value":"0xde0b6b3a7640000","input":"0x","v":"0x150f6","r":"0x64d46cc17cbdbcf73b204a6979172eb3148237ecd369181b105e92b0d7fa49a7","s":"0x285063de57245f532a14b13f605bed047a9d20ebfd0db28e01bc8cc9eaac40ee","hash":"0x92ea9280c1653aa9042c7a4d3a608c2149db45064609c18b270c7c73738e2a46"}`
 		request := signedTransactionWrapper{SignedTransaction: []byte(signed), Currency: nil}
@@ -202,6 +226,11 @@ func TestContructionHash(t *testing.T) {
 		assert.Nil(t, marshalErr)
 
 		resp, err := service.ConstructionHash(context.Background(), &types.ConstructionHashRequest{
+			NetworkIdentifier: &types.NetworkIdentifier{
+				SubNetworkIdentifier: &types.SubNetworkIdentifier{
+					Network: mapper.CChainNetWorkIdentifier,
+				},
+			},
 			SignedTransaction: string(json),
 		})
 		assert.Nil(t, err)
@@ -214,7 +243,6 @@ func TestContructionHash(t *testing.T) {
 
 	t.Run("legacy transaction success", func(t *testing.T) {
 		signed := `{"nonce":"0x6","gasPrice":"0x6d6e2edc00","gas":"0x5208","to":"0x85ad9d1fcf50b72255e4288dca0ad29f5f509409","value":"0xde0b6b3a7640000","input":"0x","v":"0x150f6","r":"0x64d46cc17cbdbcf73b204a6979172eb3148237ecd369181b105e92b0d7fa49a7","s":"0x285063de57245f532a14b13f605bed047a9d20ebfd0db28e01bc8cc9eaac40ee","hash":"0x92ea9280c1653aa9042c7a4d3a608c2149db45064609c18b270c7c73738e2a46"}` //nolint:lll
-
 		resp, err := service.ConstructionHash(context.Background(), &types.ConstructionHashRequest{
 			SignedTransaction: signed,
 		})
