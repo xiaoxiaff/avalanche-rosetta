@@ -172,11 +172,6 @@ func (s ConstructionService) ConstructionHash(
 		}, nil
 
 	} else {
-
-		var wrappedTx signedTransactionWrapper
-		if err := json.Unmarshal([]byte(req.SignedTransaction), &wrappedTx); err != nil {
-			return nil, wrapError(errInvalidInput, err)
-		}
 		var signedTx ethtypes.Transaction
 		if err := signedTx.UnmarshalJSON(wrappedTx.SignedTransaction); err != nil {
 			return nil, wrapError(errInvalidInput, err)
