@@ -181,6 +181,15 @@ func (s ConstructionService) ConstructionCombine(
 		return nil, wrapError(errInvalidInput, "signature is not provided")
 	}
 
+	if mapper.IsPChain(req.NetworkIdentifier) {
+		res, err := s.p.CombinePChainTx(ctx, req)
+		if err != nil {
+			return nil, wrapError(errInternalError, err)
+		}
+
+		return res, nil
+	}
+
 	var unsignedTx transaction
 	if err := json.Unmarshal([]byte(req.UnsignedTransaction), &unsignedTx); err != nil {
 		return nil, wrapError(errInvalidInput, err)
