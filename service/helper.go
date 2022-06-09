@@ -47,7 +47,7 @@ func blockHeaderFromInput(
 		header, err = c.HeaderByNumber(ctx, nil)
 	} else {
 		if input.Hash == nil && input.Index == nil {
-			return nil, errInvalidInput
+			return nil, ErrInvalidInput
 		}
 
 		if input.Index != nil {
@@ -58,7 +58,7 @@ func blockHeaderFromInput(
 	}
 
 	if err != nil {
-		return nil, wrapError(errInternalError, err)
+		return nil, WrapError(ErrInternalError, err)
 	}
 
 	return header, nil

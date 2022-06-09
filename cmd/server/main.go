@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"github.com/ava-labs/avalanche-rosetta/service/chain/p"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -56,6 +57,8 @@ func main() {
 	if err != nil {
 		log.Fatal("client init error:", err)
 	}
+
+	pChainClient := p.NewClient(cfg.RPCEndpoint)
 
 	// [ValidateERC20Whitelist] is disabled by default because it requires
 	// a fully synced node to work correctly. If the underlying node is still
@@ -124,14 +127,14 @@ func main() {
 	}
 
 	asserter, err := asserter.NewServer(
-		mapper.OperationTypes,      // supported operation types
-		true,                       // historical balance lookup
+		mapper.OperationTypes, // supported operation types
+		true,                  // historical balance lookup
 		[]*types.NetworkIdentifier{ // supported networks
 			networkP,
 			networkC,
 		},
-		[]string{},                 // call methods
-		false,                      // mempool coins
+		[]string{}, // call methods
+		false,      // mempool coins
 	)
 	if err != nil {
 		log.Fatal("server asserter init error:", err)
@@ -149,7 +152,7 @@ func main() {
 		TokenWhiteList:     cfg.TokenWhiteList,
 	}
 
-	handler := configureRouter(serviceConfig, asserter, apiClient)
+	handler := configureRouter(serviceConfig, asserter, apiClient, pChainClient)
 	if cfg.LogRequests {
 		handler = inspectMiddleware(handler)
 	}
@@ -173,12 +176,13 @@ func configureRouter(
 	serviceConfig *service.Config,
 	asserter *asserter.Asserter,
 	apiClient client.Client,
+	pChainClient p.Client,
 ) http.Handler {
-	networkService := service.NewNetworkService(serviceConfig, apiClient)
+	networkService := service.NewNetworkService(serviceConfig, apiClient, pChainClient)
 	blockService := service.NewBlockService(serviceConfig, apiClient)
 	accountService := service.NewAccountService(serviceConfig, apiClient)
 	mempoolService := service.NewMempoolService(serviceConfig, apiClient)
-	constructionService := service.NewConstructionService(serviceConfig, apiClient)
+	constructionService := service.NewConstructionService(serviceConfig, apiClient, pChainClient)
 	callService := service.NewCallService(serviceConfig, apiClient)
 
 	return server.NewRouter(

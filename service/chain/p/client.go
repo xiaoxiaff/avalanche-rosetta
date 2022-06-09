@@ -1,46 +1,26 @@
 package p
 
 import (
-	"context"
-
-	"github.com/ava-labs/avalanche-rosetta/mapper"
+	"github.com/ava-labs/avalanche-rosetta/service/chain"
+	"github.com/ava-labs/avalanchego/indexer"
 	"github.com/ava-labs/avalanchego/utils/crypto"
-	"github.com/ava-labs/avalanchego/utils/formatting/address"
-	"github.com/coinbase/rosetta-sdk-go/types"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 )
 
-type Client struct {
-	fac crypto.FactorySECP256K1R
+type client struct {
+	fac           crypto.FactorySECP256K1R
+	pClient       platformvm.Client
+	indexerClient indexer.Client
 }
 
-func NewClient() *Client {
-	return &Client{
-		fac: crypto.FactorySECP256K1R{},
-	}
+type Client interface {
+	chain.ConstructionBackend
+	chain.NetworkBackend
 }
 
-func (c *Client) DeriveAddress(
-	ctx context.Context,
-	req *types.ConstructionDeriveRequest,
-) (*types.ConstructionDeriveResponse, error) {
-	pub, err := c.fac.ToPublicKey(req.PublicKey.Bytes)
-	if err != nil {
-		return nil, err
+func NewClient(rpcEndpoint string) Client {
+	return &client{
+		fac:     crypto.FactorySECP256K1R{},
+		pClient: platformvm.NewClient(rpcEndpoint),
 	}
-
-	chainIDAlias, hrp, getErr := mapper.GetAliasAndHRP(req.NetworkIdentifier)
-	if getErr != nil {
-		return nil, getErr
-	}
-
-	addr, err := address.Format(chainIDAlias, hrp, pub.Address().Bytes())
-	if err != nil {
-		return nil, err
-	}
-
-	return &types.ConstructionDeriveResponse{
-		AccountIdentifier: &types.AccountIdentifier{
-			Address: addr,
-		},
-	}, nil
 }
