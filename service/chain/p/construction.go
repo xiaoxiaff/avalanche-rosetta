@@ -35,36 +35,29 @@ func (c *client) ConstructionDerive(
 }
 
 func (c *client) ConstructionPreprocess(ctx context.Context, req *types.ConstructionPreprocessRequest) (*types.ConstructionPreprocessResponse, *types.Error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, service.ErrNotImplemented
 }
 
 func (c *client) ConstructionMetadata(ctx context.Context, req *types.ConstructionMetadataRequest) (*types.ConstructionMetadataResponse, *types.Error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, service.ErrNotImplemented
 }
 
 func (c *client) ConstructionPayloads(ctx context.Context, req *types.ConstructionPayloadsRequest) (*types.ConstructionPayloadsResponse, *types.Error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, service.ErrNotImplemented
 }
 
 func (c *client) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, service.ErrNotImplemented
 }
 
 func (c *client) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, service.ErrNotImplemented
 }
 
 func (c *client) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, service.ErrNotImplemented
 }
 
 func (c *client) ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	//TODO implement me
-	panic("implement me")
+	return nil, service.ErrNotImplemented
 }
