@@ -45,7 +45,7 @@ func TestConstructionMetadata(t *testing.T) {
 			&types.ConstructionMetadataRequest{},
 		)
 		assert.Nil(t, resp)
-		assert.Equal(t, errUnavailableOffline.Code, err.Code)
+		assert.Equal(t, ErrUnavailableOffline.Code, err.Code)
 	})
 
 	t.Run("requires from address", func(t *testing.T) {
@@ -54,7 +54,7 @@ func TestConstructionMetadata(t *testing.T) {
 			&types.ConstructionMetadataRequest{},
 		)
 		assert.Nil(t, resp)
-		assert.Equal(t, errInvalidInput.Code, err.Code)
+		assert.Equal(t, ErrInvalidInput.Code, err.Code)
 		assert.Equal(t, "from address is not provided", err.Details["error"])
 	})
 
@@ -183,7 +183,7 @@ func TestContructionHash(t *testing.T) {
 			&types.ConstructionHashRequest{},
 		)
 		assert.Nil(t, resp)
-		assert.Equal(t, errInvalidInput.Code, err.Code)
+		assert.Equal(t, ErrInvalidInput.Code, err.Code)
 		assert.Equal(t, "signed transaction value is not provided", err.Details["error"])
 	})
 
@@ -192,7 +192,7 @@ func TestContructionHash(t *testing.T) {
 			SignedTransaction: "{}",
 		})
 		assert.Nil(t, resp)
-		assert.Equal(t, errInvalidInput.Code, err.Code)
+		assert.Equal(t, ErrInvalidInput.Code, err.Code)
 	})
 
 	t.Run("valid transaction", func(t *testing.T) {
@@ -249,7 +249,7 @@ func TestConstructionDerive(t *testing.T) {
 			&types.ConstructionDeriveRequest{},
 		)
 		assert.Nil(t, resp)
-		assert.Equal(t, errInvalidInput.Code, err.Code)
+		assert.Equal(t, ErrInvalidInput.Code, err.Code)
 		assert.Equal(t, "public key is not provided", err.Details["error"])
 	})
 
@@ -264,7 +264,7 @@ func TestConstructionDerive(t *testing.T) {
 			},
 		)
 		assert.Nil(t, resp)
-		assert.Equal(t, errInvalidInput.Code, err.Code)
+		assert.Equal(t, ErrInvalidInput.Code, err.Code)
 		assert.Equal(t, "invalid public key", err.Details["error"])
 	})
 

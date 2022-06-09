@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/ava-labs/avalanche-rosetta/service/chain"
 	"math/big"
 
 	"github.com/coinbase/rosetta-sdk-go/server"
@@ -14,19 +15,21 @@ import (
 
 // NetworkService implements all /network endpoints
 type NetworkService struct {
-	config       *Config
-	client       client.Client
-	genesisBlock *types.Block
+	config        *Config
+	pChainBackend chain.NetworkBackend
+	client        client.Client
+	genesisBlock  *types.Block
 }
 
 // NewNetworkService returns a new network servicer
-func NewNetworkService(config *Config, client client.Client) server.NetworkAPIServicer {
+func NewNetworkService(config *Config, client client.Client, pChainBackend chain.NetworkBackend) server.NetworkAPIServicer {
 	genesisBlock := makeGenesisBlock(config.GenesisBlockHash)
 
 	return &NetworkService{
-		config:       config,
-		client:       client,
-		genesisBlock: genesisBlock,
+		config:        config,
+		client:        client,
+		genesisBlock:  genesisBlock,
+		pChainBackend: pChainBackend,
 	}
 }
 
@@ -48,19 +51,23 @@ func (s *NetworkService) NetworkStatus(
 	request *types.NetworkRequest,
 ) (*types.NetworkStatusResponse, *types.Error) {
 	if s.config.IsOfflineMode() {
-		return nil, errUnavailableOffline
+		return nil, ErrUnavailableOffline
+	}
+
+	if mapper.IsPChain(request.NetworkIdentifier) {
+		return s.pChainBackend.NetworkStatus(ctx, request)
 	}
 
 	// Fetch peers
 	infoPeers, err := s.client.Peers(ctx)
 	if err != nil {
-		return nil, wrapError(errClientError, err)
+		return nil, WrapError(ErrClientError, err)
 	}
 	peers := mapper.Peers(infoPeers)
 
 	// Check if all C/X chains are ready
 	if err := checkBootstrapStatus(ctx, s.client); err != nil {
-		if err.Code == errNotReady.Code {
+		if err.Code == ErrNotReady.Code {
 			return &types.NetworkStatusResponse{
 				CurrentBlockTimestamp:  s.genesisBlock.Timestamp,
 				CurrentBlockIdentifier: s.genesisBlock.BlockIdentifier,
@@ -75,19 +82,19 @@ func (s *NetworkService) NetworkStatus(
 	// Fetch the latest block
 	blockHeader, err := s.client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return nil, wrapError(errClientError, err)
+		return nil, WrapError(ErrClientError, err)
 	}
 	if blockHeader == nil {
-		return nil, wrapError(errClientError, "latest block not found")
+		return nil, WrapError(ErrClientError, "latest block not found")
 	}
 
 	// Fetch the genesis block
 	genesisHeader, err := s.client.HeaderByNumber(ctx, big.NewInt(0))
 	if err != nil {
-		return nil, wrapError(errClientError, err)
+		return nil, WrapError(ErrClientError, err)
 	}
 	if genesisHeader == nil {
-		return nil, wrapError(errClientError, "genesis block not found")
+		return nil, WrapError(ErrClientError, "genesis block not found")
 	}
 
 	return &types.NetworkStatusResponse{
@@ -110,6 +117,10 @@ func (s *NetworkService) NetworkOptions(
 	ctx context.Context,
 	request *types.NetworkRequest,
 ) (*types.NetworkOptionsResponse, *types.Error) {
+	if mapper.IsPChain(request.NetworkIdentifier) {
+		return s.pChainBackend.NetworkOptions(ctx, request)
+	}
+
 	return &types.NetworkOptionsResponse{
 		Version: &types.Version{
 			RosettaVersion:    types.RosettaAPIVersion,
@@ -129,20 +140,20 @@ func (s *NetworkService) NetworkOptions(
 func checkBootstrapStatus(ctx context.Context, client client.Client) *types.Error {
 	cReady, err := client.IsBootstrapped(ctx, "C")
 	if err != nil {
-		return wrapError(errClientError, err)
+		return WrapError(ErrClientError, err)
 	}
 
 	xReady, err := client.IsBootstrapped(ctx, "X")
 	if err != nil {
-		return wrapError(errClientError, err)
+		return WrapError(ErrClientError, err)
 	}
 
 	if !cReady {
-		return wrapError(errNotReady, "C-Chain is not ready")
+		return WrapError(ErrNotReady, "C-Chain is not ready")
 	}
 
 	if !xReady {
-		return wrapError(errNotReady, "X-Chain is not ready")
+		return WrapError(ErrNotReady, "X-Chain is not ready")
 	}
 
 	return nil

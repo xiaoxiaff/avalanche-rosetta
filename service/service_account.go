@@ -37,11 +37,11 @@ func (s AccountService) AccountBalance(
 	req *types.AccountBalanceRequest,
 ) (*types.AccountBalanceResponse, *types.Error) {
 	if s.config.IsOfflineMode() {
-		return nil, errUnavailableOffline
+		return nil, ErrUnavailableOffline
 	}
 
 	if req.AccountIdentifier == nil {
-		return nil, wrapError(errInvalidInput, "account identifier is not provided")
+		return nil, WrapError(ErrInvalidInput, "account identifier is not provided")
 	}
 
 	header, terr := blockHeaderFromInput(ctx, s.client, req.BlockIdentifier)
@@ -53,7 +53,7 @@ func (s AccountService) AccountBalance(
 
 	nonce, err := s.client.NonceAt(ctx, address, header.Number)
 	if err != nil {
-		return nil, wrapError(errClientError, err)
+		return nil, WrapError(ErrClientError, err)
 	}
 
 	metadata := &accountMetadata{
@@ -62,12 +62,12 @@ func (s AccountService) AccountBalance(
 
 	metadataMap, err := marshalJSONMap(metadata)
 	if err != nil {
-		return nil, wrapError(errInternalError, err)
+		return nil, WrapError(ErrInternalError, err)
 	}
 
 	avaxBalance, err := s.client.BalanceAt(ctx, address, header.Number)
 	if err != nil {
-		return nil, wrapError(errClientError, err)
+		return nil, WrapError(ErrClientError, err)
 	}
 
 	balances := []*types.Amount{}
@@ -82,7 +82,7 @@ func (s AccountService) AccountBalance(
 				balances = append(balances, mapper.AvaxAmount(avaxBalance))
 				continue
 			}
-			return nil, wrapError(errCallInvalidParams, errors.New("non-avax currencies must specify contractAddress in metadata"))
+			return nil, WrapError(ErrCallInvalidParams, errors.New("non-avax currencies must specify contractAddress in metadata"))
 		}
 
 		identifierAddress := req.AccountIdentifier.Address
@@ -92,14 +92,14 @@ func (s AccountService) AccountBalance(
 
 		data, err := hexutil.Decode(BalanceOfMethodPrefix + identifierAddress)
 		if err != nil {
-			return nil, wrapError(errCallInvalidParams, fmt.Errorf("%w: marshalling balanceOf call msg data failed", err))
+			return nil, WrapError(ErrCallInvalidParams, fmt.Errorf("%w: marshalling balanceOf call msg data failed", err))
 		}
 
 		contractAddress := ethcommon.HexToAddress(value.(string))
 		callMsg := interfaces.CallMsg{To: &contractAddress, Data: data}
 		response, err := s.client.CallContract(ctx, callMsg, header.Number)
 		if err != nil {
-			return nil, wrapError(errInternalError, err)
+			return nil, WrapError(ErrInternalError, err)
 		}
 
 		amount := mapper.Erc20Amount(response, currency, false)
@@ -123,7 +123,7 @@ func (s AccountService) AccountCoins(
 	req *types.AccountCoinsRequest,
 ) (*types.AccountCoinsResponse, *types.Error) {
 	if s.config.IsOfflineMode() {
-		return nil, errUnavailableOffline
+		return nil, ErrUnavailableOffline
 	}
-	return nil, errNotImplemented
+	return nil, ErrNotImplemented
 }
