@@ -114,3 +114,4 @@ check-mainnet-construction:
 mocks:
 	rm -rf mocks;
 	mockery --dir client --all --case underscore --outpkg client --output mocks/client;
+	mockery --dir service/chain --all --case underscore --outpkg chain --output mocks/service/chain;

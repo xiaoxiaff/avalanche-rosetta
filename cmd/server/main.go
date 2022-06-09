@@ -58,7 +58,8 @@ func main() {
 		log.Fatal("client init error:", err)
 	}
 
-	pChainClient := p.NewClient(cfg.RPCEndpoint)
+	pChainClient := client.NewPChainClient(context.Background(), cfg.RPCEndpoint)
+	pChainBackend := p.NewBackend(pChainClient)
 
 	// [ValidateERC20Whitelist] is disabled by default because it requires
 	// a fully synced node to work correctly. If the underlying node is still
@@ -152,7 +153,7 @@ func main() {
 		TokenWhiteList:     cfg.TokenWhiteList,
 	}
 
-	handler := configureRouter(serviceConfig, asserter, apiClient, pChainClient)
+	handler := configureRouter(serviceConfig, asserter, apiClient, pChainBackend)
 	if cfg.LogRequests {
 		handler = inspectMiddleware(handler)
 	}
@@ -176,13 +177,13 @@ func configureRouter(
 	serviceConfig *service.Config,
 	asserter *asserter.Asserter,
 	apiClient client.Client,
-	pChainClient p.Client,
+	pChainBackend *p.Backend,
 ) http.Handler {
-	networkService := service.NewNetworkService(serviceConfig, apiClient, pChainClient)
+	networkService := service.NewNetworkService(serviceConfig, apiClient, pChainBackend)
 	blockService := service.NewBlockService(serviceConfig, apiClient)
 	accountService := service.NewAccountService(serviceConfig, apiClient)
 	mempoolService := service.NewMempoolService(serviceConfig, apiClient)
-	constructionService := service.NewConstructionService(serviceConfig, apiClient, pChainClient)
+	constructionService := service.NewConstructionService(serviceConfig, apiClient, pChainBackend)
 	callService := service.NewCallService(serviceConfig, apiClient)
 
 	return server.NewRouter(
