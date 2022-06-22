@@ -41,6 +41,7 @@ func (s *NetworkService) NetworkList(
 	return &types.NetworkListResponse{
 		NetworkIdentifiers: []*types.NetworkIdentifier{
 			s.config.NetworkID,
+			s.pChainBackend.NetworkIdentifier(),
 		},
 	}, nil
 }
