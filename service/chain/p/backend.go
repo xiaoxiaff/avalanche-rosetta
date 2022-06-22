@@ -4,19 +4,22 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/service/chain"
 	"github.com/ava-labs/avalanchego/utils/crypto"
+	"github.com/coinbase/rosetta-sdk-go/types"
 )
 
 type Backend struct {
 	chain.ConstructionBackend
 	chain.NetworkBackend
 
-	fac     crypto.FactorySECP256K1R
-	pClient client.PChainClient
+	networkIdentifier *types.NetworkIdentifier
+	fac               crypto.FactorySECP256K1R
+	pClient           client.PChainClient
 }
 
-func NewBackend(pClient client.PChainClient) *Backend {
+func NewBackend(pClient client.PChainClient, networkIdentifier *types.NetworkIdentifier) *Backend {
 	return &Backend{
-		fac:     crypto.FactorySECP256K1R{},
-		pClient: pClient,
+		fac:               crypto.FactorySECP256K1R{},
+		pClient:           pClient,
+		networkIdentifier: networkIdentifier,
 	}
 }

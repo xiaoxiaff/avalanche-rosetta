@@ -58,9 +58,6 @@ func main() {
 		log.Fatal("client init error:", err)
 	}
 
-	pChainClient := client.NewPChainClient(context.Background(), cfg.RPCEndpoint)
-	pChainBackend := p.NewBackend(pChainClient)
-
 	// [ValidateERC20Whitelist] is disabled by default because it requires
 	// a fully synced node to work correctly. If the underlying node is still
 	// bootstrapping, it will fail.
@@ -152,6 +149,9 @@ func main() {
 		IngestionMode:      cfg.IngestionMode,
 		TokenWhiteList:     cfg.TokenWhiteList,
 	}
+
+	pChainClient := client.NewPChainClient(context.Background(), cfg.RPCEndpoint)
+	pChainBackend := p.NewBackend(pChainClient, networkP)
 
 	handler := configureRouter(serviceConfig, asserter, apiClient, pChainBackend)
 	if cfg.LogRequests {

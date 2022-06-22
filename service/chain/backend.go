@@ -21,6 +21,7 @@ type ConstructionBackend interface {
 // Chain specific /network/ implementations
 
 type NetworkBackend interface {
+	NetworkIdentifier() *types.NetworkIdentifier
 	NetworkStatus(ctx context.Context, request *types.NetworkRequest) (*types.NetworkStatusResponse, *types.Error)
 	NetworkOptions(ctx context.Context, request *types.NetworkRequest) (*types.NetworkOptionsResponse, *types.Error)
 }

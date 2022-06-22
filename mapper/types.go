@@ -36,6 +36,11 @@ const (
 	OpErc20Mint     = "ERC20_MINT"
 	OpErc20Burn     = "ERC20_BURN"
 
+	OpImportAvax   = "IMPORT_AVAX"
+	OpExportAvax   = "EXPORT_AVAX"
+	OpAddValidator = "ADD_VALIDATOR"
+	OpAddDelegator = "ADD_DELEGATOR"
+
 	OpErc721TransferSender  = "ERC721_SENDER"
 	OpErc721TransferReceive = "ERC721_RECEIVE"
 	OpErc721Mint            = "ERC721_MINT"
@@ -99,6 +104,15 @@ var (
 	CallMethods = []string{
 		"eth_getTransactionReceipt",
 	}
+
+	PChainOperationTypes = []string{
+		OpImportAvax,
+		OpExportAvax,
+		OpAddValidator,
+		OpAddDelegator,
+	}
+
+	PChainCallMethods = []string{}
 )
 
 func CallType(t string) bool {
