@@ -14,6 +14,7 @@ type Backend struct {
 	networkIdentifier *types.NetworkIdentifier
 	fac               crypto.FactorySECP256K1R
 	pClient           client.PChainClient
+	getUTXOsPageSize  uint32
 }
 
 func NewBackend(pClient client.PChainClient, networkIdentifier *types.NetworkIdentifier) *Backend {
@@ -21,5 +22,6 @@ func NewBackend(pClient client.PChainClient, networkIdentifier *types.NetworkIde
 		fac:               crypto.FactorySECP256K1R{},
 		pClient:           pClient,
 		networkIdentifier: networkIdentifier,
+		getUTXOsPageSize:  1024,
 	}
 }

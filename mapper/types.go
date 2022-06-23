@@ -20,6 +20,7 @@ const (
 
 	PChainNetworkIdentifier = "P"
 	PChainIDAlias           = "P"
+	XChainIDAlias           = "X"
 
 	OpCall          = "CALL"
 	OpFee           = "FEE"
@@ -111,7 +112,6 @@ var (
 		OpAddValidator,
 		OpAddDelegator,
 	}
-
 	PChainCallMethods = []string{}
 )
 

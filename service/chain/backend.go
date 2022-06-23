@@ -6,7 +6,6 @@ import (
 )
 
 // Chain specific /construction/* implementations
-
 type ConstructionBackend interface {
 	ConstructionDerive(ctx context.Context, req *types.ConstructionDeriveRequest) (*types.ConstructionDeriveResponse, *types.Error)
 	ConstructionPreprocess(ctx context.Context, req *types.ConstructionPreprocessRequest) (*types.ConstructionPreprocessResponse, *types.Error)
@@ -19,9 +18,14 @@ type ConstructionBackend interface {
 }
 
 // Chain specific /network/ implementations
-
 type NetworkBackend interface {
 	NetworkIdentifier() *types.NetworkIdentifier
 	NetworkStatus(ctx context.Context, request *types.NetworkRequest) (*types.NetworkStatusResponse, *types.Error)
 	NetworkOptions(ctx context.Context, request *types.NetworkRequest) (*types.NetworkOptionsResponse, *types.Error)
+}
+
+// Chain specific /account/ implementations
+type AccountBackend interface {
+	AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error)
+	AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error)
 }

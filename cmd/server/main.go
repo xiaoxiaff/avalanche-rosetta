@@ -181,7 +181,7 @@ func configureRouter(
 ) http.Handler {
 	networkService := service.NewNetworkService(serviceConfig, apiClient, pChainBackend)
 	blockService := service.NewBlockService(serviceConfig, apiClient)
-	accountService := service.NewAccountService(serviceConfig, apiClient)
+	accountService := service.NewAccountService(serviceConfig, apiClient, pChainBackend)
 	mempoolService := service.NewMempoolService(serviceConfig, apiClient)
 	constructionService := service.NewConstructionService(serviceConfig, apiClient, pChainBackend)
 	callService := service.NewCallService(serviceConfig, apiClient)

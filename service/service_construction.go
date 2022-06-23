@@ -525,7 +525,6 @@ func (s ConstructionService) ConstructionPreprocess(
 	if mapper.IsPChain(req.NetworkIdentifier) {
 		return s.pChainBackend.ConstructionPreprocess(ctx, req)
 	}
-
 	operationDescriptions, err := s.CreateOperationDescription(req.Operations)
 	if err != nil {
 		return nil, WrapError(ErrInvalidInput, err)

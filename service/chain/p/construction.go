@@ -4,7 +4,9 @@ import (
 	"context"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/coinbase/rosetta-sdk-go/types"
 )
 
@@ -55,9 +57,38 @@ func (c *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 }
 
 func (c *Backend) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	return nil, service.ErrNotImplemented
+	txHex := req.SignedTransaction
+	txByte, err := formatting.Decode(formatting.Hex, txHex)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+	txHash256 := hashing.ComputeHash256(txByte)
+	pHash, err := formatting.EncodeWithChecksum(formatting.CB58, txHash256)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+	return &types.TransactionIdentifierResponse{
+		TransactionIdentifier: &types.TransactionIdentifier{
+			Hash: pHash,
+		},
+	}, nil
 }
 
 func (c *Backend) ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	return nil, service.ErrNotImplemented
+	txHex := req.SignedTransaction
+	txByte, err := formatting.Decode(formatting.Hex, txHex)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	txID, err := c.pClient.IssueTx(ctx, txByte)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	return &types.TransactionIdentifierResponse{
+		TransactionIdentifier: &types.TransactionIdentifier{
+			Hash: txID.String(),
+		},
+	}, nil
 }

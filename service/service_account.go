@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/coinbase/rosetta-sdk-go/utils"
@@ -14,20 +13,23 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	"github.com/ava-labs/avalanche-rosetta/service/chain"
 	"github.com/ava-labs/coreth/interfaces"
 )
 
 // AccountService implements the /account/* endpoints
 type AccountService struct {
-	config *Config
-	client client.Client
+	config        *Config
+	client        client.Client
+	pChainBackend chain.AccountBackend
 }
 
 // NewAccountService returns a new network servicer
-func NewAccountService(config *Config, client client.Client) server.AccountAPIServicer {
+func NewAccountService(config *Config, client client.Client, pChainBackend chain.AccountBackend) server.AccountAPIServicer {
 	return &AccountService{
-		config: config,
-		client: client,
+		config:        config,
+		client:        client,
+		pChainBackend: pChainBackend,
 	}
 }
 
@@ -38,6 +40,10 @@ func (s AccountService) AccountBalance(
 ) (*types.AccountBalanceResponse, *types.Error) {
 	if s.config.IsOfflineMode() {
 		return nil, ErrUnavailableOffline
+	}
+
+	if mapper.IsPChain(req.NetworkIdentifier) {
+		return s.pChainBackend.AccountBalance(ctx, req)
 	}
 
 	if req.AccountIdentifier == nil {
@@ -125,5 +131,10 @@ func (s AccountService) AccountCoins(
 	if s.config.IsOfflineMode() {
 		return nil, ErrUnavailableOffline
 	}
+
+	if mapper.IsPChain(req.NetworkIdentifier) {
+		return s.pChainBackend.AccountCoins(ctx, req)
+	}
+
 	return nil, ErrNotImplemented
 }
