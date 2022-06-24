@@ -15,13 +15,6 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
-const (
-	OpImport      = "IMPORT"
-	OpInput       = "INPUT"
-	OpOutput      = "OUTPUT"
-	OpStakeOutput = "STAKE"
-)
-
 func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType string, metaType string) ([]*types.Operation, error) {
 
 	outs := make([]*types.Operation, 0)
@@ -33,8 +26,25 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 			return nil, err
 		}
 
+		metadata := &OperationMetadata{
+			Type: metaType,
+		}
+
+		if transferOutput, ok := out.Out.(*secp256k1fx.TransferOutput); ok {
+			outputOwnersBytes, err := platformvm.Codec.Marshal(platformvm.CodecVersion, transferOutput.OutputOwners)
+			if err != nil {
+				return nil, err
+			}
+			metadata.OutputOwners = outputOwnersBytes
+		}
+
+		opMetadata, err := mapper.MarshalJSONMap(metadata)
+		if err != nil {
+			return nil, err
+		}
+
 		outOp := &types.Operation{
-			Type: string(mapper.OpExport),
+			Type: opType,
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: int64(startIndex),
 			},
@@ -43,7 +53,7 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 				Value:    fmt.Sprint(out.Output().Amount()),
 				Currency: mapper.AvaxCurrency,
 			},
-			Metadata: map[string]interface{}{"TxType": metaType},
+			Metadata: opMetadata,
 		}
 		outs = append(outs, outOp)
 		startIndex++
@@ -56,6 +66,19 @@ func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType strin
 
 	ins := make([]*types.Operation, 0)
 	for _, in := range txIns {
+		metadata := &OperationMetadata{
+			Type: metaType,
+		}
+
+		if transferInput, ok := in.In.(*secp256k1fx.TransferInput); ok {
+			metadata.SigIndices = transferInput.SigIndices
+		}
+
+		opMetadata, err := mapper.MarshalJSONMap(metadata)
+		if err != nil {
+			return nil, err
+		}
+
 		inOp := &types.Operation{
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: int64(startIndex),
@@ -71,7 +94,7 @@ func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType strin
 				},
 				CoinAction: types.CoinSpent,
 			},
-			Metadata: map[string]interface{}{"TxType": metaType},
+			Metadata: opMetadata,
 		}
 
 		ins = append(ins, inOp)

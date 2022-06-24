@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/stretchr/testify/mock"
 	"math/big"
 	"testing"
+
+	"github.com/stretchr/testify/mock"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
@@ -323,7 +324,7 @@ func TestConstructionDerive(t *testing.T) {
 }
 
 func forceMarshalMap(t *testing.T, i interface{}) map[string]interface{} {
-	m, err := marshalJSONMap(i)
+	m, err := mapper.MarshalJSONMap(i)
 	if err != nil {
 		t.Fatalf("could not marshal map %s", types.PrintStruct(i))
 	}

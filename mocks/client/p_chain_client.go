@@ -11,6 +11,8 @@ import (
 
 	indexer "github.com/ava-labs/avalanchego/indexer"
 
+	info "github.com/ava-labs/avalanchego/api/info"
+
 	mock "github.com/stretchr/testify/mock"
 
 	platformvm "github.com/ava-labs/avalanchego/vms/platformvm"
@@ -113,6 +115,36 @@ func (_m *PChainClient) GetBlock(ctx context.Context, blockID ids.ID, options ..
 	return r0, r1
 }
 
+// GetBlockchainID provides a mock function with given fields: _a0, _a1, _a2
+func (_m *PChainClient) GetBlockchainID(_a0 context.Context, _a1 string, _a2 ...rpc.Option) (ids.ID, error) {
+	_va := make([]interface{}, len(_a2))
+	for _i := range _a2 {
+		_va[_i] = _a2[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0, _a1)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 ids.ID
+	if rf, ok := ret.Get(0).(func(context.Context, string, ...rpc.Option) ids.ID); ok {
+		r0 = rf(_a0, _a1, _a2...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ids.ID)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, ...rpc.Option) error); ok {
+		r1 = rf(_a0, _a1, _a2...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetContainerByIndex provides a mock function with given fields: ctx, index, options
 func (_m *PChainClient) GetContainerByIndex(ctx context.Context, index uint64, options ...rpc.Option) (indexer.Container, error) {
 	_va := make([]interface{}, len(options))
@@ -169,6 +201,64 @@ func (_m *PChainClient) GetLastAccepted(_a0 context.Context, _a1 ...rpc.Option) 
 	return r0, r1
 }
 
+// GetNetworkID provides a mock function with given fields: _a0, _a1
+func (_m *PChainClient) GetNetworkID(_a0 context.Context, _a1 ...rpc.Option) (uint32, error) {
+	_va := make([]interface{}, len(_a1))
+	for _i := range _a1 {
+		_va[_i] = _a1[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 uint32
+	if rf, ok := ret.Get(0).(func(context.Context, ...rpc.Option) uint32); ok {
+		r0 = rf(_a0, _a1...)
+	} else {
+		r0 = ret.Get(0).(uint32)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, ...rpc.Option) error); ok {
+		r1 = rf(_a0, _a1...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetNodeID provides a mock function with given fields: _a0, _a1
+func (_m *PChainClient) GetNodeID(_a0 context.Context, _a1 ...rpc.Option) (ids.NodeID, error) {
+	_va := make([]interface{}, len(_a1))
+	for _i := range _a1 {
+		_va[_i] = _a1[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 ids.NodeID
+	if rf, ok := ret.Get(0).(func(context.Context, ...rpc.Option) ids.NodeID); ok {
+		r0 = rf(_a0, _a1...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ids.NodeID)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, ...rpc.Option) error); ok {
+		r1 = rf(_a0, _a1...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetTx provides a mock function with given fields: ctx, txID, options
 func (_m *PChainClient) GetTx(ctx context.Context, txID ids.ID, options ...rpc.Option) ([]byte, error) {
 	_va := make([]interface{}, len(options))
@@ -192,6 +282,36 @@ func (_m *PChainClient) GetTx(ctx context.Context, txID ids.ID, options ...rpc.O
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, ids.ID, ...rpc.Option) error); ok {
 		r1 = rf(ctx, txID, options...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetTxFee provides a mock function with given fields: _a0, _a1
+func (_m *PChainClient) GetTxFee(_a0 context.Context, _a1 ...rpc.Option) (*info.GetTxFeeResponse, error) {
+	_va := make([]interface{}, len(_a1))
+	for _i := range _a1 {
+		_va[_i] = _a1[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *info.GetTxFeeResponse
+	if rf, ok := ret.Get(0).(func(context.Context, ...rpc.Option) *info.GetTxFeeResponse); ok {
+		r0 = rf(_a0, _a1...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*info.GetTxFeeResponse)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, ...rpc.Option) error); ok {
+		r1 = rf(_a0, _a1...)
 	} else {
 		r1 = ret.Error(1)
 	}

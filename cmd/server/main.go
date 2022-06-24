@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/coinbase/rosetta-sdk-go/asserter"
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -151,7 +152,12 @@ func main() {
 	}
 
 	pChainClient := client.NewPChainClient(context.Background(), cfg.RPCEndpoint)
-	pChainBackend := p.NewBackend(pChainClient, networkP)
+
+	avaxAssetID, err := ids.FromString(assetID)
+	if err != nil {
+		log.Fatal("parse asset id failed:", err)
+	}
+	pChainBackend := p.NewBackend(pChainClient, avaxAssetID, networkP)
 
 	handler := configureRouter(serviceConfig, asserter, apiClient, pChainBackend)
 	if cfg.LogRequests {

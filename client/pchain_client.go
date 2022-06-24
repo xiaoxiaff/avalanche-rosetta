@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/api/info"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/indexer"
 	"github.com/ava-labs/avalanchego/utils/rpc"
@@ -38,15 +39,24 @@ type PChainClient interface {
 	// avm.Client methods
 
 	GetAssetDescription(ctx context.Context, assetID string, options ...rpc.Option) (*avm.GetAssetDescriptionReply, error)
+
+	// info.Client methods
+
+	GetNodeID(context.Context, ...rpc.Option) (ids.NodeID, error)
+	GetNetworkID(context.Context, ...rpc.Option) (uint32, error)
+	GetBlockchainID(context.Context, string, ...rpc.Option) (ids.ID, error)
+	GetTxFee(context.Context, ...rpc.Option) (*info.GetTxFeeResponse, error)
 }
 
 type indexerClient = indexer.Client
 type platformvmClient = platformvm.Client
+type infoClient = info.Client
 
 type pchainClient struct {
 	platformvmClient
 	indexerClient
 	xChainClient avm.Client
+	infoClient
 }
 
 // NewPChainClient returns a new client for Avalanche APIs related to P-chain
@@ -57,6 +67,7 @@ func NewPChainClient(ctx context.Context, endpoint string) PChainClient {
 		platformvmClient: platformvm.NewClient(endpoint),
 		indexerClient:    indexer.NewClient(endpoint),
 		xChainClient:     avm.NewClient(endpoint, "X"),
+		infoClient:       info.NewClient(endpoint),
 	}
 }
 

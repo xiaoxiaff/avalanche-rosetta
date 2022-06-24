@@ -1,17 +1,49 @@
 package p
 
-const (
-	OpImportAvax   = "IMPORT_AVAX"
-	OpExportAvax   = "EXPORT_AVAX"
-	OpAddValidator = "ADD_VALIDATOR"
-	OpAddDelegator = "ADD_DELEGATOR"
-)
+type txOptions struct {
+	SourceChain      string `json:"source_chain"`
+	DestinationChain string `json:"destination_chain"`
+}
 
-var (
-	PChainOperationTypes = []string{
-		OpImportAvax,
-		OpExportAvax,
-		OpAddValidator,
-		OpAddDelegator,
-	}
-)
+type stakingOptions struct {
+	NodeID          string   `json:"node_id"`
+	Start           uint64   `json:"start"`
+	End             uint64   `json:"end"`
+	Wght            uint64   `json:"weight"`
+	Shares          uint32   `json:"shares"`
+	Memo            []byte   `json:"memo"`
+	Locktime        uint64   `json:"locktime"`
+	Threshold       uint32   `json:"threshold"`
+	RewardAddresses []string `json:"reward_addresses"`
+}
+
+type txMetadata struct {
+	SourceChainID      string `json:"source_chain_id"`
+	DestinationChainID string `json:"destination_chain_id"`
+	NetworkID          uint32 `json:"network_id"`
+	BlockchainID       string `json:"blockchain_id"`
+}
+
+type stakingMetadata struct {
+	NodeID          string   `json:"node_id"`
+	Start           uint64   `json:"start"`
+	End             uint64   `json:"end"`
+	Wght            uint64   `json:"weight"`
+	Shares          uint32   `json:"shares"`
+	Memo            []byte   `json:"memo"`
+	NetworkID       uint32   `json:"network_id"`
+	BlockchainID    string   `json:"blockchain_id"`
+	Locktime        uint64   `json:"locktime"`
+	Threshold       uint32   `json:"threshold"`
+	RewardAddresses []string `json:"reward_addresses"`
+}
+
+type sigIndicesMetadata struct {
+	Type string `json:"type"`
+}
+
+type operationMetadata struct {
+	Type         string   `json:"type"`
+	SigIndices   []uint32 `json:"sig_indices"`
+	OutputOwners []byte   `json:"output_owners"`
+}

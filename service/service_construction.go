@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ava-labs/avalanche-rosetta/service/chain"
 	"math/big"
+
+	"github.com/ava-labs/avalanche-rosetta/service/chain"
 
 	ethtypes "github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/interfaces"
@@ -61,7 +62,7 @@ func (s ConstructionService) ConstructionMetadata(
 	}
 
 	var input options
-	if err := unmarshalJSONMap(req.Options, &input); err != nil {
+	if err := mapper.UnmarshalJSONMap(req.Options, &input); err != nil {
 		return nil, WrapError(ErrInvalidInput, err)
 	}
 
@@ -122,7 +123,7 @@ func (s ConstructionService) ConstructionMetadata(
 		GasLimit: gasLimit,
 	}
 
-	metadataMap, err := marshalJSONMap(metadata)
+	metadataMap, err := mapper.MarshalJSONMap(metadata)
 	if err != nil {
 		return nil, WrapError(ErrInternalError, err)
 	}
@@ -374,7 +375,7 @@ func (s ConstructionService) ConstructionParse(
 		GasLimit: tx.GasLimit,
 		ChainID:  tx.ChainID,
 	}
-	metaMap, err := marshalJSONMap(metadata)
+	metaMap, err := mapper.MarshalJSONMap(metadata)
 	if err != nil {
 		return nil, WrapError(ErrInternalError, err)
 	}
@@ -434,7 +435,7 @@ func (s ConstructionService) ConstructionPayloads(
 	}
 
 	var metadata metadata
-	if err := unmarshalJSONMap(req.Metadata, &metadata); err != nil {
+	if err := mapper.UnmarshalJSONMap(req.Metadata, &metadata); err != nil {
 		return nil, WrapError(ErrInvalidInput, err)
 	}
 
@@ -598,7 +599,7 @@ func (s ConstructionService) ConstructionPreprocess(
 		preprocessOptions.Nonce = bigObj
 	}
 
-	marshaled, err := marshalJSONMap(preprocessOptions)
+	marshaled, err := mapper.MarshalJSONMap(preprocessOptions)
 	if err != nil {
 		return nil, WrapError(ErrInternalError, err)
 	}

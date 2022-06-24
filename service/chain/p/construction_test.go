@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
 
@@ -13,7 +14,7 @@ import (
 )
 
 func TestConstructionDerive(t *testing.T) {
-	service := NewBackend(&mocks.PChainClient{}, nil)
+	service := NewBackend(&mocks.PChainClient{}, ids.Empty, nil)
 
 	t.Run("p-chain address", func(t *testing.T) {
 		src := "02e0d4392cfa224d4be19db416b3cf62e90fb2b7015e7b62a95c8cb490514943f6"
@@ -44,7 +45,7 @@ func TestConstructionDerive(t *testing.T) {
 }
 
 func TestConstructionHash(t *testing.T) {
-	service := NewBackend(&mocks.PChainClient{}, nil)
+	service := NewBackend(&mocks.PChainClient{}, ids.Empty, nil)
 
 	t.Run("P-chain valid transaction", func(t *testing.T) {
 		signed := "0x00000000000e000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8724b400000000000000000000000100000001790b9fc4f62b8eb2d2cf0177bda1ecc882a2d19e000000018be2098b614618321c855b6c7ca1cce33006902727d2a05f3ae7d5b18c14e24f000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000007721eeb4000000010000000000000000d325c150d0fec89b706ab5fd75ae7506a9912a9e00000000629a465500000000629b97d5000000003b9aca00000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b9aca0000000000000000000000000100000001790b9fc4f62b8eb2d2cf0177bda1ecc882a2d19e0000000b00000000000000000000000100000001e35e8550c1f09e1d3f6b97292eed8a1a76dcdd8a000000010000000900000001ebd189ad5e808ac24b69d8548980759067ce3b8b8caf9ece3ce3d032c5ec433d59e3767ffbbb2f9940894dd2eb96e6f93942b5535137a46097d124571b8dcf5700f323bc66"
@@ -64,4 +65,47 @@ func TestConstructionHash(t *testing.T) {
 			resp.TransactionIdentifier.Hash,
 		)
 	})
+}
+
+func TestDecodeUTXOID(t *testing.T) {
+	testCases := map[string]struct {
+		id        string
+		errMsg    string
+		expectErr bool
+	}{
+		"empty string": {
+			id:        "",
+			expectErr: true,
+			errMsg:    "invalid utxo ID format",
+		},
+		"invalid id without index": {
+			id:        "2KWdUnE6Qp4CbSj3Bb5ZVcLqdCYECy4AJuWUxFBG8ACxMBKtCx",
+			expectErr: true,
+			errMsg:    "invalid utxo ID format",
+		},
+		"invalid id without invalid index": {
+			id:        "2KWdUnE6Qp4CbSj3Bb5ZVcLqdCYECy4AJuWUxFBG8ACxMBKtCx:a",
+			expectErr: true,
+			errMsg:    "invalid syntax",
+		},
+		"valid id": {
+			id:        "2KWdUnE6Qp4CbSj3Bb5ZVcLqdCYECy4AJuWUxFBG8ACxMBKtCx:1",
+			expectErr: false,
+		},
+	}
+
+	for name, tc := range testCases {
+		tc := tc
+
+		t.Run(name, func(t *testing.T) {
+			utxoID, err := decodeUTXOID(tc.id)
+			if tc.expectErr {
+				assert.NotNil(t, err)
+				assert.Contains(t, err.Error(), tc.errMsg)
+			} else {
+				assert.NotNil(t, utxoID)
+				assert.Nil(t, err)
+			}
+		})
+	}
 }
