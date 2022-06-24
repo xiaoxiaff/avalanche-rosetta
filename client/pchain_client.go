@@ -9,8 +9,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/rpc"
 	"github.com/ava-labs/avalanchego/vms/avm"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
-
-	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
 // Interface compliance
@@ -58,7 +56,7 @@ func NewPChainClient(ctx context.Context, endpoint string) PChainClient {
 	return pchainClient{
 		platformvmClient: platformvm.NewClient(endpoint),
 		indexerClient:    indexer.NewClient(endpoint),
-		xChainClient:     avm.NewClient(endpoint, mapper.XChainIDAlias),
+		xChainClient:     avm.NewClient(endpoint, "X"),
 	}
 }
 

@@ -88,7 +88,7 @@ func baseTxToOperations(tx *platformvm.BaseTx, txType string) ([]*types.Operatio
 		return nil, err
 	}
 
-	outs, err := outToOperation(tx.Outs, int64(len(ins)), txType, OpOutput)
+	outs, err := outToOperation(tx.Outs, len(ins), txType, OpOutput)
 	if err != nil {
 		return nil, err
 	}

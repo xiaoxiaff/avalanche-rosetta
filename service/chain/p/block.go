@@ -12,30 +12,24 @@ import (
 )
 
 // Block implements the /block endpoint
-func (s *Backend) Block(
-	ctx context.Context,
-	request *types.BlockRequest,
-) (*types.BlockResponse, *types.Error) {
+func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*types.BlockResponse, *types.Error) {
 
 	id, err := ids.FromString(*request.BlockIdentifier.Hash)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
 
-	txBytes, err := s.pClient.GetBlock(ctx, id)
+	txBytes, err := b.pClient.GetBlock(ctx, id)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
 
-	pTx := platformvm.Tx{}
-	if _, err := platformvm.Codec.Unmarshal(txBytes, &pTx); err != nil {
+	var block platformvm.Block
+	if _, err := platformvm.Codec.Unmarshal(txBytes, &block); err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
 
-	// pTx.UnsignedTx.InitCtx(rc.SnowContext)
-	tx := pTx.UnsignedTx
-
-	t, err := mapper.Transaction(tx)
+	t, err := mapper.Transaction(block)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
@@ -43,7 +37,7 @@ func (s *Backend) Block(
 		Block: &types.Block{
 			BlockIdentifier: &types.BlockIdentifier{
 				Index: 0,
-				Hash:  pTx.ID().String(),
+				Hash:  block.ID().String(),
 			},
 			Timestamp:    0,
 			Transactions: []*types.Transaction{t},
@@ -55,10 +49,6 @@ func (s *Backend) Block(
 }
 
 // BlockTransaction implements the /block/transaction endpoint.
-func (s *Backend) BlockTransaction(
-	ctx context.Context,
-	request *types.BlockTransactionRequest,
-) (*types.BlockTransactionResponse, *types.Error) {
-
+func (b *Backend) BlockTransaction(ctx context.Context, request *types.BlockTransactionRequest) (*types.BlockTransactionResponse, *types.Error) {
 	return nil, nil
 }

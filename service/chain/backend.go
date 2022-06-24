@@ -25,10 +25,14 @@ type NetworkBackend interface {
 	NetworkOptions(ctx context.Context, request *types.NetworkRequest) (*types.NetworkOptionsResponse, *types.Error)
 }
 
+// Chain specific /block/ implementations
+type BlockBackend interface {
+	Block(ctx context.Context, request *types.BlockRequest) (*types.BlockResponse, *types.Error)
+	BlockTransaction(ctx context.Context, request *types.BlockTransactionRequest) (*types.BlockTransactionResponse, *types.Error)
+}
+
 // Chain specific /account/ implementations
 type AccountBackend interface {
 	AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error)
-	Block(ctx context.Context, request *types.BlockRequest) (*types.BlockResponse, *types.Error)
-	BlockTransaction(ctx context.Context, request *types.BlockTransactionRequest) (*types.BlockTransactionResponse, *types.Error)
 	AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error)
 }
