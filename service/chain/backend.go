@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+
 	"github.com/coinbase/rosetta-sdk-go/types"
 )
 
@@ -27,5 +28,7 @@ type NetworkBackend interface {
 // Chain specific /account/ implementations
 type AccountBackend interface {
 	AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error)
+	Block(ctx context.Context, request *types.BlockRequest) (*types.BlockResponse, *types.Error)
+	BlockTransaction(ctx context.Context, request *types.BlockTransactionRequest) (*types.BlockTransactionResponse, *types.Error)
 	AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error)
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"flag"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/p"
 	"io/ioutil"
 	"log"
 	"math/big"
@@ -17,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanche-rosetta/service/chain/p"
 )
 
 var (
@@ -180,7 +180,7 @@ func configureRouter(
 	pChainBackend *p.Backend,
 ) http.Handler {
 	networkService := service.NewNetworkService(serviceConfig, apiClient, pChainBackend)
-	blockService := service.NewBlockService(serviceConfig, apiClient)
+	blockService := service.NewBlockService(serviceConfig, apiClient, pChainBackend)
 	accountService := service.NewAccountService(serviceConfig, apiClient, pChainBackend)
 	mempoolService := service.NewMempoolService(serviceConfig, apiClient)
 	constructionService := service.NewConstructionService(serviceConfig, apiClient, pChainBackend)

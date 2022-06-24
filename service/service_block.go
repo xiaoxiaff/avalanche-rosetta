@@ -14,6 +14,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	"github.com/ava-labs/avalanche-rosetta/service/chain"
 )
 
 // BlockService implements the /block/* endpoints
@@ -21,15 +22,17 @@ type BlockService struct {
 	config *Config
 	client client.Client
 
-	genesisBlock *types.Block
+	genesisBlock  *types.Block
+	pChainBackend chain.BlockBackend
 }
 
 // NewBlockService returns a new block servicer
-func NewBlockService(config *Config, c client.Client) server.BlockAPIServicer {
+func NewBlockService(config *Config, c client.Client, pChainBackend chain.BlockBackend) server.BlockAPIServicer {
 	return &BlockService{
-		config:       config,
-		client:       c,
-		genesisBlock: makeGenesisBlock(config.GenesisBlockHash),
+		config:        config,
+		client:        c,
+		genesisBlock:  makeGenesisBlock(config.GenesisBlockHash),
+		pChainBackend: pChainBackend,
 	}
 }
 
@@ -53,6 +56,10 @@ func (s *BlockService) Block(
 		return &types.BlockResponse{
 			Block: s.genesisBlock,
 		}, nil
+	}
+
+	if mapper.IsPChain(request.NetworkIdentifier) {
+		return s.pChainBackend.Block(ctx, request)
 	}
 
 	var (
