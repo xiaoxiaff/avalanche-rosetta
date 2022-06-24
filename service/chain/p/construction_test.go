@@ -1,14 +1,15 @@
 package p
 
 import (
+	"context"
 	"encoding/hex"
-	"github.com/ava-labs/avalanche-rosetta/mapper"
-	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
-	"github.com/coinbase/rosetta-sdk-go/types"
-	"github.com/stretchr/testify/assert"
 	"testing"
 
-	"context"
+	"github.com/coinbase/rosetta-sdk-go/types"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
 )
 
 func TestConstructionDerive(t *testing.T) {
@@ -43,7 +44,7 @@ func TestConstructionDerive(t *testing.T) {
 }
 
 func TestConstructionHash(t *testing.T) {
-	service := NewBackend(&mocks.PChainClient{})
+	service := NewBackend(&mocks.PChainClient{}, nil)
 
 	t.Run("P-chain valid transaction", func(t *testing.T) {
 		signed := "0x00000000000e000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8724b400000000000000000000000100000001790b9fc4f62b8eb2d2cf0177bda1ecc882a2d19e000000018be2098b614618321c855b6c7ca1cce33006902727d2a05f3ae7d5b18c14e24f000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000007721eeb4000000010000000000000000d325c150d0fec89b706ab5fd75ae7506a9912a9e00000000629a465500000000629b97d5000000003b9aca00000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b9aca0000000000000000000000000100000001790b9fc4f62b8eb2d2cf0177bda1ecc882a2d19e0000000b00000000000000000000000100000001e35e8550c1f09e1d3f6b97292eed8a1a76dcdd8a000000010000000900000001ebd189ad5e808ac24b69d8548980759067ce3b8b8caf9ece3ce3d032c5ec433d59e3767ffbbb2f9940894dd2eb96e6f93942b5535137a46097d124571b8dcf5700f323bc66"

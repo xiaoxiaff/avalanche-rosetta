@@ -25,7 +25,7 @@ func TestMapAddValidatorTx(t *testing.T) {
 	rosettaTransaction, err := Transaction(addvalidatorTx)
 	assert.Nil(t, err)
 
-	assert.Equal(t, 9, len(rosettaTransaction.Operations))
+	assert.Equal(t, 17, len(rosettaTransaction.Operations))
 
 	// TODO: Add TxIns and TxOuts validation
 	// addValTxIns := addvalidatorTx.Ins[0].In.(*secp256k1fx.TransferInput)
