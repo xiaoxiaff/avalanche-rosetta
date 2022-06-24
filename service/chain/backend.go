@@ -36,3 +36,8 @@ type AccountBackend interface {
 	AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error)
 	AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error)
 }
+
+// Chain specific /block/ implementations
+type BlockBackend interface {
+	Block(ctx context.Context, request *types.BlockRequest) (*types.BlockResponse, *types.Error)
+}
