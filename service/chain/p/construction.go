@@ -546,11 +546,16 @@ func (c *Backend) buildInputs(
 			return nil, nil, nil, fmt.Errorf("parse input operation Metadata failed: %w", err)
 		}
 
+		val, err := types.AmountValue(op.Amount)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("parse operation amount failed: %w", err)
+		}
+
 		in := &avax.TransferableInput{
 			UTXOID: *UTXOID,
 			Asset:  avax.Asset{ID: c.assetID},
 			In: &secp256k1fx.TransferInput{
-				Amt: uint64(op.Amount.Currency.Decimals),
+				Amt: val.Uint64(),
 				Input: secp256k1fx.Input{
 					SigIndices: opMetadata.SigIndices,
 				},
@@ -591,10 +596,15 @@ func (c *Backend) buildOutputs(
 			return nil, nil, err
 		}
 
+		val, err := types.AmountValue(op.Amount)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse operation amount failed: %w", err)
+		}
+
 		out := &avax.TransferableOutput{
 			Asset: avax.Asset{ID: c.assetID},
 			Out: &secp256k1fx.TransferOutput{
-				Amt:          uint64(op.Amount.Currency.Decimals),
+				Amt:          val.Uint64(),
 				OutputOwners: outputOwners,
 			}}
 
