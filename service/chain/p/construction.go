@@ -684,7 +684,8 @@ func (c *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
-	signedTx, err := formatting.EncodeWithChecksum(formatting.Hex, signedBytes)	if err != nil {
+	signedTx, err := formatting.EncodeWithChecksum(formatting.Hex, signedBytes)
+	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
