@@ -3,6 +3,7 @@ package p
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -13,10 +14,12 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/service"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
@@ -542,11 +545,16 @@ func (c *Backend) buildInputs(
 			return nil, nil, nil, fmt.Errorf("parse input operation Metadata failed: %w", err)
 		}
 
+		val, err := types.AmountValue(op.Amount)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("parse operation amount failed: %w", err)
+		}
+
 		in := &avax.TransferableInput{
 			UTXOID: *UTXOID,
 			Asset:  avax.Asset{ID: c.assetID},
 			In: &secp256k1fx.TransferInput{
-				Amt: uint64(op.Amount.Currency.Decimals),
+				Amt: val.Uint64(),
 				Input: secp256k1fx.Input{
 					SigIndices: opMetadata.SigIndices,
 				},
@@ -587,10 +595,15 @@ func (c *Backend) buildOutputs(
 			return nil, nil, err
 		}
 
+		val, err := types.AmountValue(op.Amount)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse operation amount failed: %w", err)
+		}
+
 		out := &avax.TransferableOutput{
 			Asset: avax.Asset{ID: c.assetID},
 			Out: &secp256k1fx.TransferOutput{
-				Amt:          uint64(op.Amount.Currency.Decimals),
+				Amt:          val.Uint64(),
 				OutputOwners: outputOwners,
 			}}
 
@@ -647,7 +660,98 @@ func (c *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 }
 
 func (c *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
-	return nil, service.ErrNotImplemented
+	tx := platformvm.Tx{}
+
+	_, err := c.codec.Unmarshal([]byte(req.UnsignedTransaction), &tx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	ins, err := getTxInputs(tx.UnsignedTx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	creds, err := getCredentialList(ins, req.Signatures)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	tx.Creds = creds
+
+	signedBytes, err := platformvm.Codec.Marshal(platformvm.CodecVersion, tx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	signedTx, err := formatting.EncodeWithChecksum(formatting.Hex, signedBytes)	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	return &types.ConstructionCombineResponse{
+		SignedTransaction: signedTx,
+	}, nil
+}
+
+// getTxInputs fetches tx inputs based on the tx type.
+func getTxInputs(
+	unsignedTx platformvm.UnsignedTx,
+) ([]*avax.TransferableInput, error) {
+	switch utx := unsignedTx.(type) {
+	case *platformvm.UnsignedAddValidatorTx:
+		return utx.Ins, nil
+	case *platformvm.UnsignedAddSubnetValidatorTx:
+		return utx.Ins, nil
+	case *platformvm.UnsignedAddDelegatorTx:
+		return utx.Ins, nil
+	case *platformvm.UnsignedCreateChainTx:
+		return utx.Ins, nil
+	case *platformvm.UnsignedCreateSubnetTx:
+		return utx.Ins, nil
+	case *platformvm.UnsignedImportTx:
+		return utx.ImportedInputs, nil
+	case *platformvm.UnsignedExportTx:
+		return utx.Ins, nil
+	default:
+		return nil, errors.New("unknown tx type")
+	}
+}
+
+// Based on tx inputs, we can determine the number of signatures
+// required by each input and put correct number of signatures to
+// construct the signed tx.
+// See https://github.com/ava-labs/avalanchego/blob/master/vms/platformvm/tx.go#L100
+// for more details.
+func getCredentialList(ins []*avax.TransferableInput, signatures []*types.Signature) ([]verify.Verifiable, error) {
+	creds := make([]verify.Verifiable, len(ins))
+	sigOffset := 0
+	for i, transferInput := range ins {
+		input, ok := transferInput.In.(*secp256k1fx.TransferInput)
+		if !ok {
+			return nil, errors.New("invalid input")
+		}
+		cred := &secp256k1fx.Credential{}
+		cred.Sigs = make([][crypto.SECP256K1RSigLen]byte, len(input.SigIndices))
+		for j := 0; j < len(input.SigIndices); j++ {
+			if sigOffset >= len(signatures) {
+				return nil, errors.New("insufficient signatures")
+			}
+
+			if len(signatures[sigOffset].Bytes) != crypto.SECP256K1RSigLen {
+				return nil, errors.New("invalid signature length")
+			}
+			copy(cred.Sigs[j][:], signatures[sigOffset].Bytes)
+			sigOffset++
+		}
+
+		creds[i] = cred
+	}
+
+	if sigOffset != len(signatures) {
+		return nil, errors.New("input signature length doesn't match credentials needed")
+	}
+
+	return creds, nil
 }
 
 func (c *Backend) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
