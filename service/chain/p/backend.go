@@ -16,7 +16,7 @@ type Backend struct {
 	chain.NetworkBackend
 
 	networkIdentifier *types.NetworkIdentifier
-	fac               crypto.FactorySECP256K1R
+	fac               *crypto.FactorySECP256K1R
 	pClient           client.PChainClient
 	getUTXOsPageSize  uint32
 	codec             codec.Manager
@@ -29,7 +29,7 @@ func NewBackend(
 	networkIdentifier *types.NetworkIdentifier,
 ) *Backend {
 	return &Backend{
-		fac:               crypto.FactorySECP256K1R{},
+		fac:               &crypto.FactorySECP256K1R{},
 		pClient:           pClient,
 		networkIdentifier: networkIdentifier,
 		getUTXOsPageSize:  1024,

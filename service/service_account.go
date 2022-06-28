@@ -20,17 +20,19 @@ import (
 
 // AccountService implements the /account/* endpoints
 type AccountService struct {
-	config        *Config
-	client        client.Client
-	pChainBackend chain.AccountBackend
+	config           *Config
+	client           client.Client
+	pChainBackend    chain.AccountBackend
+	cAtomicTxBackend chain.AccountBackend
 }
 
 // NewAccountService returns a new network servicer
-func NewAccountService(config *Config, client client.Client, pChainBackend chain.AccountBackend) server.AccountAPIServicer {
+func NewAccountService(config *Config, client client.Client, pChainBackend, cAtomicTxBackend chain.AccountBackend) server.AccountAPIServicer {
 	return &AccountService{
-		config:        config,
-		client:        client,
-		pChainBackend: pChainBackend,
+		config:           config,
+		client:           client,
+		pChainBackend:    pChainBackend,
+		cAtomicTxBackend: cAtomicTxBackend,
 	}
 }
 
@@ -49,6 +51,11 @@ func (s AccountService) AccountBalance(
 
 	if req.AccountIdentifier == nil {
 		return nil, WrapError(ErrInvalidInput, "account identifier is not provided")
+	}
+
+	// If the address is in Bech32 format, we check the atomic balance
+	if mapper.IsBech32(req.AccountIdentifier) {
+		return s.cAtomicTxBackend.AccountBalance(ctx, req)
 	}
 
 	header, terr := blockHeaderFromInput(ctx, s.client, req.BlockIdentifier)
@@ -135,6 +142,11 @@ func (s AccountService) AccountCoins(
 
 	if mapper.IsPChain(req.NetworkIdentifier) {
 		return s.pChainBackend.AccountCoins(ctx, req)
+	}
+
+	if mapper.IsCChainBech32(req.AccountIdentifier) {
+		// We return atomic tx UTXOs for C-chain Bech32 address
+		return s.cAtomicTxBackend.AccountCoins(ctx, req)
 	}
 
 	return nil, ErrNotImplemented

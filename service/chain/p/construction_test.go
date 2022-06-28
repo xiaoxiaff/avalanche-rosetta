@@ -67,49 +67,6 @@ func TestConstructionHash(t *testing.T) {
 	})
 }
 
-func TestDecodeUTXOID(t *testing.T) {
-	testCases := map[string]struct {
-		id        string
-		errMsg    string
-		expectErr bool
-	}{
-		"empty string": {
-			id:        "",
-			expectErr: true,
-			errMsg:    "invalid utxo ID format",
-		},
-		"invalid id without index": {
-			id:        "2KWdUnE6Qp4CbSj3Bb5ZVcLqdCYECy4AJuWUxFBG8ACxMBKtCx",
-			expectErr: true,
-			errMsg:    "invalid utxo ID format",
-		},
-		"invalid id without invalid index": {
-			id:        "2KWdUnE6Qp4CbSj3Bb5ZVcLqdCYECy4AJuWUxFBG8ACxMBKtCx:a",
-			expectErr: true,
-			errMsg:    "invalid syntax",
-		},
-		"valid id": {
-			id:        "2KWdUnE6Qp4CbSj3Bb5ZVcLqdCYECy4AJuWUxFBG8ACxMBKtCx:1",
-			expectErr: false,
-		},
-	}
-
-	for name, tc := range testCases {
-		tc := tc
-
-		t.Run(name, func(t *testing.T) {
-			utxoID, err := decodeUTXOID(tc.id)
-			if tc.expectErr {
-				assert.NotNil(t, err)
-				assert.Contains(t, err.Error(), tc.errMsg)
-			} else {
-				assert.NotNil(t, utxoID)
-				assert.Nil(t, err)
-			}
-		})
-	}
-}
-
 // https://explorer-xp.avax-test.network/tx/2boVqhWaZ7M1YmnCe6JscWJESK1LVpcGq5quGpoX4HtLdr1RHN
 func TestConstructionCombine(t *testing.T) {
 	service := NewBackend(&mocks.PChainClient{}, ids.Empty, nil)

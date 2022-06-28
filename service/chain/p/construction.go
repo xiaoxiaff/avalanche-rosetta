@@ -5,21 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
-	"strconv"
-	"strings"
-
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	p "github.com/ava-labs/avalanche-rosetta/mapper/p"
 	"github.com/ava-labs/avalanche-rosetta/service"
+	"math/big"
 
+	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/crypto"
-	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
@@ -33,32 +28,13 @@ func (c *Backend) ConstructionDerive(
 	ctx context.Context,
 	req *types.ConstructionDeriveRequest,
 ) (*types.ConstructionDeriveResponse, *types.Error) {
-	pub, err := c.fac.ToPublicKey(req.PublicKey.Bytes)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-
-	chainIDAlias, hrp, getErr := mapper.GetAliasAndHRP(req.NetworkIdentifier)
-	if getErr != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-
-	addr, err := address.Format(chainIDAlias, hrp, pub.Address().Bytes())
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-
-	return &types.ConstructionDeriveResponse{
-		AccountIdentifier: &types.AccountIdentifier{
-			Address: addr,
-		},
-	}, nil
+	return common.DeriveBech32Address(c.fac, mapper.PChainIDAlias, req)
 }
 func (c *Backend) ConstructionPreprocess(
 	ctx context.Context,
 	req *types.ConstructionPreprocessRequest,
 ) (*types.ConstructionPreprocessResponse, *types.Error) {
-	opType, err := parseOpType(req.Operations)
+	opType, err := common.ParseOpType(req.Operations)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -186,12 +162,12 @@ func (c *Backend) ConstructionPayloads(
 	ctx context.Context,
 	req *types.ConstructionPayloadsRequest,
 ) (*types.ConstructionPayloadsResponse, *types.Error) {
-	opType, err := parseOpType(req.Operations)
+	opType, err := common.ParseOpType(req.Operations)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	matches, err := parser.MatchOperations(createOperationDescription(opType), req.Operations)
+	matches, err := common.MatchOperations(req.Operations)
 	if err != nil {
 		return nil, service.WrapError(service.ErrBlockInvalidInput, err)
 	}
@@ -227,52 +203,6 @@ func (c *Backend) ConstructionPayloads(
 		UnsignedTransaction: string(unsignedTxJSON),
 		Payloads:            payloads,
 	}, nil
-}
-
-func parseOpType(operations []*types.Operation) (string, error) {
-	if len(operations) == 0 {
-		return "", fmt.Errorf("operation is empty")
-	}
-
-	opType := operations[0].Type
-	for _, op := range operations {
-		if op.Type != opType {
-			return "", fmt.Errorf("multiple operation types found")
-		}
-	}
-
-	return opType, nil
-}
-
-func createOperationDescription(txType string) *parser.Descriptions {
-	return &parser.Descriptions{
-		OperationDescriptions: []*parser.OperationDescription{
-			{
-				Type: txType,
-				Account: &parser.AccountDescription{
-					Exists: true,
-				},
-				Amount: &parser.AmountDescription{
-					Exists: true,
-					Sign:   parser.NegativeAmountSign,
-				},
-				AllowRepeats: true,
-				CoinAction:   types.CoinSpent,
-			},
-			{
-				Type: txType,
-				Account: &parser.AccountDescription{
-					Exists: true,
-				},
-				Amount: &parser.AmountDescription{
-					Exists: true,
-					Sign:   parser.PositiveAmountSign,
-				},
-				AllowRepeats: true,
-			},
-		},
-		ErrUnmatched: true,
-	}
 }
 
 func (c *Backend) buildTransaction(
@@ -528,7 +458,7 @@ func (c *Backend) buildInputs(
 	err error,
 ) {
 	for _, op := range operations {
-		UTXOID, err := decodeUTXOID(op.CoinChange.CoinIdentifier.Identifier)
+		UTXOID, err := common.DecodeUTXOID(op.CoinChange.CoinIdentifier.Identifier)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to decode UTXO ID: %w", err)
 		}
@@ -633,28 +563,6 @@ func parseOpMetadata(metadata map[string]interface{}) (*p.OperationMetadata, err
 	return &operationMetadata, nil
 }
 
-func decodeUTXOID(s string) (*avax.UTXOID, error) {
-	split := strings.Split(s, ":")
-	if len(split) != 2 {
-		return nil, fmt.Errorf("invalid utxo ID format")
-	}
-
-	txID, err := ids.FromString(split[0])
-	if err != nil {
-		return nil, fmt.Errorf("invalid tx ID: %w", err)
-	}
-
-	outputIdx, err := strconv.ParseUint(split[1], 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid output index: %w", err)
-	}
-
-	return &avax.UTXOID{
-		TxID:        txID,
-		OutputIndex: uint32(outputIdx),
-	}, nil
-}
-
 func (c *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
 	return nil, service.ErrNotImplemented
 }
@@ -672,7 +580,7 @@ func (c *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	creds, err := getCredentialList(ins, req.Signatures)
+	creds, err := common.BuildCredentialList(ins, req.Signatures)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -684,7 +592,7 @@ func (c *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
-	signedTx, err := formatting.EncodeWithChecksum(formatting.Hex, signedBytes)
+	signedTx, err := common.EncodeBytes(signedBytes)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
@@ -718,76 +626,15 @@ func getTxInputs(
 	}
 }
 
-// Based on tx inputs, we can determine the number of signatures
-// required by each input and put correct number of signatures to
-// construct the signed tx.
-// See https://github.com/ava-labs/avalanchego/blob/master/vms/platformvm/tx.go#L100
-// for more details.
-func getCredentialList(ins []*avax.TransferableInput, signatures []*types.Signature) ([]verify.Verifiable, error) {
-	creds := make([]verify.Verifiable, len(ins))
-	sigOffset := 0
-	for i, transferInput := range ins {
-		input, ok := transferInput.In.(*secp256k1fx.TransferInput)
-		if !ok {
-			return nil, errors.New("invalid input")
-		}
-		cred := &secp256k1fx.Credential{}
-		cred.Sigs = make([][crypto.SECP256K1RSigLen]byte, len(input.SigIndices))
-		for j := 0; j < len(input.SigIndices); j++ {
-			if sigOffset >= len(signatures) {
-				return nil, errors.New("insufficient signatures")
-			}
-
-			if len(signatures[sigOffset].Bytes) != crypto.SECP256K1RSigLen {
-				return nil, errors.New("invalid signature length")
-			}
-			copy(cred.Sigs[j][:], signatures[sigOffset].Bytes)
-			sigOffset++
-		}
-
-		creds[i] = cred
-	}
-
-	if sigOffset != len(signatures) {
-		return nil, errors.New("input signature length doesn't match credentials needed")
-	}
-
-	return creds, nil
-}
-
 func (c *Backend) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	txHex := req.SignedTransaction
-	txByte, err := formatting.Decode(formatting.Hex, txHex)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-	txHash256 := hashing.ComputeHash256(txByte)
-	pHash, err := formatting.EncodeWithChecksum(formatting.CB58, txHash256)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-	return &types.TransactionIdentifierResponse{
-		TransactionIdentifier: &types.TransactionIdentifier{
-			Hash: pHash,
-		},
-	}, nil
+	return common.HashTx(req)
 }
 
 func (c *Backend) ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	txHex := req.SignedTransaction
-	txByte, err := formatting.Decode(formatting.Hex, txHex)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
+	return common.SubmitTx(c, ctx, req)
+}
 
-	txID, err := c.pClient.IssueTx(ctx, txByte)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-
-	return &types.TransactionIdentifierResponse{
-		TransactionIdentifier: &types.TransactionIdentifier{
-			Hash: txID.String(),
-		},
-	}, nil
+// Defining IssueTx here without rpc.Options... to be able to use it with common.SubmitTx
+func (c *Backend) IssueTx(ctx context.Context, txByte []byte) (ids.ID, error) {
+	return c.pClient.IssueTx(ctx, txByte)
 }

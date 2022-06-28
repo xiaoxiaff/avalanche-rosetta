@@ -32,17 +32,24 @@ const (
 
 // ConstructionService implements /construction/* endpoints
 type ConstructionService struct {
-	config        *Config
-	client        client.Client
-	pChainBackend chain.ConstructionBackend
+	config           *Config
+	client           client.Client
+	pChainBackend    chain.ConstructionBackend
+	cAtomicTxBackend chain.ConstructionBackend
 }
 
-// NewConstructionService returns a new construction servicer
-func NewConstructionService(config *Config, client client.Client, pChainBackend chain.ConstructionBackend) server.ConstructionAPIServicer {
+// NewConstructionService returns a new construction service
+func NewConstructionService(
+	config *Config,
+	client client.Client,
+	pChainBackend chain.ConstructionBackend,
+	cAtomicTxBackend chain.ConstructionBackend,
+) server.ConstructionAPIServicer {
 	return &ConstructionService{
-		config:        config,
-		client:        client,
-		pChainBackend: pChainBackend,
+		config:           config,
+		client:           client,
+		pChainBackend:    pChainBackend,
+		cAtomicTxBackend: cAtomicTxBackend,
 	}
 }
 
@@ -59,6 +66,10 @@ func (s ConstructionService) ConstructionMetadata(
 ) (*types.ConstructionMetadataResponse, *types.Error) {
 	if s.config.IsOfflineMode() {
 		return nil, ErrUnavailableOffline
+	}
+
+	if req.Options["atomic_tx_gas"] != nil {
+		return s.cAtomicTxBackend.ConstructionMetadata(ctx, req)
 	}
 
 	var input options
@@ -153,6 +164,10 @@ func (s ConstructionService) ConstructionHash(
 		return s.pChainBackend.ConstructionHash(ctx, req)
 	}
 
+	if isCChainAtomicTx(req.SignedTransaction) {
+		return s.cAtomicTxBackend.ConstructionHash(ctx, req)
+	}
+
 	var wrappedTx signedTransactionWrapper
 	if err := json.Unmarshal([]byte(req.SignedTransaction), &wrappedTx); err != nil {
 		return nil, WrapError(ErrInvalidInput, err)
@@ -189,6 +204,10 @@ func (s ConstructionService) ConstructionCombine(
 
 	if mapper.IsPChain(req.NetworkIdentifier) {
 		return s.pChainBackend.ConstructionCombine(ctx, req)
+	}
+
+	if isCChainAtomicTx(req.UnsignedTransaction) {
+		return s.cAtomicTxBackend.ConstructionCombine(ctx, req)
 	}
 
 	var unsignedTx transaction
@@ -245,6 +264,10 @@ func (s ConstructionService) ConstructionDerive(
 		return s.pChainBackend.ConstructionDerive(ctx, req)
 	}
 
+	if req.Metadata["address_format"] == mapper.AddressFormatBech32 {
+		return s.cAtomicTxBackend.ConstructionDerive(ctx, req)
+	}
+
 	key, err := ethcrypto.DecompressPubkey(req.PublicKey.Bytes)
 	if err != nil {
 		return nil, WrapError(ErrInvalidInput, err)
@@ -267,12 +290,15 @@ func (s ConstructionService) ConstructionParse(
 	ctx context.Context,
 	req *types.ConstructionParseRequest,
 ) (*types.ConstructionParseResponse, *types.Error) {
-	var tx transaction
-
 	if mapper.IsPChain(req.NetworkIdentifier) {
 		return s.pChainBackend.ConstructionParse(ctx, req)
 	}
 
+	if isCChainAtomicTx(req.Transaction) {
+		return s.cAtomicTxBackend.ConstructionParse(ctx, req)
+	}
+
+	var tx transaction
 	if !req.Signed {
 		if err := json.Unmarshal([]byte(req.Transaction), &tx); err != nil {
 			return nil, WrapError(ErrInvalidInput, err)
@@ -419,6 +445,10 @@ func (s ConstructionService) ConstructionPayloads(
 		return s.pChainBackend.ConstructionPayloads(ctx, req)
 	}
 
+	if mapper.AtomicType(req.Operations[0].Type) {
+		return s.cAtomicTxBackend.ConstructionPayloads(ctx, req)
+	}
+
 	operationDescriptions, err := s.CreateOperationDescription(req.Operations)
 	if err != nil {
 		return nil, WrapError(ErrInvalidInput, err)
@@ -526,6 +556,11 @@ func (s ConstructionService) ConstructionPreprocess(
 	if mapper.IsPChain(req.NetworkIdentifier) {
 		return s.pChainBackend.ConstructionPreprocess(ctx, req)
 	}
+
+	if mapper.AtomicType(req.Operations[0].Type) {
+		return s.cAtomicTxBackend.ConstructionPreprocess(ctx, req)
+	}
+
 	operationDescriptions, err := s.CreateOperationDescription(req.Operations)
 	if err != nil {
 		return nil, WrapError(ErrInvalidInput, err)
@@ -627,6 +662,10 @@ func (s ConstructionService) ConstructionSubmit(
 
 	if mapper.IsPChain(req.NetworkIdentifier) {
 		return s.pChainBackend.ConstructionSubmit(ctx, req)
+	}
+
+	if isCChainAtomicTx(req.SignedTransaction) {
+		return s.cAtomicTxBackend.ConstructionSubmit(ctx, req)
 	}
 
 	var wrappedTx signedTransactionWrapper

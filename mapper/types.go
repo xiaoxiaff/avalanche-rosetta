@@ -20,7 +20,13 @@ const (
 
 	PChainNetworkIdentifier = "P"
 	PChainIDAlias           = "P"
-	XChainIDAlias           = "X"
+
+	XChainIDAlias = "X"
+
+	CChainNetworkIdentifier = "C"
+	CChainIDAlias           = "C"
+
+	AddressFormatBech32 = "bech32"
 
 	OpCall          = "CALL"
 	OpFee           = "FEE"
@@ -140,6 +146,21 @@ func CreateType(t string) bool {
 
 	for _, createType := range createTypes {
 		if createType == t {
+			return true
+		}
+	}
+
+	return false
+}
+
+func AtomicType(t string) bool {
+	atomicTypes := []string{
+		OpExport,
+		OpImport,
+	}
+
+	for _, atomicType := range atomicTypes {
+		if atomicType == t {
 			return true
 		}
 	}

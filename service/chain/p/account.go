@@ -3,7 +3,7 @@ package p
 import (
 	"context"
 	"errors"
-	"sort"
+	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
 	"strconv"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -108,7 +108,7 @@ func (c *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 	return &types.AccountCoinsResponse{
 		//TODO: return block identifier once AvalancheGo exposes an API for it
 		// BlockIdentifier: ...
-		Coins: sortUnique(coins),
+		Coins: common.SortUnique(coins),
 	}, nil
 }
 
@@ -157,28 +157,4 @@ func (c *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos [][]b
 		coins = append(coins, coin)
 	}
 	return coins, nil
-}
-
-// sortUnique de-duplicates given slice of coins and sorts them by UTXO id in ascending order for consistency
-//
-// Per https://docs.avax.network/apis/avalanchego/apis/p-chain#platformgetutxos, paginated getUTXOs calls may have
-// duplicate UTXOs in different pages, this helper eliminates them.
-func sortUnique(coins []*types.Coin) []*types.Coin {
-	coinsMap := make(map[string]*types.Coin)
-	for i, coin := range coins {
-		coinsMap[coin.CoinIdentifier.Identifier] = coins[i]
-	}
-
-	uniqueCoinIdentifiers := make([]string, 0, len(coinsMap))
-	for identifier := range coinsMap {
-		uniqueCoinIdentifiers = append(uniqueCoinIdentifiers, identifier)
-	}
-	sort.Strings(uniqueCoinIdentifiers)
-
-	uniqueCoins := make([]*types.Coin, 0, len(coinsMap))
-	for _, identifier := range uniqueCoinIdentifiers {
-		uniqueCoins = append(uniqueCoins, coinsMap[identifier])
-	}
-
-	return uniqueCoins
 }

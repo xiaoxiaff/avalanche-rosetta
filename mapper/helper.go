@@ -30,24 +30,30 @@ func IsPChain(networkIdentifier *types.NetworkIdentifier) bool {
 	return false
 }
 
-// GetAliasAndHRP fetches chain id alias and hrp for address formatting.
-// Right now only P chain id alias is supported
-func GetAliasAndHRP(networkIdentifier *types.NetworkIdentifier) (string, string, error) {
-	var chainIDAlias, hrp string
-	if !IsPChain(networkIdentifier) {
-		return "", "", errors.New("only support P chain alias")
+// IsCChain checks network identifier to make sure sub-network is not specified or identifier set to "C"
+func IsCChain(networkIdentifier *types.NetworkIdentifier) bool {
+	if networkIdentifier != nil &&
+		(networkIdentifier.SubNetworkIdentifier == nil ||
+			networkIdentifier.SubNetworkIdentifier.Network == CChainNetworkIdentifier) {
+		return true
 	}
-	chainIDAlias = PChainIDAlias
+
+	return false
+}
+
+// GetHRP fetches hrp for address formatting.
+func GetHRP(networkIdentifier *types.NetworkIdentifier) (string, error) {
+	var hrp string
 	switch networkIdentifier.Network {
 	case FujiNetwork:
 		hrp = constants.GetHRP(constants.FujiID)
 	case MainnetNetwork:
 		hrp = constants.GetHRP(constants.MainnetID)
 	default:
-		return "", "", errors.New("can't recognize network")
+		return "", errors.New("can't recognize network")
 	}
 
-	return chainIDAlias, hrp, nil
+	return hrp, nil
 }
 
 // UnmarshalJSONMap converts map[string]interface{} into a interface{}.

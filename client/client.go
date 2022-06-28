@@ -2,6 +2,9 @@ package client
 
 import (
 	"context"
+	"github.com/ava-labs/avalanchego/api"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/coreth/plugin/evm"
 	"math/big"
 	"strings"
 
@@ -36,10 +39,18 @@ type Client interface {
 	Peers(context.Context, ...rpc.Option) ([]info.Peer, error)
 	GetContractInfo(ethcommon.Address, bool) (string, uint8, error)
 	CallContract(context.Context, interfaces.CallMsg, *big.Int) ([]byte, error)
+	GetNetworkID(context.Context, ...rpc.Option) (uint32, error)
+	GetBlockchainID(context.Context, string, ...rpc.Option) (ids.ID, error)
+	IssueTx(ctx context.Context, txBytes []byte) (ids.ID, error)
+	GetAtomicUTXOs(ctx context.Context, addrs []string, sourceChain string, limit uint32, startAddress, startUTXOID string) ([][]byte, api.Index, error)
+	EstimateBaseFee(ctx context.Context) (*big.Int, error)
 }
+
+type EvmClient evm.Client
 
 type client struct {
 	info.Client
+	EvmClient
 	*EthClient
 	*ContractClient
 }
@@ -55,6 +66,7 @@ func NewClient(ctx context.Context, endpoint string) (Client, error) {
 
 	return client{
 		Client:         info.NewClient(endpoint),
+		EvmClient:      evm.NewClient(endpoint, "C"),
 		EthClient:      eth,
 		ContractClient: NewContractClient(eth.Client),
 	}, nil

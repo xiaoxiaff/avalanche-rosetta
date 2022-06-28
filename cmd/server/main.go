@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"flag"
+
+	"github.com/ava-labs/avalanche-rosetta/service/chain/c"
+	"github.com/ava-labs/avalanche-rosetta/service/chain/p"
+	"github.com/ava-labs/avalanchego/ids"
 	"io/ioutil"
 	"log"
 	"math/big"
 	"net/http"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/coinbase/rosetta-sdk-go/asserter"
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -17,7 +20,6 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/p"
 )
 
 var (
@@ -151,15 +153,18 @@ func main() {
 		TokenWhiteList:     cfg.TokenWhiteList,
 	}
 
-	pChainClient := client.NewPChainClient(context.Background(), cfg.RPCEndpoint)
-
 	avaxAssetID, err := ids.FromString(assetID)
 	if err != nil {
 		log.Fatal("parse asset id failed:", err)
 	}
+
+	pChainClient := client.NewPChainClient(context.Background(), cfg.RPCEndpoint)
+
 	pChainBackend := p.NewBackend(pChainClient, avaxAssetID, networkP)
 
-	handler := configureRouter(serviceConfig, asserter, apiClient, pChainBackend)
+	cAtomicTxBackend := c.NewAtomicTxBackend(apiClient, avaxAssetID)
+
+	handler := configureRouter(serviceConfig, asserter, apiClient, pChainBackend, cAtomicTxBackend)
 	if cfg.LogRequests {
 		handler = inspectMiddleware(handler)
 	}
@@ -184,12 +189,13 @@ func configureRouter(
 	asserter *asserter.Asserter,
 	apiClient client.Client,
 	pChainBackend *p.Backend,
+	cAtomicTxBackend *c.CChainAtomicTxBackend,
 ) http.Handler {
 	networkService := service.NewNetworkService(serviceConfig, apiClient, pChainBackend)
 	blockService := service.NewBlockService(serviceConfig, apiClient, pChainBackend)
-	accountService := service.NewAccountService(serviceConfig, apiClient, pChainBackend)
+	accountService := service.NewAccountService(serviceConfig, apiClient, pChainBackend, cAtomicTxBackend)
 	mempoolService := service.NewMempoolService(serviceConfig, apiClient)
-	constructionService := service.NewConstructionService(serviceConfig, apiClient, pChainBackend)
+	constructionService := service.NewConstructionService(serviceConfig, apiClient, pChainBackend, cAtomicTxBackend)
 	callService := service.NewCallService(serviceConfig, apiClient)
 
 	return server.NewRouter(
