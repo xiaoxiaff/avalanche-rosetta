@@ -2,7 +2,9 @@ package mapper
 
 import (
 	"errors"
-	"fmt"
+	"log"
+	"math/big"
+	"reflect"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting"
@@ -54,11 +56,8 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: int64(startIndex),
 			},
-			Account: &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
-			Amount: &types.Amount{
-				Value:    fmt.Sprint(out.Output().Amount()),
-				Currency: mapper.AvaxCurrency,
-			},
+			Account:  &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
+			Amount:   mapper.AvaxAmount(big.NewInt(int64(out.Out.Amount()))),
 			Metadata: opMetadata,
 		}
 		outs = append(outs, outOp)
@@ -89,11 +88,8 @@ func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType strin
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: int64(startIndex),
 			},
-			Type: string(opType),
-			Amount: &types.Amount{
-				Value:    fmt.Sprint(in.Input().Amount()),
-				Currency: mapper.AvaxCurrency,
-			},
+			Type:   string(opType),
+			Amount: mapper.AvaxAmount(big.NewInt(int64(in.In.Amount()))),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{
 					Identifier: in.AssetID().String(),
@@ -140,10 +136,17 @@ func Transaction(tx interface{}) (*types.Transaction, error) {
 		return nil, errors.New("tx unknown")
 	case *platformvm.UnsignedExportTx:
 		id = v.ID()
-		ops, err = outToOperation(v.Outs, 0, mapper.OpExport, OpOutput)
+		ops, err = baseTxToOperations(&v.BaseTx, mapper.OpExport)
 		if err != nil {
 			return nil, err
 		}
+
+		exportedOuts, err := outToOperation(v.ExportedOutputs, len(ops), mapper.OpExport, OpOutput)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, exportedOuts...)
+
 	case *platformvm.UnsignedImportTx:
 		id = v.ID()
 		ops, err = baseTxToOperations(&v.BaseTx, mapper.OpImport)
@@ -181,7 +184,7 @@ func Transaction(tx interface{}) (*types.Transaction, error) {
 			return nil, err
 		}
 
-		stakeOuts, err := outToOperation(v.Stake, len(ops), mapper.OpAddValidator, OpStakeOutput)
+		stakeOuts, err := outToOperation(v.Stake, len(ops), mapper.OpAddDelegator, OpStakeOutput)
 		if err != nil {
 			return nil, err
 		}
@@ -190,6 +193,7 @@ func Transaction(tx interface{}) (*types.Transaction, error) {
 	default:
 		// unknown transaction ignore operation.
 		ops = nil
+		log.Printf("unknown type %s \n", reflect.TypeOf(v))
 	}
 
 	blockIdHexWithChecksum, err := formatting.EncodeWithChecksum(formatting.Hex, []byte(id.String()))

@@ -134,6 +134,10 @@ func (s *BlockService) BlockTransaction(
 		return nil, WrapError(ErrInvalidInput, "block identifier is not provided")
 	}
 
+	if mapper.IsPChain(request.NetworkIdentifier) {
+		return s.pChainBackend.BlockTransaction(ctx, request)
+	}
+
 	header, err := s.client.HeaderByHash(ctx, ethcommon.HexToHash(request.BlockIdentifier.Hash))
 	if err != nil {
 		return nil, WrapError(ErrClientError, err)
