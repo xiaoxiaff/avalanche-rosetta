@@ -2,6 +2,7 @@ package mapper
 
 const (
 	OpImport      = "IMPORT"
+	OpExport      = "EXPORT"
 	OpInput       = "INPUT"
 	OpOutput      = "OUTPUT"
 	OpStakeOutput = "STAKE"
@@ -10,5 +11,5 @@ const (
 type OperationMetadata struct {
 	Type         string   `json:"type"`
 	SigIndices   []uint32 `json:"sig_indices"`
-	OutputOwners []byte   `json:"output_owners"`
+	OutputOwners string   `json:"output_owners"`
 }

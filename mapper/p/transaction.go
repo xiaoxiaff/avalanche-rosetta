@@ -35,7 +35,13 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 			if err != nil {
 				return nil, err
 			}
-			metadata.OutputOwners = outputOwnersBytes
+
+			outputOwnersHex, err := formatting.EncodeWithChecksum(formatting.Hex, outputOwnersBytes)
+			if err != nil {
+				return nil, err
+			}
+
+			metadata.OutputOwners = outputOwnersHex
 		}
 
 		opMetadata, err := mapper.MarshalJSONMap(metadata)

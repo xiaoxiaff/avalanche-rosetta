@@ -3,6 +3,7 @@ package p
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -145,6 +146,230 @@ func TestConstructionCombine(t *testing.T) {
 			t,
 			signedTx,
 			resp.SignedTransaction,
+		)
+	})
+}
+
+func TestConstructionTransaction(t *testing.T) {
+	var (
+		pc                      = &mocks.PChainClient{}
+		ctx                     = context.Background()
+		assetID, _              = ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
+		service                 = NewBackend(pc, assetID, nil)
+		networkID               = uint32(5)
+		pChainID                = ids.Empty
+		cChainID, _             = ids.FromString("yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp")
+		pChainNetworkIdentifier = &types.NetworkIdentifier{
+			Network:    "Fuji",
+			Blockchain: "Avalanche",
+			SubNetworkIdentifier: &types.SubNetworkIdentifier{
+				Network: mapper.PChainNetworkIdentifier,
+			},
+		}
+	)
+	pc.On("GetNetworkID", ctx).Return(networkID, nil)
+	pc.On("GetBlockchainID", ctx, mapper.PChainNetworkIdentifier).Return(pChainID, nil)
+	pc.On("GetBlockchainID", ctx, mapper.CChainNetworkIdentifier).Return(cChainID, nil)
+
+	t.Run("construct p-chain import tx", func(t *testing.T) {
+		intent := `[{"operation_identifier":{"index":0},"type":"IMPORT_AVAX","account":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"-1999712500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"z8aoQdHbAgaj4uWToafsuMZLvKzCt6bSsXbN2Qtyte6GyGbvt:0"},"coin_action":"coin_spent"},"metadata":{"type":"IMPORT","sig_indices":[0]}},{"operation_identifier":{"index":1},"type":"IMPORT_AVAX","account":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"-1973425000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"28hbawmoHaWkmAKjgueWF18LrptCCCfprxaZeCf9QuBTCcLWEd:0"},"coin_action":"coin_spent"},"metadata":{"type":"IMPORT","sig_indices":[0]}},{"operation_identifier":{"index":2},"type":"IMPORT_AVAX","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"3972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_created"},"metadata":{"type":"OUTPUT","output_owners":"0x000000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb818ac13004d"}}]`
+		var ops []*types.Operation
+		assert.NoError(t, json.Unmarshal([]byte(intent), &ops))
+
+		preprocessResp, err := service.ConstructionPreprocess(
+			ctx,
+			&types.ConstructionPreprocessRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        ops,
+				Metadata: map[string]interface{}{
+					"source_chain": mapper.CChainNetworkIdentifier,
+				},
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, preprocessResp)
+
+		assert.Equal(t, "IMPORT_AVAX", preprocessResp.Options["type"])
+
+		metadataResp, err := service.ConstructionMetadata(
+			ctx,
+			&types.ConstructionMetadataRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Options:           preprocessResp.Options,
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, metadataResp)
+
+		payloadResp, err := service.ConstructionPayloads(
+			ctx,
+			&types.ConstructionPayloadsRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        ops,
+				Metadata:          metadataResp.Metadata,
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, payloadResp)
+		assert.Equal(
+			t,
+			"000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000ecc2021c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d50000000281b8ea7b7282685c79494712a633f9862d342c8dcb0431f88550b39ce4c46a40000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000773130f40000000100000000952e0397dafcf7332370878c007ac07f3005b7faf6731d8523d6a124297dbc05000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000050000000075a01368000000010000000000000000",
+			hex.EncodeToString([]byte(payloadResp.UnsignedTransaction)),
+		)
+	})
+
+	t.Run("construct p-chain export tx", func(t *testing.T) {
+		intent := `[{"operation_identifier":{"index":0},"type":"EXPORT_AVAX","account":{"address":"P-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"-1998712500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"9EFAzbVcab16wRdf48pWXExqTwgPWfu36x3AoqJp2VD3ahrGU:0"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":1},"type":"EXPORT_AVAX","account":{"address":"P-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"-998712500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2boVqhWaZ7M1YmnCe6JscWJESK1LVpcGq5quGpoX4HtLdr1RHN:0"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":2},"type":"EXPORT_AVAX","account":{"address":"P-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"-1000000000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2boVqhWaZ7M1YmnCe6JscWJESK1LVpcGq5quGpoX4HtLdr1RHN:1"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":3},"type":"EXPORT_AVAX","account":{"address":"P-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"-391492","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2boVqhWaZ7M1YmnCe6JscWJESK1LVpcGq5quGpoX4HtLdr1RHN:2"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":4},"type":"EXPORT_AVAX","account":{"address":"C-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"996816492","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_created"},"metadata":{"type":"OUTPUT","output_owners":"0x00000000000000000000000000010000000181e083c4aa27cb046322be57633d54f5a3e0cdaf3c9becca"}},{"operation_identifier":{"index":5},"type":"EXPORT_AVAX","account":{"address":"C-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"3000000000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_created"},"metadata":{"type":"EXPORT","output_owners":"0x00000000000000000000000000010000000181e083c4aa27cb046322be57633d54f5a3e0cdaf3c9becca"}}]`
+
+		var ops []*types.Operation
+		assert.NoError(t, json.Unmarshal([]byte(intent), &ops))
+
+		preprocessResp, err := service.ConstructionPreprocess(
+			ctx,
+			&types.ConstructionPreprocessRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        ops,
+				Metadata: map[string]interface{}{
+					"destination_chain": mapper.CChainNetworkIdentifier,
+				},
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, preprocessResp)
+
+		assert.Equal(t, "EXPORT_AVAX", preprocessResp.Options["type"])
+
+		metadataResp, err := service.ConstructionMetadata(
+			ctx,
+			&types.ConstructionMetadataRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Options:           preprocessResp.Options,
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, metadataResp)
+
+		payloadResp, err := service.ConstructionPayloads(
+			ctx,
+			&types.ConstructionPayloadsRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        ops,
+				Metadata:          metadataResp.Metadata,
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, payloadResp)
+		assert.Equal(
+			t,
+			"000000000012000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b6a366c0000000000000000000000010000000181e083c4aa27cb046322be57633d54f5a3e0cdaf0000000412aef85d117564ab3410b1587a24afd497d93e7bf4e72dba094b7858f1b2ff67000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000007721eeb40000000100000000d2b7b1f46edf25528962c7d4115bb47972bccb674b51b16d3c058f5e7a0f938a000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b8724b40000000100000000d2b7b1f46edf25528962c7d4115bb47972bccb674b51b16d3c058f5e7a0f938a000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000d2b7b1f46edf25528962c7d4115bb47972bccb674b51b16d3c058f5e7a0f938a000000023d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000000005f9440000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000b2d05e000000000000000000000000010000000181e083c4aa27cb046322be57633d54f5a3e0cdaf00000000",
+			hex.EncodeToString([]byte(payloadResp.UnsignedTransaction)),
+		)
+	})
+
+	t.Run("construct p-chain add validator tx", func(t *testing.T) {
+		intent := `[{"operation_identifier":{"index":0},"type":"ADD_VALIDATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"-3972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2MmPTid7Errf6MdDqgUPxhuhtoc9yhkn5uC4vwsqRXCJhVYt1h:0"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":1},"type":"ADD_VALIDATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"2972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_create"},"metadata":{"type":"OUTPUT","output_owners":"0x000000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb818ac13004d"}},{"operation_identifier":{"index":2},"type":"ADD_VALIDATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"1000000000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_create"},"metadata":{"type":"STAKE","output_owners":"0x000000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb818ac13004d"}}]`
+		var ops []*types.Operation
+		assert.NoError(t, json.Unmarshal([]byte(intent), &ops))
+
+		preprocessResp, err := service.ConstructionPreprocess(
+			ctx,
+			&types.ConstructionPreprocessRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        ops,
+				Metadata: map[string]interface{}{
+					"node_id":          "NodeID-Bvsx89JttQqhqdgwtizAPoVSNW74Xcr2S",
+					"start":            1656460045,
+					"end":              1656589645,
+					"weight":           1000000000,
+					"shares":           1000000,
+					"locktime":         0,
+					"threshold":        1,
+					"reward_addresses": []string{"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},
+				},
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, preprocessResp)
+
+		assert.Equal(t, "ADD_VALIDATOR", preprocessResp.Options["type"])
+
+		metadataResp, err := service.ConstructionMetadata(
+			ctx,
+			&types.ConstructionMetadataRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Options:           preprocessResp.Options,
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, metadataResp)
+
+		payloadResp, err := service.ConstructionPayloads(
+			ctx,
+			&types.ConstructionPayloadsRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        ops,
+				Metadata:          metadataResp.Metadata,
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, payloadResp)
+		assert.Equal(
+			t,
+			"00000000000c000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000b127381c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000001b2d8a36998be5b19f468fbf573501cd0c93e9a7b5fb8edb2da54a473fa70ea64000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000ecc2021c00000001000000000000000077e1d5c6c289c49976f744749d54369d2129d7500000000062bb930d0000000062bd8d4d000000003b9aca00000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b9aca0000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb8180000000b00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb818000f424000000000",
+			hex.EncodeToString([]byte(payloadResp.UnsignedTransaction)),
+		)
+	})
+
+	t.Run("construct p-chain add delegator tx", func(t *testing.T) {
+		intent := `[{"operation_identifier":{"index":0},"type":"ADD_DELEGATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"-3972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2MmPTid7Errf6MdDqgUPxhuhtoc9yhkn5uC4vwsqRXCJhVYt1h:0"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":1},"type":"ADD_DELEGATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"2972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_create"},"metadata":{"type":"OUTPUT","output_owners":"0x000000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb818ac13004d"}},{"operation_identifier":{"index":2},"type":"ADD_DELEGATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"1000000000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_create"},"metadata":{"type":"STAKE","output_owners":"0x000000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb818ac13004d"}}]`
+		var ops []*types.Operation
+		assert.NoError(t, json.Unmarshal([]byte(intent), &ops))
+
+		preprocessResp, err := service.ConstructionPreprocess(
+			ctx,
+			&types.ConstructionPreprocessRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        ops,
+				Metadata: map[string]interface{}{
+					"node_id":          "NodeID-Bvsx89JttQqhqdgwtizAPoVSNW74Xcr2S",
+					"start":            1656460654,
+					"end":              1656547054,
+					"weight":           1000000000,
+					"locktime":         0,
+					"threshold":        1,
+					"reward_addresses": []string{"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},
+				},
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, preprocessResp)
+
+		assert.Equal(t, "ADD_DELEGATOR", preprocessResp.Options["type"])
+
+		metadataResp, err := service.ConstructionMetadata(
+			ctx,
+			&types.ConstructionMetadataRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Options:           preprocessResp.Options,
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, metadataResp)
+
+		payloadResp, err := service.ConstructionPayloads(
+			ctx,
+			&types.ConstructionPayloadsRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        ops,
+				Metadata:          metadataResp.Metadata,
+			},
+		)
+		assert.Nil(t, err)
+		assert.NotNil(t, payloadResp)
+		assert.Equal(
+			t,
+			"00000000000e000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000b127381c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000001b2d8a36998be5b19f468fbf573501cd0c93e9a7b5fb8edb2da54a473fa70ea64000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000ecc2021c00000001000000000000000077e1d5c6c289c49976f744749d54369d2129d7500000000062bb956e0000000062bce6ee000000003b9aca00000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b9aca0000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb8180000000b00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000",
+			hex.EncodeToString([]byte(payloadResp.UnsignedTransaction)),
 		)
 	})
 }

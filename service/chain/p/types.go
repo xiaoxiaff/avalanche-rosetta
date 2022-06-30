@@ -11,7 +11,7 @@ type stakingOptions struct {
 	End             uint64   `json:"end"`
 	Wght            uint64   `json:"weight"`
 	Shares          uint32   `json:"shares"`
-	Memo            []byte   `json:"memo"`
+	Memo            string   `json:"memo"`
 	Locktime        uint64   `json:"locktime"`
 	Threshold       uint32   `json:"threshold"`
 	RewardAddresses []string `json:"reward_addresses"`
@@ -30,7 +30,7 @@ type stakingMetadata struct {
 	End             uint64   `json:"end"`
 	Wght            uint64   `json:"weight"`
 	Shares          uint32   `json:"shares"`
-	Memo            []byte   `json:"memo"`
+	Memo            string   `json:"memo"`
 	NetworkID       uint32   `json:"network_id"`
 	BlockchainID    string   `json:"blockchain_id"`
 	Locktime        uint64   `json:"locktime"`
@@ -40,10 +40,4 @@ type stakingMetadata struct {
 
 type sigIndicesMetadata struct {
 	Type string `json:"type"`
-}
-
-type operationMetadata struct {
-	Type         string   `json:"type"`
-	SigIndices   []uint32 `json:"sig_indices"`
-	OutputOwners []byte   `json:"output_owners"`
 }
