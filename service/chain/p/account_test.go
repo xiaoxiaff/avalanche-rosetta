@@ -15,6 +15,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
+	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
 )
 
 type utxo struct {
@@ -160,7 +161,7 @@ func TestAccountCoins(t *testing.T) {
 }
 
 func makeUtxoBytes(t *testing.T, backend *Backend, utxoIdStr string, amount uint64) []byte {
-	utxoId, err := decodeUTXOID(utxoIdStr)
+	utxoId, err := common.DecodeUTXOID(utxoIdStr)
 	if err != nil {
 		t.Fail()
 		return nil
