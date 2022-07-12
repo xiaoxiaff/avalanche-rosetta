@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"github.com/ava-labs/avalanchego/api"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/api/info"
@@ -31,6 +32,8 @@ type PChainClient interface {
 		startUTXOID ids.ID,
 		options ...rpc.Option,
 	) ([][]byte, ids.ShortID, ids.ID, error)
+	GetRewardUTXOs(context.Context, *api.GetTxArgs, ...rpc.Option) ([][]byte, error)
+	GetHeight(ctx context.Context, options ...rpc.Option) (uint64, error)
 	GetBalance(ctx context.Context, addrs []ids.ShortID, options ...rpc.Option) (*platformvm.GetBalanceResponse, error)
 	GetTx(ctx context.Context, txID ids.ID, options ...rpc.Option) ([]byte, error)
 	GetBlock(ctx context.Context, blockID ids.ID, options ...rpc.Option) ([]byte, error)
@@ -41,7 +44,8 @@ type PChainClient interface {
 	GetAssetDescription(ctx context.Context, assetID string, options ...rpc.Option) (*avm.GetAssetDescriptionReply, error)
 
 	// info.Client methods
-
+	IsBootstrapped(context.Context, string, ...rpc.Option) (bool, error)
+	Peers(context.Context, ...rpc.Option) ([]info.Peer, error)
 	GetNodeID(context.Context, ...rpc.Option) (ids.NodeID, error)
 	GetNetworkID(context.Context, ...rpc.Option) (uint32, error)
 	GetBlockchainID(context.Context, string, ...rpc.Option) (ids.ID, error)
@@ -65,7 +69,7 @@ func NewPChainClient(ctx context.Context, endpoint string) PChainClient {
 
 	return pchainClient{
 		platformvmClient: platformvm.NewClient(endpoint),
-		indexerClient:    indexer.NewClient(endpoint),
+		indexerClient:    indexer.NewClient(endpoint + "/ext/index/P/block"),
 		xChainClient:     avm.NewClient(endpoint, "X"),
 		infoClient:       info.NewClient(endpoint),
 	}

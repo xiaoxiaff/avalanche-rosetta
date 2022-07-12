@@ -2,10 +2,6 @@ package mapper
 
 import (
 	"errors"
-	"log"
-	"math/big"
-	"reflect"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
@@ -13,6 +9,8 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/types"
+	"log"
+	"math/big"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
@@ -56,6 +54,7 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: int64(startIndex),
 			},
+			Status:   types.String(mapper.StatusSuccess),
 			Account:  &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
 			Amount:   mapper.AvaxAmount(big.NewInt(int64(out.Out.Amount()))),
 			Metadata: opMetadata,
@@ -88,7 +87,8 @@ func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType strin
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: int64(startIndex),
 			},
-			Type:   string(opType),
+			Type:   opType,
+			Status: types.String(mapper.StatusSuccess),
 			Amount: mapper.AvaxAmount(big.NewInt(int64(in.In.Amount()))),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{
@@ -122,6 +122,19 @@ func baseTxToOperations(tx *platformvm.BaseTx, txType string) ([]*types.Operatio
 	insAndOuts = append(insAndOuts, outs...)
 
 	return insAndOuts, nil
+}
+
+func rewardValidatorToOperation(v *platformvm.UnsignedRewardValidatorTx) []*types.Operation {
+	return []*types.Operation{
+		{
+			OperationIdentifier: &types.OperationIdentifier{Index: 0},
+			Type:                mapper.OpRewardValidator,
+			Status:              types.String(mapper.StatusSuccess),
+			Metadata: map[string]interface{}{
+				mapper.MetaStakingTxId: v.TxID.String(),
+			},
+		},
+	}
 }
 
 func Transaction(tx interface{}) (*types.Transaction, error) {
@@ -190,13 +203,24 @@ func Transaction(tx interface{}) (*types.Transaction, error) {
 		}
 
 		ops = append(ops, stakeOuts...)
+	case *platformvm.UnsignedRewardValidatorTx:
+		id = v.ID()
+		ops = rewardValidatorToOperation(v)
+	case *platformvm.UnsignedAdvanceTimeTx:
+		id = v.ID()
+	case *platformvm.UnsignedCreateSubnetTx:
+		id = v.ID()
+	case *platformvm.UnsignedCreateChainTx:
+		id = v.ID()
+	case *platformvm.UnsignedAddSubnetValidatorTx:
+		id = v.ID()
 	default:
-		// unknown transaction ignore operation.
+		// unknown transactions ignore operations
 		ops = nil
-		log.Printf("unknown type %s \n", reflect.TypeOf(v))
+		log.Printf("unknown type %T", v)
 	}
 
-	blockIdHexWithChecksum, err := formatting.EncodeWithChecksum(formatting.Hex, []byte(id.String()))
+	blockIdHexWithChecksum, err := formatting.EncodeWithChecksum(formatting.Hex, id[:])
 	if err != nil {
 		return nil, err
 	}

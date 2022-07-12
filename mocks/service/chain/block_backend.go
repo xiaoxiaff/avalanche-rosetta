@@ -64,7 +64,6 @@ func (_m *BlockBackend) BlockTransaction(ctx context.Context, request *types.Blo
 	return r0, r1
 }
 
-
 type NewBlockBackendT interface {
 	mock.TestingT
 	Cleanup(func())
@@ -72,7 +71,6 @@ type NewBlockBackendT interface {
 
 // NewBlockBackend creates a new instance of BlockBackend. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 func NewBlockBackend(t NewBlockBackendT) *BlockBackend {
-
 	mock := &BlockBackend{}
 	mock.Mock.Test(t)
 

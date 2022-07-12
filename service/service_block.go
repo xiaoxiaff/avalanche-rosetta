@@ -52,14 +52,14 @@ func (s *BlockService) Block(
 		return nil, ErrBlockInvalidInput
 	}
 
+	if mapper.IsPChain(request.NetworkIdentifier) {
+		return s.pChainBackend.Block(ctx, request)
+	}
+
 	if s.isGenesisBlockRequest(request.BlockIdentifier) {
 		return &types.BlockResponse{
 			Block: s.genesisBlock,
 		}, nil
-	}
-
-	if mapper.IsPChain(request.NetworkIdentifier) {
-		return s.pChainBackend.Block(ctx, request)
 	}
 
 	var (

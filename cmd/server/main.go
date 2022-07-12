@@ -160,7 +160,10 @@ func main() {
 
 	pChainClient := client.NewPChainClient(context.Background(), cfg.RPCEndpoint)
 
-	pChainBackend := p.NewBackend(pChainClient, avaxAssetID, networkP)
+	pChainBackend, err := p.NewBackend(context.Background(), pChainClient, avaxAssetID, networkP)
+	if err != nil {
+		log.Fatal("unable to construct p-chain backend:", err)
+	}
 
 	cAtomicTxBackend := c.NewAtomicTxBackend(apiClient, avaxAssetID)
 

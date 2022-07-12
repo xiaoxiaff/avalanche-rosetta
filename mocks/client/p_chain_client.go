@@ -3,6 +3,7 @@
 package client
 
 import (
+	api "github.com/ava-labs/avalanchego/api"
 	avm "github.com/ava-labs/avalanchego/vms/avm"
 
 	context "context"
@@ -173,6 +174,34 @@ func (_m *PChainClient) GetContainerByIndex(ctx context.Context, index uint64, o
 	return r0, r1
 }
 
+// GetHeight provides a mock function with given fields: ctx, options
+func (_m *PChainClient) GetHeight(ctx context.Context, options ...rpc.Option) (uint64, error) {
+	_va := make([]interface{}, len(options))
+	for _i := range options {
+		_va[_i] = options[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 uint64
+	if rf, ok := ret.Get(0).(func(context.Context, ...rpc.Option) uint64); ok {
+		r0 = rf(ctx, options...)
+	} else {
+		r0 = ret.Get(0).(uint64)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, ...rpc.Option) error); ok {
+		r1 = rf(ctx, options...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetLastAccepted provides a mock function with given fields: _a0, _a1
 func (_m *PChainClient) GetLastAccepted(_a0 context.Context, _a1 ...rpc.Option) (indexer.Container, error) {
 	_va := make([]interface{}, len(_a1))
@@ -252,6 +281,36 @@ func (_m *PChainClient) GetNodeID(_a0 context.Context, _a1 ...rpc.Option) (ids.N
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, ...rpc.Option) error); ok {
 		r1 = rf(_a0, _a1...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetRewardUTXOs provides a mock function with given fields: _a0, _a1, _a2
+func (_m *PChainClient) GetRewardUTXOs(_a0 context.Context, _a1 *api.GetTxArgs, _a2 ...rpc.Option) ([][]byte, error) {
+	_va := make([]interface{}, len(_a2))
+	for _i := range _a2 {
+		_va[_i] = _a2[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0, _a1)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 [][]byte
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetTxArgs, ...rpc.Option) [][]byte); ok {
+		r0 = rf(_a0, _a1, _a2...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([][]byte)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *api.GetTxArgs, ...rpc.Option) error); ok {
+		r1 = rf(_a0, _a1, _a2...)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -367,6 +426,34 @@ func (_m *PChainClient) GetUTXOs(ctx context.Context, addrs []ids.ShortID, limit
 	return r0, r1, r2, r3
 }
 
+// IsBootstrapped provides a mock function with given fields: _a0, _a1, _a2
+func (_m *PChainClient) IsBootstrapped(_a0 context.Context, _a1 string, _a2 ...rpc.Option) (bool, error) {
+	_va := make([]interface{}, len(_a2))
+	for _i := range _a2 {
+		_va[_i] = _a2[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0, _a1)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(context.Context, string, ...rpc.Option) bool); ok {
+		r0 = rf(_a0, _a1, _a2...)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, ...rpc.Option) error); ok {
+		r1 = rf(_a0, _a1, _a2...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // IssueTx provides a mock function with given fields: ctx, tx, options
 func (_m *PChainClient) IssueTx(ctx context.Context, tx []byte, options ...rpc.Option) (ids.ID, error) {
 	_va := make([]interface{}, len(options))
@@ -390,6 +477,36 @@ func (_m *PChainClient) IssueTx(ctx context.Context, tx []byte, options ...rpc.O
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, []byte, ...rpc.Option) error); ok {
 		r1 = rf(ctx, tx, options...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// Peers provides a mock function with given fields: _a0, _a1
+func (_m *PChainClient) Peers(_a0 context.Context, _a1 ...rpc.Option) ([]info.Peer, error) {
+	_va := make([]interface{}, len(_a1))
+	for _i := range _a1 {
+		_va[_i] = _a1[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _a0)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 []info.Peer
+	if rf, ok := ret.Get(0).(func(context.Context, ...rpc.Option) []info.Peer); ok {
+		r0 = rf(_a0, _a1...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]info.Peer)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, ...rpc.Option) error); ok {
+		r1 = rf(_a0, _a1...)
 	} else {
 		r1 = ret.Error(1)
 	}

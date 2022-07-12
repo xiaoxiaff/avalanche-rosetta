@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/hashing"
+	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/parser"
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -233,4 +236,18 @@ func EncodeBytes(bytes []byte) (string, error) {
 
 func DecodeToBytes(binaryData string) ([]byte, error) {
 	return formatting.Decode(formatting.Hex, binaryData)
+}
+
+func InitializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {
+	errs := wrappers.Errs{}
+
+	unsignedBytes, err := c.Marshal(version, &tx.UnsignedTx)
+	errs.Add(err)
+
+	signedBytes, err := c.Marshal(version, &tx)
+	errs.Add(err)
+
+	tx.Initialize(unsignedBytes, signedBytes)
+
+	return errs.Err
 }

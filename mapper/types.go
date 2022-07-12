@@ -43,10 +43,11 @@ const (
 	OpErc20Mint     = "ERC20_MINT"
 	OpErc20Burn     = "ERC20_BURN"
 
-	OpImportAvax   = "IMPORT_AVAX"
-	OpExportAvax   = "EXPORT_AVAX"
-	OpAddValidator = "ADD_VALIDATOR"
-	OpAddDelegator = "ADD_DELEGATOR"
+	OpImportAvax      = "IMPORT_AVAX"
+	OpExportAvax      = "EXPORT_AVAX"
+	OpAddValidator    = "ADD_VALIDATOR"
+	OpAddDelegator    = "ADD_DELEGATOR"
+	OpRewardValidator = "REWARD_VALIDATOR"
 
 	OpErc721TransferSender  = "ERC721_SENDER"
 	OpErc721TransferReceive = "ERC721_RECEIVE"
@@ -55,6 +56,8 @@ const (
 
 	StatusSuccess = "SUCCESS"
 	StatusFailure = "FAILURE"
+
+	MetaStakingTxId = "staking_tx"
 )
 
 var (
@@ -117,6 +120,7 @@ var (
 		OpExportAvax,
 		OpAddValidator,
 		OpAddDelegator,
+		OpRewardValidator,
 	}
 	PChainCallMethods = []string{}
 )

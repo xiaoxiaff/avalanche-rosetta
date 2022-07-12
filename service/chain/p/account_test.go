@@ -30,8 +30,10 @@ var utxos = []utxo{
 
 func TestAccountBalance(t *testing.T) {
 	pChainMock := &mocks.PChainClient{}
-	service := NewBackend(pChainMock, ids.Empty, nil)
 	ctx := context.Background()
+	pChainMock.Mock.On("GetNetworkID", ctx).Return(uint32(5), nil)
+
+	service, _ := NewBackend(ctx, pChainMock, ids.Empty, nil)
 
 	t.Run("Account Balance Test", func(t *testing.T) {
 		pChainAddr := "P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399"
@@ -83,8 +85,10 @@ func TestAccountBalance(t *testing.T) {
 
 func TestAccountCoins(t *testing.T) {
 	pChainMock := &mocks.PChainClient{}
-	service := NewBackend(pChainMock, ids.Empty, nil)
 	ctx := context.Background()
+	pChainMock.Mock.On("GetNetworkID", ctx).Return(uint32(5), nil)
+
+	service, _ := NewBackend(ctx, pChainMock, ids.Empty, nil)
 
 	t.Run("Account Coins Test", func(t *testing.T) {
 		pChainAddr := "P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399"
