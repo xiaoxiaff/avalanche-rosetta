@@ -579,7 +579,41 @@ func parseOpMetadata(metadata map[string]interface{}) (*p.OperationMetadata, err
 }
 
 func (c *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
-	return nil, service.ErrNotImplemented
+	tx := platformvm.Tx{}
+
+	_, err := c.codec.Unmarshal([]byte(req.Transaction), &tx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	transactions, err := p.Transaction(tx.UnsignedTx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	signers := make([]string, 0)
+	for _, v := range transactions.Operations {
+		opMetadata, _ := parseOpMetadata(v.Metadata)
+		switch opMetadata.Type {
+		case p.OpImport, p.OpInput:
+			signers = append(signers, v.Account.Address)
+		}
+	}
+	accountIDSigners := make([]*types.AccountIdentifier, len(signers))
+
+	for _, v := range signers {
+		ai := &types.AccountIdentifier{Address: v}
+		accountIDSigners = append(accountIDSigners, ai)
+
+	}
+
+	resp := &types.ConstructionParseResponse{
+		Operations:               transactions.Operations,
+		AccountIdentifierSigners: accountIDSigners,
+		Metadata:                 nil,
+	}
+
+	return resp, nil
 }
 
 func (c *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
