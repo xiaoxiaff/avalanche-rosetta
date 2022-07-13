@@ -1,11 +1,17 @@
 package cchainatomictx
 
 import (
-	"github.com/ava-labs/avalanchego/ids"
 	"math/big"
+
+	"github.com/ava-labs/avalanchego/ids"
 )
 
-type cBackendMetadata struct {
+const (
+	MetadataAtomicTxGas = "atomic_tx_gas"
+	MetadataNonce       = "nonce"
+)
+
+type Metadata struct {
 	NetworkID          uint32  `json:"network_id,omitempty"`
 	CChainID           ids.ID  `json:"c_chain_id,omitempty"`
 	SourceChainID      *ids.ID `json:"source_chain_id,omitempty"`
@@ -13,7 +19,7 @@ type cBackendMetadata struct {
 	Nonce              uint64  `json:"nonce"`
 }
 
-type options struct {
+type Options struct {
 	AtomicTxGas      *big.Int `json:"atomic_tx_gas"`
 	From             string   `json:"from,omitempty"`
 	SourceChain      string   `json:"source_chain,omitempty"`

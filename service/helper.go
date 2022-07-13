@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 
-	"github.com/ava-labs/avalanchego/utils/formatting"
-	"github.com/ava-labs/coreth/plugin/evm"
 	"math/big"
 	"strings"
 
@@ -80,19 +78,4 @@ func ChecksumAddress(address string) (string, bool) {
 	}
 
 	return addr.Address().Hex(), true
-}
-
-func isCChainAtomicTx(transaction string) bool {
-	txBytes, err := formatting.Decode(formatting.Hex, transaction)
-	if err != nil {
-		return false
-	}
-
-	var tx evm.Tx
-	_, err = evm.Codec.Unmarshal(txBytes, &tx)
-	if err != nil {
-		return false
-	}
-
-	return true
 }

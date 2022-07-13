@@ -14,6 +14,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 )
 
 type BlockBackend interface {
@@ -56,7 +57,7 @@ func (s *BlockService) Block(
 		return nil, ErrBlockInvalidInput
 	}
 
-	if mapper.IsPChain(request.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(request) {
 		return s.pChainBackend.Block(ctx, request)
 	}
 
@@ -138,7 +139,7 @@ func (s *BlockService) BlockTransaction(
 		return nil, WrapError(ErrInvalidInput, "block identifier is not provided")
 	}
 
-	if mapper.IsPChain(request.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(request) {
 		return s.pChainBackend.BlockTransaction(ctx, request)
 	}
 

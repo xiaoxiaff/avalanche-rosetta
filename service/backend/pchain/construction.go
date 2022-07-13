@@ -9,16 +9,13 @@ import (
 	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
-	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
-	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/coinbase/rosetta-sdk-go/parser"
 	"github.com/coinbase/rosetta-sdk-go/types"
+
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
 var codecVersion uint16 = platformvm.CodecVersion
@@ -39,7 +36,7 @@ func (b *Backend) ConstructionPreprocess(
 	}
 
 	reqMetadata := req.Metadata
-	reqMetadata["type"] = opType
+	reqMetadata[pmapper.MetadataOpType] = opType
 
 	return &types.ConstructionPreprocessResponse{
 		Options: reqMetadata,
@@ -49,7 +46,7 @@ func (b *Backend) ConstructionMetadata(
 	ctx context.Context,
 	req *types.ConstructionMetadataRequest,
 ) (*types.ConstructionMetadataResponse, *types.Error) {
-	opMetadata, err := parseOpMetadata(req.Options)
+	opMetadata, err := pmapper.ParseOpMetadata(req.Options)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -67,13 +64,13 @@ func (b *Backend) ConstructionMetadata(
 
 	var metadataMap map[string]interface{}
 	switch opMetadata.Type {
-	case mapper.OpImportAvax, mapper.OpExportAvax:
-		metadataMap, err = b.buildTxMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
+	case pmapper.OpImportAvax, pmapper.OpExportAvax:
+		metadataMap, err = b.buildImportExportMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
-	case mapper.OpAddValidator, mapper.OpAddDelegator:
-		metadataMap, err = b.buildStakingMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
+	case pmapper.OpAddValidator, pmapper.OpAddDelegator:
+		metadataMap, err = b.buildStakingMetadata(req.Options, networkID, pChainID)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
@@ -89,31 +86,31 @@ func (b *Backend) ConstructionMetadata(
 	}, nil
 }
 
-func (b *Backend) buildTxMetadata(
+func (b *Backend) buildImportExportMetadata(
 	ctx context.Context,
 	txType string,
 	options map[string]interface{},
 	networkID uint32,
 	pChainID ids.ID,
 ) (map[string]interface{}, error) {
-	var preprocessOptions txOptions
+	var preprocessOptions pmapper.ImportExportOptions
 	if err := mapper.UnmarshalJSONMap(options, &preprocessOptions); err != nil {
 		return nil, err
 	}
 
-	txMetadata := &txMetadata{
+	txMetadata := &pmapper.ImportExportMetadata{
 		NetworkID:    networkID,
 		BlockchainID: pChainID.String(),
 	}
 
 	switch txType {
-	case mapper.OpImportAvax:
+	case pmapper.OpImportAvax:
 		sourceChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.SourceChain)
 		if err != nil {
 			return nil, err
 		}
 		txMetadata.SourceChainID = sourceChainID.String()
-	case mapper.OpExportAvax:
+	case pmapper.OpExportAvax:
 		destinationChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.DestinationChain)
 		if err != nil {
 			return nil, err
@@ -126,18 +123,16 @@ func (b *Backend) buildTxMetadata(
 }
 
 func (b *Backend) buildStakingMetadata(
-	ctx context.Context,
-	txType string,
 	options map[string]interface{},
 	networkID uint32,
 	pChainID ids.ID,
 ) (map[string]interface{}, error) {
-	var preprocessOptions stakingOptions
+	var preprocessOptions pmapper.StakingOptions
 	if err := mapper.UnmarshalJSONMap(options, &preprocessOptions); err != nil {
 		return nil, err
 	}
 
-	stakingMetadata := &stakingMetadata{
+	stakingMetadata := &pmapper.StakingMetadata{
 		NodeID:          preprocessOptions.NodeID,
 		Start:           preprocessOptions.Start,
 		End:             preprocessOptions.End,
@@ -168,7 +163,7 @@ func (b *Backend) ConstructionPayloads(
 		return nil, service.WrapError(service.ErrBlockInvalidInput, err)
 	}
 
-	tx, signers, err := b.buildTransaction(ctx, opType, matches, req.Metadata)
+	tx, signers, err := pmapper.BuildTransaction(opType, matches, req.Metadata, b.codec, b.assetID)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -201,383 +196,6 @@ func (b *Backend) ConstructionPayloads(
 	}, nil
 }
 
-func (b *Backend) buildTransaction(
-	ctx context.Context,
-	opType string,
-	matches []*parser.Match,
-	payloadMetadata map[string]interface{},
-) (*platformvm.Tx, []string, error) {
-	switch opType {
-	case mapper.OpImportAvax:
-		return b.buildImportTx(ctx, matches, payloadMetadata)
-	case mapper.OpExportAvax:
-		return b.buildExportTx(ctx, matches, payloadMetadata)
-	case mapper.OpAddValidator:
-		return b.buildAddValidatorTx(ctx, matches, payloadMetadata)
-	case mapper.OpAddDelegator:
-		return b.buildAddDelegatorTx(ctx, matches, payloadMetadata)
-	default:
-		return nil, nil, fmt.Errorf("invalid tx type: %s", opType)
-	}
-}
-
-func (b *Backend) buildImportTx(
-	ctx context.Context,
-	matches []*parser.Match,
-	metadata map[string]interface{},
-) (*platformvm.Tx, []string, error) {
-	var tMetadata txMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &tMetadata); err != nil {
-		return nil, nil, err
-	}
-	blockchainID, err := ids.FromString(tMetadata.BlockchainID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid blockchain id: %s", tMetadata.BlockchainID)
-	}
-
-	sourceChainID, err := ids.FromString(tMetadata.SourceChainID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid source chain id: %s", tMetadata.SourceChainID)
-	}
-
-	ins, imported, signers, err := b.buildInputs(matches[0].Operations)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse inputs failed: %w", err)
-	}
-
-	outs, _, _, err := b.buildOutputs(matches[1].Operations)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse outputs failed: %w", err)
-	}
-
-	tx := &platformvm.Tx{UnsignedTx: &platformvm.UnsignedImportTx{
-		BaseTx: platformvm.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    tMetadata.NetworkID,
-			BlockchainID: blockchainID,
-			Outs:         outs,
-			Ins:          ins,
-		}},
-		ImportedInputs: imported,
-		SourceChain:    sourceChainID,
-	}}
-
-	return tx, signers, nil
-}
-
-func (b *Backend) buildExportTx(
-	ctx context.Context,
-	matches []*parser.Match,
-	metadata map[string]interface{},
-) (*platformvm.Tx, []string, error) {
-	var tMetadata txMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &tMetadata); err != nil {
-		return nil, nil, err
-	}
-	blockchainID, err := ids.FromString(tMetadata.BlockchainID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	destinationChainID, err := ids.FromString(tMetadata.DestinationChainID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ins, _, signers, err := b.buildInputs(matches[0].Operations)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse inputs failed: %w", err)
-	}
-
-	outs, _, exported, err := b.buildOutputs(matches[1].Operations)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse outputs failed: %w", err)
-	}
-
-	tx := &platformvm.Tx{UnsignedTx: &platformvm.UnsignedExportTx{
-		BaseTx: platformvm.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    tMetadata.NetworkID,
-			BlockchainID: blockchainID,
-			Outs:         outs,
-			Ins:          ins,
-		}},
-		DestinationChain: destinationChainID,
-		ExportedOutputs:  exported,
-	}}
-
-	return tx, signers, nil
-}
-
-func (b *Backend) buildAddValidatorTx(
-	ctx context.Context,
-	matches []*parser.Match,
-	metadata map[string]interface{},
-) (*platformvm.Tx, []string, error) {
-	var sMetadata stakingMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &sMetadata); err != nil {
-		return nil, nil, err
-	}
-
-	blockchainID, err := ids.FromString(sMetadata.BlockchainID)
-	if err != nil {
-		return nil, nil, err
-	}
-	nodeID, err := ids.NodeIDFromString(sMetadata.NodeID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	rewardsOwner, err := buildOutputOwner(
-		sMetadata.RewardAddresses,
-		sMetadata.Locktime,
-		sMetadata.Threshold,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ins, _, signers, err := b.buildInputs(matches[0].Operations)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse inputs failed: %w", err)
-	}
-
-	outs, stakeOutputs, _, err := b.buildOutputs(matches[1].Operations)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse outputs failed: %w", err)
-	}
-
-	memo, err := common.DecodeToBytes(sMetadata.Memo)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse memo failed: %w", err)
-	}
-
-	tx := &platformvm.Tx{UnsignedTx: &platformvm.UnsignedAddValidatorTx{
-		BaseTx: platformvm.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    sMetadata.NetworkID,
-			BlockchainID: blockchainID,
-			Outs:         outs,
-			Ins:          ins,
-			Memo:         memo,
-		}},
-		Stake: stakeOutputs,
-		Validator: validator.Validator{
-			NodeID: nodeID,
-			Start:  sMetadata.Start,
-			End:    sMetadata.End,
-			Wght:   sMetadata.Wght,
-		},
-		RewardsOwner: rewardsOwner,
-		Shares:       sMetadata.Shares,
-	}}
-
-	return tx, signers, nil
-}
-
-func (b *Backend) buildAddDelegatorTx(
-	ctx context.Context,
-	matches []*parser.Match,
-	metadata map[string]interface{},
-) (*platformvm.Tx, []string, error) {
-	var sMetadata stakingMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &sMetadata); err != nil {
-		return nil, nil, err
-	}
-
-	blockchainID, err := ids.FromString(sMetadata.BlockchainID)
-	if err != nil {
-		return nil, nil, err
-	}
-	nodeID, err := ids.NodeIDFromString(sMetadata.NodeID)
-	if err != nil {
-		return nil, nil, err
-	}
-	rewardsOwner, err := buildOutputOwner(sMetadata.RewardAddresses, sMetadata.Locktime, sMetadata.Threshold)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ins, _, signers, err := b.buildInputs(matches[0].Operations)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse inputs failed: %w", err)
-	}
-
-	outs, stakeOutputs, _, err := b.buildOutputs(matches[1].Operations)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse outputs failed: %w", err)
-	}
-
-	memo, err := common.DecodeToBytes(sMetadata.Memo)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse memo failed: %w", err)
-	}
-
-	tx := &platformvm.Tx{UnsignedTx: &platformvm.UnsignedAddDelegatorTx{
-		BaseTx: platformvm.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    sMetadata.NetworkID,
-			BlockchainID: blockchainID,
-			Outs:         outs,
-			Ins:          ins,
-			Memo:         memo,
-		}},
-		Stake: stakeOutputs,
-		Validator: validator.Validator{
-			NodeID: nodeID,
-			Start:  sMetadata.Start,
-			End:    sMetadata.End,
-			Wght:   sMetadata.Wght,
-		},
-		RewardsOwner: rewardsOwner,
-	}}
-
-	return tx, signers, nil
-}
-
-func buildOutputOwner(
-	addrs []string,
-	locktime uint64,
-	threshold uint32,
-) (*secp256k1fx.OutputOwners, error) {
-
-	rewardAddrs := make([]ids.ShortID, len(addrs))
-	for i, addr := range addrs {
-
-		addrID, err := address.ParseToID(addr)
-		if err != nil {
-			return nil, err
-		}
-		rewardAddrs[i] = addrID
-	}
-
-	ids.SortShortIDs(rewardAddrs)
-
-	return &secp256k1fx.OutputOwners{
-		Locktime:  locktime,
-		Threshold: threshold,
-		Addrs:     rewardAddrs,
-	}, nil
-}
-
-func (b *Backend) buildInputs(
-	operations []*types.Operation,
-) (
-	ins []*avax.TransferableInput,
-	imported []*avax.TransferableInput,
-	signers []string,
-	err error,
-) {
-	for _, op := range operations {
-		UTXOID, err := common.DecodeUTXOID(op.CoinChange.CoinIdentifier.Identifier)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to decode UTXO ID: %w", err)
-		}
-
-		addr, err := address.ParseToID(op.Account.Address)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to parse address: %w", err)
-		}
-		addrSet := ids.NewShortSet(1)
-		addrSet.Add(addr)
-
-		opMetadata, err := parseOpMetadata(op.Metadata)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("parse input operation Metadata failed: %w", err)
-		}
-
-		val, err := types.AmountValue(op.Amount)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("parse operation amount failed: %w", err)
-		}
-
-		in := &avax.TransferableInput{
-			UTXOID: *UTXOID,
-			Asset:  avax.Asset{ID: b.assetID},
-			In: &secp256k1fx.TransferInput{
-				Amt: val.Uint64(),
-				Input: secp256k1fx.Input{
-					SigIndices: opMetadata.SigIndices,
-				},
-			}}
-
-		switch opMetadata.Type {
-		case pmapper.OpImport:
-			imported = append(imported, in)
-		case pmapper.OpInput:
-			ins = append(ins, in)
-		default:
-			return nil, nil, nil, fmt.Errorf("invalid option type: %s", op.Type)
-		}
-		signers = append(signers, op.Account.Address)
-	}
-
-	avax.SortTransferableInputs(ins)
-	avax.SortTransferableInputs(imported)
-
-	return ins, imported, signers, nil
-}
-
-func (b *Backend) buildOutputs(
-	operations []*types.Operation,
-) (
-	outs []*avax.TransferableOutput,
-	stakeOutputs []*avax.TransferableOutput,
-	exported []*avax.TransferableOutput,
-	err error,
-) {
-	for _, op := range operations {
-		opMetadata, err := parseOpMetadata(op.Metadata)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("parse output operation Metadata failed: %w", err)
-		}
-
-		var outputOwners secp256k1fx.OutputOwners
-
-		outputOwnerBytes, err := common.DecodeToBytes(opMetadata.OutputOwners)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("decode output owner hex failed: %w", err)
-		}
-		if _, err := b.codec.Unmarshal(outputOwnerBytes, &outputOwners); err != nil {
-			return nil, nil, nil, fmt.Errorf("parse output owner failed: %w", err)
-		}
-
-		val, err := types.AmountValue(op.Amount)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("parse operation amount failed: %w", err)
-		}
-
-		out := &avax.TransferableOutput{
-			Asset: avax.Asset{ID: b.assetID},
-			Out: &secp256k1fx.TransferOutput{
-				Amt:          val.Uint64(),
-				OutputOwners: outputOwners,
-			}}
-
-		switch opMetadata.Type {
-		case pmapper.OpOutput:
-			outs = append(outs, out)
-		case pmapper.OpStakeOutput:
-			stakeOutputs = append(stakeOutputs, out)
-		case pmapper.OpExport:
-			exported = append(exported, out)
-		default:
-			return nil, nil, nil, fmt.Errorf("invalid option type: %s", op.Type)
-		}
-	}
-
-	avax.SortTransferableOutputs(outs, b.codec)
-	avax.SortTransferableOutputs(stakeOutputs, b.codec)
-	avax.SortTransferableOutputs(exported, b.codec)
-
-	return outs, stakeOutputs, exported, nil
-}
-
-func parseOpMetadata(metadata map[string]interface{}) (*pmapper.OperationMetadata, error) {
-	var operationMetadata pmapper.OperationMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &operationMetadata); err != nil {
-		return nil, err
-	}
-
-	return &operationMetadata, nil
-}
-
 func (b *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
 	tx := platformvm.Tx{}
 
@@ -593,9 +211,9 @@ func (b *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 
 	signers := make([]string, 0)
 	for _, v := range transactions.Operations {
-		opMetadata, _ := parseOpMetadata(v.Metadata)
+		opMetadata, _ := pmapper.ParseOpMetadata(v.Metadata)
 		switch opMetadata.Type {
-		case pmapper.OpImport, pmapper.OpInput:
+		case pmapper.OpTypeImport, pmapper.OpTypeInput:
 			signers = append(signers, v.Account.Address)
 		}
 	}
@@ -641,7 +259,7 @@ func (b *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
-	signedTx, err := common.EncodeBytes(signedBytes)
+	signedTx, err := mapper.EncodeBytes(signedBytes)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}

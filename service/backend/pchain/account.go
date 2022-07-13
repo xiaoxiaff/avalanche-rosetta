@@ -3,7 +3,6 @@ package pchain
 import (
 	"context"
 	"errors"
-
 	"strconv"
 
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"

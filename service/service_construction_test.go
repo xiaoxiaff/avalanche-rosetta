@@ -9,14 +9,15 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/ava-labs/avalanche-rosetta/mapper"
-	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
-	backendMocks "github.com/ava-labs/avalanche-rosetta/mocks/service"
 	"github.com/ava-labs/coreth/interfaces"
 
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
+	backendMocks "github.com/ava-labs/avalanche-rosetta/mocks/service"
 )
 
 const (

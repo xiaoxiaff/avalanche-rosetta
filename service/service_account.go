@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/coinbase/rosetta-sdk-go/utils"
@@ -11,9 +12,12 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
+	"github.com/ava-labs/coreth/interfaces"
+
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	"github.com/ava-labs/coreth/interfaces"
+	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 )
 
 // AccountService implements the /account/* endpoints
@@ -48,7 +52,7 @@ func (s AccountService) AccountBalance(
 		return nil, ErrUnavailableOffline
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.AccountBalance(ctx, req)
 	}
 
@@ -57,7 +61,7 @@ func (s AccountService) AccountBalance(
 	}
 
 	// If the address is in Bech32 format, we check the atomic balance
-	if mapper.IsBech32(req.AccountIdentifier) {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.AccountBalance(ctx, req)
 	}
 
@@ -143,12 +147,11 @@ func (s AccountService) AccountCoins(
 		return nil, ErrUnavailableOffline
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.AccountCoins(ctx, req)
 	}
 
-	if mapper.IsCChainBech32(req.AccountIdentifier) {
-		// We return atomic tx UTXOs for C-chain Bech32 address
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.AccountCoins(ctx, req)
 	}
 

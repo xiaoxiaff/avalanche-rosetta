@@ -1,8 +1,9 @@
 package common
 
 import (
-	"github.com/coinbase/rosetta-sdk-go/types"
 	"sort"
+
+	"github.com/coinbase/rosetta-sdk-go/types"
 )
 
 // SortUnique deduplicates given slice of coins and sorts them by UTXO id in ascending order for consistency

@@ -4,10 +4,11 @@ import (
 	"context"
 	stdjson "encoding/json"
 	"fmt"
-	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
 	"os"
 	"testing"
 	"time"
+
+	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
 
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"

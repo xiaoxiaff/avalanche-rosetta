@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
-	"github.com/ava-labs/avalanche-rosetta/mapper"
-	mocks "github.com/ava-labs/avalanche-rosetta/mocks/service"
+	"testing"
+
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+	mocks "github.com/ava-labs/avalanche-rosetta/mocks/service"
 )
 
 func TestAccountBalance(t *testing.T) {

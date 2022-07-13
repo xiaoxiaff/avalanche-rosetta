@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanche-rosetta/mapper"
-	"github.com/ava-labs/avalanche-rosetta/service"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
@@ -19,6 +18,9 @@ import (
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/parser"
 	"github.com/coinbase/rosetta-sdk-go/types"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+	"github.com/ava-labs/avalanche-rosetta/service"
 )
 
 func DeriveBech32Address(fac *crypto.FactorySECP256K1R, chainIdAlias string, req *types.ConstructionDeriveRequest) (*types.ConstructionDeriveResponse, *types.Error) {
@@ -45,20 +47,20 @@ func DeriveBech32Address(fac *crypto.FactorySECP256K1R, chainIdAlias string, req
 }
 
 func HashTx(req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	txByte, err := DecodeToBytes(req.SignedTransaction)
+	txByte, err := mapper.DecodeToBytes(req.SignedTransaction)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
 	txHash256 := hashing.ComputeHash256(txByte)
-	atomicCHash, err := formatting.EncodeWithChecksum(formatting.CB58, txHash256)
+	hash, err := formatting.EncodeWithChecksum(formatting.CB58, txHash256)
 
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 	return &types.TransactionIdentifierResponse{
 		TransactionIdentifier: &types.TransactionIdentifier{
-			Hash: atomicCHash,
+			Hash: hash,
 		},
 	}, nil
 }
@@ -68,7 +70,7 @@ type TransactionIssuer interface {
 }
 
 func SubmitTx(issuer TransactionIssuer, ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	txByte, err := DecodeToBytes(req.SignedTransaction)
+	txByte, err := mapper.DecodeToBytes(req.SignedTransaction)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -163,7 +165,7 @@ func BuildPayloadsResponse(unsignedBytes, signingHash []byte, signers []*types.A
 		}
 	}
 
-	txHex, err := EncodeBytes(unsignedBytes)
+	txHex, err := mapper.EncodeBytes(unsignedBytes)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
@@ -228,14 +230,6 @@ func buildCredential(numSigs int, sigOffset *int, signatures []*types.Signature)
 		*sigOffset++
 	}
 	return cred, nil
-}
-
-func EncodeBytes(bytes []byte) (string, error) {
-	return formatting.EncodeWithChecksum(formatting.Hex, bytes)
-}
-
-func DecodeToBytes(binaryData string) ([]byte, error) {
-	return formatting.Decode(formatting.Hex, binaryData)
 }
 
 func InitializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {
