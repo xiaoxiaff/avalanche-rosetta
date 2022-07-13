@@ -128,10 +128,10 @@ func rewardValidatorToOperation(v *platformvm.UnsignedRewardValidatorTx) []*type
 	return []*types.Operation{
 		{
 			OperationIdentifier: &types.OperationIdentifier{Index: 0},
-			Type:                mapper.OpRewardValidator,
+			Type:                OpRewardValidator,
 			Status:              types.String(mapper.StatusSuccess),
 			Metadata: map[string]interface{}{
-				mapper.MetaStakingTxId: v.TxID.String(),
+				MetaStakingTxId: v.TxID.String(),
 			},
 		},
 	}
@@ -177,12 +177,12 @@ func Transaction(tx interface{}) (*types.Transaction, error) {
 	case *platformvm.UnsignedAddValidatorTx:
 		id = v.ID()
 
-		ops, err = baseTxToOperations(&v.BaseTx, mapper.OpAddValidator)
+		ops, err = baseTxToOperations(&v.BaseTx, OpAddValidator)
 		if err != nil {
 			return nil, err
 		}
 
-		stakeOuts, err := outToOperation(v.Stake, len(ops), mapper.OpAddValidator, OpStakeOutput)
+		stakeOuts, err := outToOperation(v.Stake, len(ops), OpAddValidator, OpStakeOutput)
 		if err != nil {
 			return nil, err
 		}
@@ -192,12 +192,12 @@ func Transaction(tx interface{}) (*types.Transaction, error) {
 	case *platformvm.UnsignedAddDelegatorTx:
 		id = v.ID()
 
-		ops, err = baseTxToOperations(&v.BaseTx, mapper.OpAddDelegator)
+		ops, err = baseTxToOperations(&v.BaseTx, OpAddDelegator)
 		if err != nil {
 			return nil, err
 		}
 
-		stakeOuts, err := outToOperation(v.Stake, len(ops), mapper.OpAddDelegator, OpStakeOutput)
+		stakeOuts, err := outToOperation(v.Stake, len(ops), OpAddDelegator, OpStakeOutput)
 		if err != nil {
 			return nil, err
 		}

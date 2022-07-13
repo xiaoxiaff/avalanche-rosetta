@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
+	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -16,35 +17,40 @@ import (
 	"strconv"
 )
 
-func (b *Backend) buildTx(opType string, matches []*parser.Match, metadata cBackendMetadata) (*evm.Tx, []*types.AccountIdentifier, error) {
+func BuildTx(opType string, matches []*parser.Match, metadata Metadata, codec codec.Manager, avaxAssetId ids.ID) (*evm.Tx, []*types.AccountIdentifier, error) {
 	switch opType {
 	case mapper.OpExport:
-		return b.buildExportTx(matches, metadata)
+		return buildExportTx(matches, metadata, codec, avaxAssetId)
 	case mapper.OpImport:
-		return b.buildImportTx(matches, metadata)
+		return buildImportTx(matches, metadata, avaxAssetId)
 	default:
 		return nil, nil, fmt.Errorf("unsupported atomic operation type %s", opType)
 	}
 }
 
-func (b *Backend) parseTx(tx evm.Tx, hrp string) ([]*types.Operation, error) {
+func ParseTx(tx evm.Tx, hrp string) ([]*types.Operation, error) {
 	switch unsignedTx := tx.UnsignedAtomicTx.(type) {
 	case *evm.UnsignedExportTx:
-		return b.parseExportTx(unsignedTx, hrp)
+		return parseExportTx(unsignedTx, hrp)
 	case *evm.UnsignedImportTx:
-		return b.parseImportTx(unsignedTx), nil
+		return parseImportTx(unsignedTx), nil
 	default:
 		return nil, fmt.Errorf("unsupported tx type")
 	}
 }
 
-func (b *Backend) buildExportTx(matches []*parser.Match, metadata cBackendMetadata) (*evm.Tx, []*types.AccountIdentifier, error) {
-	ins, signers, err := b.buildIns(matches, metadata)
+func buildExportTx(
+	matches []*parser.Match,
+	metadata Metadata,
+	codec codec.Manager,
+	avaxAssetId ids.ID,
+) (*evm.Tx, []*types.AccountIdentifier, error) {
+	ins, signers, err := buildIns(matches, metadata, avaxAssetId)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	exportedOutputs, err := b.buildExportedOutputs(matches)
+	exportedOutputs, err := buildExportedOutputs(matches, codec, avaxAssetId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,11 +65,11 @@ func (b *Backend) buildExportTx(matches []*parser.Match, metadata cBackendMetada
 	return tx, signers, nil
 }
 
-func (b *Backend) parseExportTx(exportTx *evm.UnsignedExportTx, hrp string) ([]*types.Operation, error) {
+func parseExportTx(exportTx *evm.UnsignedExportTx, hrp string) ([]*types.Operation, error) {
 	var operations []*types.Operation
-	ins := b.parseIns(0, mapper.OpExport, exportTx.Ins)
+	ins := parseIns(0, mapper.OpExport, exportTx.Ins)
 	operations = append(operations, ins...)
-	outs, err := b.parseExportedOutputs(len(ins), mapper.OpExport, hrp, exportTx.ExportedOutputs)
+	outs, err := parseExportedOutputs(len(ins), mapper.OpExport, hrp, exportTx.ExportedOutputs)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +78,13 @@ func (b *Backend) parseExportTx(exportTx *evm.UnsignedExportTx, hrp string) ([]*
 	return operations, nil
 }
 
-func (b *Backend) buildImportTx(matches []*parser.Match, metadata cBackendMetadata) (*evm.Tx, []*types.AccountIdentifier, error) {
-	importedInputs, signers, err := b.buildImportedInputs(matches)
+func buildImportTx(matches []*parser.Match, metadata Metadata, avaxAssetId ids.ID) (*evm.Tx, []*types.AccountIdentifier, error) {
+	importedInputs, signers, err := buildImportedInputs(matches, avaxAssetId)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	outs := b.buildOuts(matches)
+	outs := buildOuts(matches, avaxAssetId)
 
 	tx := &evm.Tx{UnsignedAtomicTx: &evm.UnsignedImportTx{
 		NetworkID:      metadata.NetworkID,
@@ -90,17 +96,17 @@ func (b *Backend) buildImportTx(matches []*parser.Match, metadata cBackendMetada
 	return tx, signers, nil
 }
 
-func (b *Backend) parseImportTx(importTx *evm.UnsignedImportTx) []*types.Operation {
+func parseImportTx(importTx *evm.UnsignedImportTx) []*types.Operation {
 	var operations []*types.Operation
-	ins := b.parseImportedInputs(0, mapper.OpImport, importTx.ImportedInputs)
+	ins := parseImportedInputs(0, mapper.OpImport, importTx.ImportedInputs)
 	operations = append(operations, ins...)
-	outs := b.parseOuts(len(ins), mapper.OpImport, importTx.Outs)
+	outs := parseOuts(len(ins), mapper.OpImport, importTx.Outs)
 	operations = append(operations, outs...)
 
 	return operations
 }
 
-func (b *Backend) buildIns(matches []*parser.Match, metadata cBackendMetadata) ([]evm.EVMInput, []*types.AccountIdentifier, error) {
+func buildIns(matches []*parser.Match, metadata Metadata, avaxAssetId ids.ID) ([]evm.EVMInput, []*types.AccountIdentifier, error) {
 	inputMatch := matches[0]
 
 	var ins []evm.EVMInput
@@ -109,7 +115,7 @@ func (b *Backend) buildIns(matches []*parser.Match, metadata cBackendMetadata) (
 		ins = append(ins, evm.EVMInput{
 			Address: ethcommon.HexToAddress(op.Account.Address),
 			Amount:  inputMatch.Amounts[i].Uint64(),
-			AssetID: b.avaxAssetId,
+			AssetID: avaxAssetId,
 			Nonce:   metadata.Nonce,
 		})
 		signers = append(signers, op.Account)
@@ -117,7 +123,7 @@ func (b *Backend) buildIns(matches []*parser.Match, metadata cBackendMetadata) (
 	return ins, signers, nil
 }
 
-func (b *Backend) parseIns(startIdx int64, opType string, ins []evm.EVMInput) []*types.Operation {
+func parseIns(startIdx int64, opType string, ins []evm.EVMInput) []*types.Operation {
 	idx := startIdx
 	var operations []*types.Operation
 	for _, in := range ins {
@@ -137,7 +143,7 @@ func (b *Backend) parseIns(startIdx int64, opType string, ins []evm.EVMInput) []
 	return operations
 }
 
-func (b *Backend) buildImportedInputs(matches []*parser.Match) ([]*avax.TransferableInput, []*types.AccountIdentifier, error) {
+func buildImportedInputs(matches []*parser.Match, avaxAssetId ids.ID) ([]*avax.TransferableInput, []*types.AccountIdentifier, error) {
 	inputMatch := matches[0]
 
 	var importedInputs []*avax.TransferableInput
@@ -153,7 +159,7 @@ func (b *Backend) buildImportedInputs(matches []*parser.Match) ([]*avax.Transfer
 
 		importedInputs = append(importedInputs, &avax.TransferableInput{
 			UTXOID: *utxoId,
-			Asset:  avax.Asset{ID: b.avaxAssetId},
+			Asset:  avax.Asset{ID: avaxAssetId},
 			In: &secp256k1fx.TransferInput{
 				Amt: inputMatch.Amounts[i].Uint64(),
 				Input: secp256k1fx.Input{
@@ -168,7 +174,7 @@ func (b *Backend) buildImportedInputs(matches []*parser.Match) ([]*avax.Transfer
 	return importedInputs, signers, nil
 }
 
-func (b *Backend) parseImportedInputs(startIdx int64, opType string, ins []*avax.TransferableInput) []*types.Operation {
+func parseImportedInputs(startIdx int64, opType string, ins []*avax.TransferableInput) []*types.Operation {
 	idx := startIdx
 	var operations []*types.Operation
 	for _, in := range ins {
@@ -193,7 +199,7 @@ func (b *Backend) parseImportedInputs(startIdx int64, opType string, ins []*avax
 	return operations
 }
 
-func (b *Backend) buildOuts(matches []*parser.Match) []evm.EVMOutput {
+func buildOuts(matches []*parser.Match, avaxAssetId ids.ID) []evm.EVMOutput {
 	outputMatch := matches[1]
 
 	var outs []evm.EVMOutput
@@ -201,14 +207,14 @@ func (b *Backend) buildOuts(matches []*parser.Match) []evm.EVMOutput {
 		outs = append(outs, evm.EVMOutput{
 			Address: ethcommon.HexToAddress(op.Account.Address),
 			Amount:  outputMatch.Amounts[i].Uint64(),
-			AssetID: b.avaxAssetId,
+			AssetID: avaxAssetId,
 		})
 	}
 
 	return outs
 }
 
-func (b *Backend) parseOuts(startIdx int, opType string, outs []evm.EVMOutput) []*types.Operation {
+func parseOuts(startIdx int, opType string, outs []evm.EVMOutput) []*types.Operation {
 	idx := startIdx
 	var operations []*types.Operation
 	for _, out := range outs {
@@ -229,7 +235,7 @@ func (b *Backend) parseOuts(startIdx int, opType string, outs []evm.EVMOutput) [
 	return operations
 }
 
-func (b *Backend) buildExportedOutputs(matches []*parser.Match) ([]*avax.TransferableOutput, error) {
+func buildExportedOutputs(matches []*parser.Match, codec codec.Manager, avaxAssetId ids.ID) ([]*avax.TransferableOutput, error) {
 	outputMatch := matches[1]
 
 	var outs []*avax.TransferableOutput
@@ -240,7 +246,7 @@ func (b *Backend) buildExportedOutputs(matches []*parser.Match) ([]*avax.Transfe
 		}
 
 		outs = append(outs, &avax.TransferableOutput{
-			Asset: avax.Asset{ID: b.avaxAssetId},
+			Asset: avax.Asset{ID: avaxAssetId},
 			Out: &secp256k1fx.TransferOutput{
 				Amt: outputMatch.Amounts[i].Uint64(),
 				OutputOwners: secp256k1fx.OutputOwners{
@@ -252,12 +258,12 @@ func (b *Backend) buildExportedOutputs(matches []*parser.Match) ([]*avax.Transfe
 		})
 	}
 
-	avax.SortTransferableOutputs(outs, b.codec)
+	avax.SortTransferableOutputs(outs, codec)
 
 	return outs, nil
 }
 
-func (b *Backend) parseExportedOutputs(startIdx int, opType string, hrp string, outs []*avax.TransferableOutput) ([]*types.Operation, error) {
+func parseExportedOutputs(startIdx int, opType string, hrp string, outs []*avax.TransferableOutput) ([]*types.Operation, error) {
 	idx := startIdx
 	var operations []*types.Operation
 	for _, out := range outs {

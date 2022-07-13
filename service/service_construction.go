@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
 	"math/big"
 
 	ethtypes "github.com/ava-labs/coreth/core/types"
@@ -77,7 +78,7 @@ func (s ConstructionService) ConstructionMetadata(
 		return nil, ErrUnavailableOffline
 	}
 
-	if req.Options["atomic_tx_gas"] != nil {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.ConstructionMetadata(ctx, req)
 	}
 
@@ -173,7 +174,7 @@ func (s ConstructionService) ConstructionHash(
 		return s.pChainBackend.ConstructionHash(ctx, req)
 	}
 
-	if isCChainAtomicTx(req.SignedTransaction) {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.ConstructionHash(ctx, req)
 	}
 
@@ -215,7 +216,7 @@ func (s ConstructionService) ConstructionCombine(
 		return s.pChainBackend.ConstructionCombine(ctx, req)
 	}
 
-	if isCChainAtomicTx(req.UnsignedTransaction) {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.ConstructionCombine(ctx, req)
 	}
 
@@ -273,7 +274,7 @@ func (s ConstructionService) ConstructionDerive(
 		return s.pChainBackend.ConstructionDerive(ctx, req)
 	}
 
-	if req.Metadata["address_format"] == mapper.AddressFormatBech32 {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.ConstructionDerive(ctx, req)
 	}
 
@@ -303,7 +304,7 @@ func (s ConstructionService) ConstructionParse(
 		return s.pChainBackend.ConstructionParse(ctx, req)
 	}
 
-	if isCChainAtomicTx(req.Transaction) {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.ConstructionParse(ctx, req)
 	}
 
@@ -454,7 +455,7 @@ func (s ConstructionService) ConstructionPayloads(
 		return s.pChainBackend.ConstructionPayloads(ctx, req)
 	}
 
-	if mapper.AtomicType(req.Operations[0].Type) {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.ConstructionPayloads(ctx, req)
 	}
 
@@ -566,7 +567,7 @@ func (s ConstructionService) ConstructionPreprocess(
 		return s.pChainBackend.ConstructionPreprocess(ctx, req)
 	}
 
-	if mapper.AtomicType(req.Operations[0].Type) {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.ConstructionPreprocess(ctx, req)
 	}
 
@@ -673,7 +674,7 @@ func (s ConstructionService) ConstructionSubmit(
 		return s.pChainBackend.ConstructionSubmit(ctx, req)
 	}
 
-	if isCChainAtomicTx(req.SignedTransaction) {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.ConstructionSubmit(ctx, req)
 	}
 

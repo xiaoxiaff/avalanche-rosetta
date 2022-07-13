@@ -67,12 +67,12 @@ func (b *Backend) ConstructionMetadata(
 
 	var metadataMap map[string]interface{}
 	switch opMetadata.Type {
-	case mapper.OpImportAvax, mapper.OpExportAvax:
+	case pmapper.OpImportAvax, pmapper.OpExportAvax:
 		metadataMap, err = b.buildTxMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
-	case mapper.OpAddValidator, mapper.OpAddDelegator:
+	case pmapper.OpAddValidator, pmapper.OpAddDelegator:
 		metadataMap, err = b.buildStakingMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
@@ -107,13 +107,13 @@ func (b *Backend) buildTxMetadata(
 	}
 
 	switch txType {
-	case mapper.OpImportAvax:
+	case pmapper.OpImportAvax:
 		sourceChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.SourceChain)
 		if err != nil {
 			return nil, err
 		}
 		txMetadata.SourceChainID = sourceChainID.String()
-	case mapper.OpExportAvax:
+	case pmapper.OpExportAvax:
 		destinationChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.DestinationChain)
 		if err != nil {
 			return nil, err
@@ -208,13 +208,13 @@ func (b *Backend) buildTransaction(
 	payloadMetadata map[string]interface{},
 ) (*platformvm.Tx, []string, error) {
 	switch opType {
-	case mapper.OpImportAvax:
+	case pmapper.OpImportAvax:
 		return b.buildImportTx(ctx, matches, payloadMetadata)
-	case mapper.OpExportAvax:
+	case pmapper.OpExportAvax:
 		return b.buildExportTx(ctx, matches, payloadMetadata)
-	case mapper.OpAddValidator:
+	case pmapper.OpAddValidator:
 		return b.buildAddValidatorTx(ctx, matches, payloadMetadata)
-	case mapper.OpAddDelegator:
+	case pmapper.OpAddDelegator:
 		return b.buildAddDelegatorTx(ctx, matches, payloadMetadata)
 	default:
 		return nil, nil, fmt.Errorf("invalid tx type: %s", opType)

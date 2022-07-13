@@ -3,6 +3,7 @@ package pchain
 import (
 	"context"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/coinbase/rosetta-sdk-go/types"
 )
@@ -62,8 +63,8 @@ func (b *Backend) NetworkOptions(ctx context.Context, request *types.NetworkRequ
 		},
 		Allow: &types.Allow{
 			OperationStatuses:       mapper.OperationStatuses,
-			OperationTypes:          mapper.PChainOperationTypes,
-			CallMethods:             mapper.PChainCallMethods,
+			OperationTypes:          pmapper.OperationTypes,
+			CallMethods:             pmapper.CallMethods,
 			Errors:                  service.Errors,
 			HistoricalBalanceLookup: false,
 		},

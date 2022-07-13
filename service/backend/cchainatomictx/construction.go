@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
 	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/ids"
@@ -37,7 +38,7 @@ func (b *Backend) ConstructionPreprocess(ctx context.Context, req *types.Constru
 		return nil, service.WrapError(service.ErrInvalidInput, "both input and output operations must be specified")
 	}
 
-	var preprocessOptions options
+	var preprocessOptions cmapper.Options
 
 	switch firstIn.Type {
 	case mapper.OpImport:
@@ -46,7 +47,7 @@ func (b *Backend) ConstructionPreprocess(ctx context.Context, req *types.Constru
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
 
-		preprocessOptions = options{
+		preprocessOptions = cmapper.Options{
 			SourceChain: chain,
 		}
 	case mapper.OpExport:
@@ -55,7 +56,7 @@ func (b *Backend) ConstructionPreprocess(ctx context.Context, req *types.Constru
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
 
-		preprocessOptions = options{
+		preprocessOptions = cmapper.Options{
 			From:             firstIn.Account.Address,
 			DestinationChain: chain,
 		}
@@ -74,10 +75,10 @@ func (b *Backend) ConstructionPreprocess(ctx context.Context, req *types.Constru
 
 	}
 
-	tx, _, err := b.buildTx(firstIn.Type, matches, cBackendMetadata{
+	tx, _, err := cmapper.BuildTx(firstIn.Type, matches, cmapper.Metadata{
 		SourceChainID:      &ids.Empty,
 		DestinationChainId: &ids.Empty,
-	})
+	}, b.codec, b.avaxAssetId)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -105,7 +106,7 @@ func (b *Backend) ConstructionPreprocess(ctx context.Context, req *types.Constru
 }
 
 func (b *Backend) ConstructionMetadata(ctx context.Context, req *types.ConstructionMetadataRequest) (*types.ConstructionMetadataResponse, *types.Error) {
-	var input options
+	var input cmapper.Options
 	err := mapper.UnmarshalJSONMap(req.Options, &input)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
@@ -121,7 +122,7 @@ func (b *Backend) ConstructionMetadata(ctx context.Context, req *types.Construct
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
 
-	metadata := cBackendMetadata{
+	metadata := cmapper.Metadata{
 		NetworkID: networkId,
 		CChainID:  cChainId,
 	}
@@ -186,13 +187,13 @@ func (b *Backend) ConstructionPayloads(ctx context.Context, req *types.Construct
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	metadata := cBackendMetadata{}
+	metadata := cmapper.Metadata{}
 	err = mapper.UnmarshalJSONMap(req.Metadata, &metadata)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	tx, signers, err := b.buildTx(req.Operations[0].Type, matches, metadata)
+	tx, signers, err := cmapper.BuildTx(req.Operations[0].Type, matches, metadata, b.codec, b.avaxAssetId)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
@@ -232,7 +233,7 @@ func (b *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 
 	var signers []*types.AccountIdentifier
 
-	operations, err := b.parseTx(tx, hrp)
+	operations, err := cmapper.ParseTx(tx, hrp)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "incorrect transaction input")
 	}

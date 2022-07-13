@@ -13,6 +13,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
 	"github.com/ava-labs/coreth/interfaces"
 )
 
@@ -57,7 +58,7 @@ func (s AccountService) AccountBalance(
 	}
 
 	// If the address is in Bech32 format, we check the atomic balance
-	if mapper.IsBech32(req.AccountIdentifier) {
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.AccountBalance(ctx, req)
 	}
 
@@ -147,8 +148,7 @@ func (s AccountService) AccountCoins(
 		return s.pChainBackend.AccountCoins(ctx, req)
 	}
 
-	if mapper.IsCChainBech32(req.AccountIdentifier) {
-		// We return atomic tx UTXOs for C-chain Bech32 address
+	if cmapper.IsCChainAtomicRequest(req) {
 		return s.cAtomicTxBackend.AccountCoins(ctx, req)
 	}
 

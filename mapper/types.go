@@ -22,8 +22,6 @@ const (
 	CChainNetworkIdentifier = "C"
 	XChainNetworkIdentifier = "X"
 
-	AddressFormatBech32 = "bech32"
-
 	OpCall          = "CALL"
 	OpFee           = "FEE"
 	OpCreate        = "CREATE"
@@ -39,12 +37,6 @@ const (
 	OpErc20Mint     = "ERC20_MINT"
 	OpErc20Burn     = "ERC20_BURN"
 
-	OpImportAvax      = "IMPORT_AVAX"
-	OpExportAvax      = "EXPORT_AVAX"
-	OpAddValidator    = "ADD_VALIDATOR"
-	OpAddDelegator    = "ADD_DELEGATOR"
-	OpRewardValidator = "REWARD_VALIDATOR"
-
 	OpErc721TransferSender  = "ERC721_SENDER"
 	OpErc721TransferReceive = "ERC721_RECEIVE"
 	OpErc721Mint            = "ERC721_MINT"
@@ -53,7 +45,8 @@ const (
 	StatusSuccess = "SUCCESS"
 	StatusFailure = "FAILURE"
 
-	MetaStakingTxId = "staking_tx"
+	MetaAddressFormat   = "address_format"
+	AddressFormatBech32 = "bech32"
 )
 
 var (
@@ -110,15 +103,6 @@ var (
 	CallMethods = []string{
 		"eth_getTransactionReceipt",
 	}
-
-	PChainOperationTypes = []string{
-		OpImportAvax,
-		OpExportAvax,
-		OpAddValidator,
-		OpAddDelegator,
-		OpRewardValidator,
-	}
-	PChainCallMethods = []string{}
 )
 
 func CallType(t string) bool {
@@ -146,21 +130,6 @@ func CreateType(t string) bool {
 
 	for _, createType := range createTypes {
 		if createType == t {
-			return true
-		}
-	}
-
-	return false
-}
-
-func AtomicType(t string) bool {
-	atomicTypes := []string{
-		OpExport,
-		OpImport,
-	}
-
-	for _, atomicType := range atomicTypes {
-		if atomicType == t {
 			return true
 		}
 	}
