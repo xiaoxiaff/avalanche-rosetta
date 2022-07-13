@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/coreth/interfaces"
 )
 
@@ -49,7 +50,7 @@ func (s AccountService) AccountBalance(
 		return nil, ErrUnavailableOffline
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.AccountBalance(ctx, req)
 	}
 
@@ -144,7 +145,7 @@ func (s AccountService) AccountCoins(
 		return nil, ErrUnavailableOffline
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.AccountCoins(ctx, req)
 	}
 

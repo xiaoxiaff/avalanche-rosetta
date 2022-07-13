@@ -91,7 +91,7 @@ func (s ConstructionService) ConstructionMetadata(
 		return nil, WrapError(ErrInvalidInput, "from address is not provided")
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.ConstructionMetadata(ctx, req)
 	}
 
@@ -170,7 +170,7 @@ func (s ConstructionService) ConstructionHash(
 		return nil, WrapError(ErrInvalidInput, "signed transaction value is not provided")
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.ConstructionHash(ctx, req)
 	}
 
@@ -212,7 +212,7 @@ func (s ConstructionService) ConstructionCombine(
 		return nil, WrapError(ErrInvalidInput, "signature is not provided")
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.ConstructionCombine(ctx, req)
 	}
 
@@ -270,7 +270,7 @@ func (s ConstructionService) ConstructionDerive(
 		return nil, WrapError(ErrInvalidInput, "public key is not provided")
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.ConstructionDerive(ctx, req)
 	}
 
@@ -300,7 +300,7 @@ func (s ConstructionService) ConstructionParse(
 	ctx context.Context,
 	req *types.ConstructionParseRequest,
 ) (*types.ConstructionParseResponse, *types.Error) {
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.ConstructionParse(ctx, req)
 	}
 
@@ -451,7 +451,7 @@ func (s ConstructionService) ConstructionPayloads(
 	ctx context.Context,
 	req *types.ConstructionPayloadsRequest,
 ) (*types.ConstructionPayloadsResponse, *types.Error) {
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.ConstructionPayloads(ctx, req)
 	}
 
@@ -563,7 +563,7 @@ func (s ConstructionService) ConstructionPreprocess(
 	ctx context.Context,
 	req *types.ConstructionPreprocessRequest,
 ) (*types.ConstructionPreprocessResponse, *types.Error) {
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.ConstructionPreprocess(ctx, req)
 	}
 
@@ -670,7 +670,7 @@ func (s ConstructionService) ConstructionSubmit(
 		return nil, WrapError(ErrInvalidInput, "signed transaction value is not provided")
 	}
 
-	if mapper.IsPChain(req.NetworkIdentifier) {
+	if pmapper.IsPChainRequest(req) {
 		return s.pChainBackend.ConstructionSubmit(ctx, req)
 	}
 

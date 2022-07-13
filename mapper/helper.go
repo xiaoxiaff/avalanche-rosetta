@@ -19,17 +19,6 @@ func EqualFoldContains(arr []string, str string) bool {
 	return false
 }
 
-// IsPChain checks network identifier to make sure sub-network identifier set to "P"
-func IsPChain(networkIdentifier *types.NetworkIdentifier) bool {
-	if networkIdentifier != nil &&
-		networkIdentifier.SubNetworkIdentifier != nil &&
-		networkIdentifier.SubNetworkIdentifier.Network == PChainNetworkIdentifier {
-		return true
-	}
-
-	return false
-}
-
 // GetHRP fetches hrp for address formatting.
 func GetHRP(networkIdentifier *types.NetworkIdentifier) (string, error) {
 	var hrp string
