@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
@@ -152,7 +151,7 @@ func buildImportedInputs(matches []*parser.Match, avaxAssetId ids.ID) ([]*avax.T
 		if op.CoinChange == nil || op.CoinChange.CoinIdentifier == nil {
 			return nil, nil, errors.New("input operation does not have coin identifier")
 		}
-		utxoId, err := common.DecodeUTXOID(op.CoinChange.CoinIdentifier.Identifier)
+		utxoId, err := mapper.DecodeUTXOID(op.CoinChange.CoinIdentifier.Identifier)
 		if err != nil {
 			return nil, nil, err
 		}

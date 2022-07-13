@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -116,7 +115,7 @@ func TestAccountCoins(t *testing.T) {
 }
 
 func makeUtxoBytes(t *testing.T, backend *Backend, utxoIdStr string, amount uint64) []byte {
-	utxoId, err := common.DecodeUTXOID(utxoIdStr)
+	utxoId, err := mapper.DecodeUTXOID(utxoIdStr)
 	if err != nil {
 		t.Fail()
 		return nil

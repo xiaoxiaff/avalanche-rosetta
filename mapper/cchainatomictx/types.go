@@ -6,7 +6,8 @@ import (
 )
 
 const (
-	MetaAtomicTxGas = "atomic_tx_gas"
+	MetadataAtomicTxGas = "atomic_tx_gas"
+	MetadataNonce       = "nonce"
 )
 
 type Metadata struct {

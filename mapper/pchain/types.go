@@ -7,13 +7,14 @@ const (
 	OpAddDelegator    = "ADD_DELEGATOR"
 	OpRewardValidator = "REWARD_VALIDATOR"
 
-	OpImport      = "IMPORT"
-	OpExport      = "EXPORT"
-	OpInput       = "INPUT"
-	OpOutput      = "OUTPUT"
-	OpStakeOutput = "STAKE"
+	OpTypeImport      = "IMPORT"
+	OpTypeExport      = "EXPORT"
+	OpTypeInput       = "INPUT"
+	OpTypeOutput      = "OUTPUT"
+	OpTypeStakeOutput = "STAKE"
 
-	MetaStakingTxId = "staking_tx"
+	MetadataOpType      = "type"
+	MetadataStakingTxId = "staking_tx"
 )
 
 var (
@@ -31,4 +32,46 @@ type OperationMetadata struct {
 	Type         string   `json:"type"`
 	SigIndices   []uint32 `json:"sig_indices"`
 	OutputOwners string   `json:"output_owners"`
+}
+
+type ImportExportOptions struct {
+	SourceChain      string `json:"source_chain"`
+	DestinationChain string `json:"destination_chain"`
+}
+
+type StakingOptions struct {
+	NodeID          string   `json:"node_id"`
+	Start           uint64   `json:"start"`
+	End             uint64   `json:"end"`
+	Wght            uint64   `json:"weight"`
+	Shares          uint32   `json:"shares"`
+	Memo            string   `json:"memo"`
+	Locktime        uint64   `json:"locktime"`
+	Threshold       uint32   `json:"threshold"`
+	RewardAddresses []string `json:"reward_addresses"`
+}
+
+type ImportExportMetadata struct {
+	SourceChainID      string `json:"source_chain_id"`
+	DestinationChainID string `json:"destination_chain_id"`
+	NetworkID          uint32 `json:"network_id"`
+	BlockchainID       string `json:"blockchain_id"`
+}
+
+type StakingMetadata struct {
+	NodeID          string   `json:"node_id"`
+	Start           uint64   `json:"start"`
+	End             uint64   `json:"end"`
+	Wght            uint64   `json:"weight"`
+	Shares          uint32   `json:"shares"`
+	Memo            string   `json:"memo"`
+	NetworkID       uint32   `json:"network_id"`
+	BlockchainID    string   `json:"blockchain_id"`
+	Locktime        uint64   `json:"locktime"`
+	Threshold       uint32   `json:"threshold"`
+	RewardAddresses []string `json:"reward_addresses"`
+}
+
+type SigIndicesMetadata struct {
+	Type string `json:"type"`
 }

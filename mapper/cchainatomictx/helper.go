@@ -17,7 +17,7 @@ func IsCChainAtomicRequest(req interface{}) bool {
 	case *types.ConstructionDeriveRequest:
 		return r.Metadata[mapper.MetaAddressFormat] == mapper.AddressFormatBech32
 	case *types.ConstructionMetadataRequest:
-		return r.Options[MetaAtomicTxGas] != nil
+		return r.Options[MetadataAtomicTxGas] != nil
 	case *types.ConstructionPreprocessRequest:
 		return isAtomicOpType(r.Operations[0].Type)
 	case *types.ConstructionPayloadsRequest:
@@ -37,7 +37,7 @@ func IsCChainAtomicRequest(req interface{}) bool {
 
 func isCChainBech32(accountIdentifier *types.AccountIdentifier) bool {
 	if chainID, _, _, err := address.Parse(accountIdentifier.Address); err == nil {
-		return chainID == mapper.CChainIDAlias
+		return chainID == mapper.CChainNetworkIdentifier
 	}
 	return false
 }

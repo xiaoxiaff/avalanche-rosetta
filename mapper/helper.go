@@ -3,6 +3,11 @@ package mapper
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/formatting"
+	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"strconv"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/constants"
@@ -57,4 +62,35 @@ func MarshalJSONMap(i interface{}) (map[string]interface{}, error) {
 	}
 
 	return m, nil
+}
+
+// Parse string into avax.UTXOID
+func DecodeUTXOID(s string) (*avax.UTXOID, error) {
+	split := strings.Split(s, ":")
+	if len(split) != 2 {
+		return nil, fmt.Errorf("invalid utxo ID format")
+	}
+
+	txID, err := ids.FromString(split[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid tx ID: %w", err)
+	}
+
+	outputIdx, err := strconv.ParseUint(split[1], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("invalid output index: %w", err)
+	}
+
+	return &avax.UTXOID{
+		TxID:        txID,
+		OutputIndex: uint32(outputIdx),
+	}, nil
+}
+
+func EncodeBytes(bytes []byte) (string, error) {
+	return formatting.EncodeWithChecksum(formatting.Hex, bytes)
+}
+
+func DecodeToBytes(binaryData string) ([]byte, error) {
+	return formatting.Decode(formatting.Hex, binaryData)
 }

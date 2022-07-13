@@ -61,7 +61,7 @@ func (b *Backend) ConstructionPreprocess(ctx context.Context, req *types.Constru
 			DestinationChain: chain,
 		}
 
-		if v, ok := req.Metadata["nonce"]; ok {
+		if v, ok := req.Metadata[cmapper.MetadataNonce]; ok {
 			stringObj, ok := v.(string)
 			if !ok {
 				return nil, service.WrapError(service.ErrInvalidInput, fmt.Errorf("%s is not a valid nonce string", v))
@@ -221,7 +221,7 @@ func (b *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 
 	tx := evm.Tx{}
 
-	txBytes, err := common.DecodeToBytes(req.Transaction)
+	txBytes, err := mapper.DecodeToBytes(req.Transaction)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "undecodable transaction")
 	}
@@ -258,7 +258,7 @@ func (b *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 }
 
 func (b *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
-	unsignedBytes, err := common.DecodeToBytes(req.UnsignedTransaction)
+	unsignedBytes, err := mapper.DecodeToBytes(req.UnsignedTransaction)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -290,7 +290,7 @@ func (b *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 
 	tx.Initialize(unsignedBytes, signedBytes)
 
-	signedTransaction, err := common.EncodeBytes(signedBytes)
+	signedTransaction, err := mapper.EncodeBytes(signedBytes)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, "unable to encode signed transaction")
 	}

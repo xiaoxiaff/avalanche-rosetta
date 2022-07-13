@@ -42,7 +42,7 @@ func IsPChainRequest(req interface{}) bool {
 func isPChain(networkIdentifier *types.NetworkIdentifier) bool {
 	if networkIdentifier != nil &&
 		networkIdentifier.SubNetworkIdentifier != nil &&
-		networkIdentifier.SubNetworkIdentifier.Network == mapper.PChainIDAlias {
+		networkIdentifier.SubNetworkIdentifier.Network == mapper.PChainNetworkIdentifier {
 		return true
 	}
 
