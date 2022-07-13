@@ -1,8 +1,9 @@
 package cchainatomictx
 
 import (
-	"github.com/ava-labs/avalanchego/ids"
 	"math/big"
+
+	"github.com/ava-labs/avalanchego/ids"
 )
 
 const (

@@ -3,10 +3,12 @@ package cchainatomictx
 import (
 	"context"
 	"errors"
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
+	"strconv"
+
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/utils/math"
-	"strconv"
+
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"

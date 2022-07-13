@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
-	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"math/big"
 
 	ethtypes "github.com/ava-labs/coreth/core/types"
@@ -21,6 +19,8 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 )
 
 const (

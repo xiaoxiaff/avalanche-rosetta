@@ -1,11 +1,12 @@
 package cchainatomictx
 
 import (
-	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/coinbase/rosetta-sdk-go/types"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
 func IsCChainAtomicRequest(req interface{}) bool {

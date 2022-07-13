@@ -2,10 +2,12 @@ package pchain
 
 import (
 	"context"
+
+	"github.com/coinbase/rosetta-sdk-go/types"
+
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
-	"github.com/coinbase/rosetta-sdk-go/types"
 )
 
 func (b *Backend) NetworkIdentifier() *types.NetworkIdentifier {

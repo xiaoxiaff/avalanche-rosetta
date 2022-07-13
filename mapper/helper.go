@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"strconv"
-	"strings"
 
 	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/coinbase/rosetta-sdk-go/types"

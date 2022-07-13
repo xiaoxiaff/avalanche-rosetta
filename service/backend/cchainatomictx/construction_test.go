@@ -1,20 +1,21 @@
 package cchainatomictx
 
 import (
+	"context"
 	"encoding/hex"
-	"github.com/ava-labs/avalanche-rosetta/mapper"
-	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
-	"github.com/ava-labs/avalanche-rosetta/service"
+	"math/big"
+	"testing"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"math/big"
-	"testing"
 
-	"context"
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
+	"github.com/ava-labs/avalanche-rosetta/service"
 )
 
 var (

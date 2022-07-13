@@ -3,6 +3,9 @@ package pchain
 import (
 	"errors"
 	"fmt"
+	"log"
+	"math/big"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting"
@@ -13,8 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/parser"
 	"github.com/coinbase/rosetta-sdk-go/types"
-	"log"
-	"math/big"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )

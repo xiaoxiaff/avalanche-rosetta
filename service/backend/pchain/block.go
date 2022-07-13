@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
+	"log"
+	"reflect"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/coinbase/rosetta-sdk-go/types"
-	"log"
-	"reflect"
+
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 
 	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"

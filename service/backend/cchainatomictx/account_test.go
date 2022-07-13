@@ -2,8 +2,9 @@ package cchainatomictx
 
 import (
 	"context"
-	"github.com/ava-labs/avalanche-rosetta/mapper"
-	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
+	"strconv"
+	"testing"
+
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -11,8 +12,9 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"strconv"
-	"testing"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
 )
 
 type utxo struct {

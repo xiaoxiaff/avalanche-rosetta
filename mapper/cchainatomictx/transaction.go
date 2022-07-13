@@ -3,7 +3,8 @@ package cchainatomictx
 import (
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanche-rosetta/mapper"
+	"strconv"
+
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
@@ -13,7 +14,8 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/parser"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"strconv"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
 func BuildTx(opType string, matches []*parser.Match, metadata Metadata, codec codec.Manager, avaxAssetId ids.ID) (*evm.Tx, []*types.AccountIdentifier, error) {

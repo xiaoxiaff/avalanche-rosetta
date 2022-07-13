@@ -3,10 +3,8 @@ package cchainatomictx
 import (
 	"context"
 	"fmt"
-	"github.com/ava-labs/avalanche-rosetta/mapper"
-	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
-	"github.com/ava-labs/avalanche-rosetta/service"
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
+	"math/big"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
@@ -15,7 +13,11 @@ import (
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"math/big"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
+	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
 func (b *Backend) ConstructionDerive(

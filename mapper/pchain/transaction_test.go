@@ -3,10 +3,11 @@ package pchain
 import (
 	"testing"
 
-	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
 func TestMapInOperation(t *testing.T) {

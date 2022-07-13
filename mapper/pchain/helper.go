@@ -1,8 +1,9 @@
 package pchain
 
 import (
-	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/coinbase/rosetta-sdk-go/types"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
 func IsPChainRequest(req interface{}) bool {
