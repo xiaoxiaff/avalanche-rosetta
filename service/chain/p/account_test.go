@@ -106,7 +106,9 @@ func TestAccountCoins(t *testing.T) {
 		utxo0Bytes := makeUtxoBytes(t, service, utxos[0].id, utxos[0].amount)
 		utxo1Bytes := makeUtxoBytes(t, service, utxos[1].id, utxos[1].amount)
 
-		addr, _ := address.ParseToID(pChainAddr)
+		addr, errp := address.ParseToID(pChainAddr)
+		assert.Nil(t, errp)
+
 		var startAddr ids.ShortID
 		var startUTXOID ids.ID
 		utxo1idShortID, _ := ids.FromString(strings.Split(utxos[1].id, ":")[0])
@@ -123,7 +125,7 @@ func TestAccountCoins(t *testing.T) {
 					},
 				},
 				AccountIdentifier: &types.AccountIdentifier{
-					Address: addr.String(),
+					Address: pChainAddr,
 				},
 				Currencies: []*types.Currency{
 					mapper.AvaxCurrency,

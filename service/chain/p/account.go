@@ -3,8 +3,9 @@ package p
 import (
 	"context"
 	"errors"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
 	"strconv"
+
+	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
@@ -66,7 +67,6 @@ func (c *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 	}
 
 	addr, err := address.ParseToID(req.AccountIdentifier.Address)
-
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to convert address")
 	}
