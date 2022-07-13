@@ -19,12 +19,8 @@ const (
 	IndexTransferredMetadata = "indexTransferred"
 
 	PChainNetworkIdentifier = "P"
-	PChainIDAlias           = "P"
-
-	XChainIDAlias = "X"
-
 	CChainNetworkIdentifier = "C"
-	CChainIDAlias           = "C"
+	XChainNetworkIdentifier = "X"
 
 	AddressFormatBech32 = "bech32"
 

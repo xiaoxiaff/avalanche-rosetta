@@ -5,8 +5,8 @@ import (
 	"context"
 	"flag"
 
-	"github.com/ava-labs/avalanche-rosetta/service/chain/c"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/p"
+	c "github.com/ava-labs/avalanche-rosetta/service/backend/cchainatomictx"
+	p "github.com/ava-labs/avalanche-rosetta/service/backend/pchain"
 	"github.com/ava-labs/avalanchego/ids"
 	"io/ioutil"
 	"log"
@@ -165,7 +165,7 @@ func main() {
 		log.Fatal("unable to construct p-chain backend:", err)
 	}
 
-	cAtomicTxBackend := c.NewAtomicTxBackend(apiClient, avaxAssetID)
+	cAtomicTxBackend := c.NewBackend(apiClient, avaxAssetID)
 
 	handler := configureRouter(serviceConfig, asserter, apiClient, pChainBackend, cAtomicTxBackend)
 	if cfg.LogRequests {
@@ -192,7 +192,7 @@ func configureRouter(
 	asserter *asserter.Asserter,
 	apiClient client.Client,
 	pChainBackend *p.Backend,
-	cAtomicTxBackend *c.CChainAtomicTxBackend,
+	cAtomicTxBackend *c.Backend,
 ) http.Handler {
 	networkService := service.NewNetworkService(serviceConfig, apiClient, pChainBackend)
 	blockService := service.NewBlockService(serviceConfig, apiClient, pChainBackend)

@@ -14,8 +14,12 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	"github.com/ava-labs/avalanche-rosetta/service/chain"
 )
+
+type BlockBackend interface {
+	Block(ctx context.Context, request *types.BlockRequest) (*types.BlockResponse, *types.Error)
+	BlockTransaction(ctx context.Context, request *types.BlockTransactionRequest) (*types.BlockTransactionResponse, *types.Error)
+}
 
 // BlockService implements the /block/* endpoints
 type BlockService struct {
@@ -23,11 +27,11 @@ type BlockService struct {
 	client client.Client
 
 	genesisBlock  *types.Block
-	pChainBackend chain.BlockBackend
+	pChainBackend BlockBackend
 }
 
 // NewBlockService returns a new block servicer
-func NewBlockService(config *Config, c client.Client, pChainBackend chain.BlockBackend) server.BlockAPIServicer {
+func NewBlockService(config *Config, c client.Client, pChainBackend BlockBackend) server.BlockAPIServicer {
 	return &BlockService{
 		config:        config,
 		client:        c,

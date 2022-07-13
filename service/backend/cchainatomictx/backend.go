@@ -1,17 +1,17 @@
-package c
+package cchainatomictx
 
 import (
 	"github.com/ava-labs/avalanche-rosetta/client"
-	"github.com/ava-labs/avalanche-rosetta/service/chain"
+	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/coreth/plugin/evm"
 )
 
-type CChainAtomicTxBackend struct {
-	chain.AccountBackend
-	chain.ConstructionBackend
+type Backend struct {
+	service.AccountBackend
+	service.ConstructionBackend
 
 	fac              *crypto.FactorySECP256K1R
 	cClient          client.Client
@@ -21,8 +21,8 @@ type CChainAtomicTxBackend struct {
 	avaxAssetId      ids.ID
 }
 
-func NewAtomicTxBackend(cClient client.Client, avaxAssetId ids.ID) *CChainAtomicTxBackend {
-	return &CChainAtomicTxBackend{
+func NewBackend(cClient client.Client, avaxAssetId ids.ID) *Backend {
+	return &Backend{
 		fac:              &crypto.FactorySECP256K1R{},
 		cClient:          cClient,
 		avaxAssetId:      avaxAssetId,

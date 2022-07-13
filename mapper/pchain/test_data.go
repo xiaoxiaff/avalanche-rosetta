@@ -1,4 +1,4 @@
-package mapper
+package pchain
 
 import (
 	"github.com/ava-labs/avalanchego/ids"

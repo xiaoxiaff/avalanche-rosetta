@@ -30,17 +30,6 @@ func IsPChain(networkIdentifier *types.NetworkIdentifier) bool {
 	return false
 }
 
-// IsCChain checks network identifier to make sure sub-network is not specified or identifier set to "C"
-func IsCChain(networkIdentifier *types.NetworkIdentifier) bool {
-	if networkIdentifier != nil &&
-		(networkIdentifier.SubNetworkIdentifier == nil ||
-			networkIdentifier.SubNetworkIdentifier.Network == CChainNetworkIdentifier) {
-		return true
-	}
-
-	return false
-}
-
 // GetHRP fetches hrp for address formatting.
 func GetHRP(networkIdentifier *types.NetworkIdentifier) (string, error) {
 	var hrp string

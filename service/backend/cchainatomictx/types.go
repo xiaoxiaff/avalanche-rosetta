@@ -1,4 +1,4 @@
-package c
+package cchainatomictx
 
 import (
 	"github.com/ava-labs/avalanchego/ids"

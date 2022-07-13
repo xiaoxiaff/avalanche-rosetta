@@ -1,17 +1,17 @@
-package p
+package pchain
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"log"
 	"reflect"
 
-	mapper "github.com/ava-labs/avalanche-rosetta/mapper/p"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 )
 
@@ -55,7 +55,7 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 			return nil, service.WrapError(service.ErrInternalError, "tx initalize error")
 		}
 
-		t, err := mapper.Transaction(tx.UnsignedTx)
+		t, err := pmapper.Transaction(tx.UnsignedTx)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
@@ -111,7 +111,7 @@ func (b *Backend) BlockTransaction(ctx context.Context, request *types.BlockTran
 			continue
 		}
 
-		t, err := mapper.Transaction(tx.UnsignedTx)
+		t, err := pmapper.Transaction(tx.UnsignedTx)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
@@ -158,7 +158,7 @@ func (b *Backend) getBlock(ctx context.Context, index int64, hash string) (platf
 
 	// Unmarshal the block
 	var block platformvm.Block
-	if _, err := platformvm.Codec.Unmarshal(blockBytes, &block); err != nil {
+	if _, err := b.codec.Unmarshal(blockBytes, &block); err != nil {
 		return nil, "", err
 	}
 

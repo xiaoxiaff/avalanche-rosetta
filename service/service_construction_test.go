@@ -11,7 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
-	chainMocks "github.com/ava-labs/avalanche-rosetta/mocks/service/chain"
+	backendMocks "github.com/ava-labs/avalanche-rosetta/mocks/service"
 	"github.com/ava-labs/coreth/interfaces"
 
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -241,7 +241,7 @@ func TestContructionHash(t *testing.T) {
 }
 
 func TestConstructionDerive(t *testing.T) {
-	mockPBackend := &chainMocks.ConstructionBackend{}
+	mockPBackend := &backendMocks.ConstructionBackend{}
 	service := ConstructionService{
 		pChainBackend: mockPBackend,
 	}

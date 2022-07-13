@@ -1,11 +1,11 @@
-package c
+package cchainatomictx
 
 import (
 	"context"
 	"fmt"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
@@ -17,14 +17,14 @@ import (
 	"math/big"
 )
 
-func (c *CChainAtomicTxBackend) ConstructionDerive(
+func (b *Backend) ConstructionDerive(
 	ctx context.Context,
 	req *types.ConstructionDeriveRequest,
 ) (*types.ConstructionDeriveResponse, *types.Error) {
-	return common.DeriveBech32Address(c.fac, mapper.CChainIDAlias, req)
+	return common.DeriveBech32Address(b.fac, mapper.CChainNetworkIdentifier, req)
 }
 
-func (c *CChainAtomicTxBackend) ConstructionPreprocess(ctx context.Context, req *types.ConstructionPreprocessRequest) (*types.ConstructionPreprocessResponse, *types.Error) {
+func (b *Backend) ConstructionPreprocess(ctx context.Context, req *types.ConstructionPreprocessRequest) (*types.ConstructionPreprocessResponse, *types.Error) {
 	matches, err := common.MatchOperations(req.Operations)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
@@ -74,7 +74,7 @@ func (c *CChainAtomicTxBackend) ConstructionPreprocess(ctx context.Context, req 
 
 	}
 
-	tx, _, err := c.buildTx(firstIn.Type, matches, cBackendMetadata{
+	tx, _, err := b.buildTx(firstIn.Type, matches, cBackendMetadata{
 		SourceChainID:      &ids.Empty,
 		DestinationChainId: &ids.Empty,
 	})
@@ -82,7 +82,7 @@ func (c *CChainAtomicTxBackend) ConstructionPreprocess(ctx context.Context, req 
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	err = tx.Sign(c.codec, [][]*crypto.PrivateKeySECP256K1R{})
+	err = tx.Sign(b.codec, [][]*crypto.PrivateKeySECP256K1R{})
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -104,19 +104,19 @@ func (c *CChainAtomicTxBackend) ConstructionPreprocess(ctx context.Context, req 
 	}, nil
 }
 
-func (c *CChainAtomicTxBackend) ConstructionMetadata(ctx context.Context, req *types.ConstructionMetadataRequest) (*types.ConstructionMetadataResponse, *types.Error) {
+func (b *Backend) ConstructionMetadata(ctx context.Context, req *types.ConstructionMetadataRequest) (*types.ConstructionMetadataResponse, *types.Error) {
 	var input options
 	err := mapper.UnmarshalJSONMap(req.Options, &input)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	networkId, err := c.cClient.GetNetworkID(ctx)
+	networkId, err := b.cClient.GetNetworkID(ctx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
 
-	cChainId, err := c.cClient.GetBlockchainID(ctx, mapper.CChainIDAlias)
+	cChainId, err := b.cClient.GetBlockchainID(ctx, mapper.CChainNetworkIdentifier)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
@@ -127,7 +127,7 @@ func (c *CChainAtomicTxBackend) ConstructionMetadata(ctx context.Context, req *t
 	}
 
 	if input.SourceChain != "" {
-		id, err := c.cClient.GetBlockchainID(ctx, input.SourceChain)
+		id, err := b.cClient.GetBlockchainID(ctx, input.SourceChain)
 		if err != nil {
 			return nil, service.WrapError(service.ErrClientError, err)
 		}
@@ -135,7 +135,7 @@ func (c *CChainAtomicTxBackend) ConstructionMetadata(ctx context.Context, req *t
 	}
 
 	if input.DestinationChain != "" {
-		id, err := c.cClient.GetBlockchainID(ctx, input.DestinationChain)
+		id, err := b.cClient.GetBlockchainID(ctx, input.DestinationChain)
 		if err != nil {
 			return nil, service.WrapError(service.ErrClientError, err)
 		}
@@ -146,7 +146,7 @@ func (c *CChainAtomicTxBackend) ConstructionMetadata(ctx context.Context, req *t
 	if input.From != "" {
 		var nonce uint64
 		if input.Nonce == nil {
-			nonce, err = c.cClient.NonceAt(ctx, ethcommon.HexToAddress(input.From), nil)
+			nonce, err = b.cClient.NonceAt(ctx, ethcommon.HexToAddress(input.From), nil)
 			if err != nil {
 				return nil, service.WrapError(service.ErrClientError, err)
 			}
@@ -156,7 +156,7 @@ func (c *CChainAtomicTxBackend) ConstructionMetadata(ctx context.Context, req *t
 		metadata.Nonce = nonce
 	}
 
-	baseFee, err := c.cClient.EstimateBaseFee(ctx)
+	baseFee, err := b.cClient.EstimateBaseFee(ctx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
@@ -180,7 +180,7 @@ func (c *CChainAtomicTxBackend) ConstructionMetadata(ctx context.Context, req *t
 	}, nil
 }
 
-func (c *CChainAtomicTxBackend) ConstructionPayloads(ctx context.Context, req *types.ConstructionPayloadsRequest) (*types.ConstructionPayloadsResponse, *types.Error) {
+func (b *Backend) ConstructionPayloads(ctx context.Context, req *types.ConstructionPayloadsRequest) (*types.ConstructionPayloadsResponse, *types.Error) {
 	matches, err := common.MatchOperations(req.Operations)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
@@ -192,17 +192,17 @@ func (c *CChainAtomicTxBackend) ConstructionPayloads(ctx context.Context, req *t
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	tx, signers, err := c.buildTx(req.Operations[0].Type, matches, metadata)
+	tx, signers, err := b.buildTx(req.Operations[0].Type, matches, metadata)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
-	unsignedBytes, err := c.codec.Marshal(c.codecVersion, &tx)
+	unsignedBytes, err := b.codec.Marshal(b.codecVersion, &tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
-	unsignedAtomicBytes, err := c.codec.Marshal(c.codecVersion, &tx.UnsignedAtomicTx)
+	unsignedAtomicBytes, err := b.codec.Marshal(b.codecVersion, &tx.UnsignedAtomicTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
@@ -212,7 +212,7 @@ func (c *CChainAtomicTxBackend) ConstructionPayloads(ctx context.Context, req *t
 	return common.BuildPayloadsResponse(unsignedBytes, hash, signers)
 }
 
-func (c *CChainAtomicTxBackend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
+func (b *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
 	hrp, err := mapper.GetHRP(req.NetworkIdentifier)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "incorrect network identifier")
@@ -225,14 +225,14 @@ func (c *CChainAtomicTxBackend) ConstructionParse(ctx context.Context, req *type
 		return nil, service.WrapError(service.ErrInvalidInput, "undecodable transaction")
 	}
 
-	_, err = c.codec.Unmarshal(txBytes, &tx)
+	_, err = b.codec.Unmarshal(txBytes, &tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unparsable transaction")
 	}
 
 	var signers []*types.AccountIdentifier
 
-	operations, err := c.parseTx(tx, hrp)
+	operations, err := b.parseTx(tx, hrp)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "incorrect transaction input")
 	}
@@ -256,7 +256,7 @@ func (c *CChainAtomicTxBackend) ConstructionParse(ctx context.Context, req *type
 	}, nil
 }
 
-func (c *CChainAtomicTxBackend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
+func (b *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
 	unsignedBytes, err := common.DecodeToBytes(req.UnsignedTransaction)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
@@ -264,7 +264,7 @@ func (c *CChainAtomicTxBackend) ConstructionCombine(ctx context.Context, req *ty
 
 	var tx evm.Tx
 
-	_, err = c.codec.Unmarshal(unsignedBytes, &tx)
+	_, err = b.codec.Unmarshal(unsignedBytes, &tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to unmarshal transaction")
 	}
@@ -282,7 +282,7 @@ func (c *CChainAtomicTxBackend) ConstructionCombine(ctx context.Context, req *ty
 	}
 	tx.Creds = creds
 
-	signedBytes, err := c.codec.Marshal(c.codecVersion, tx)
+	signedBytes, err := b.codec.Marshal(b.codecVersion, tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, "unable to marshal signed transaction")
 	}
@@ -299,10 +299,10 @@ func (c *CChainAtomicTxBackend) ConstructionCombine(ctx context.Context, req *ty
 	}, nil
 }
 
-func (c *CChainAtomicTxBackend) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
+func (b *Backend) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
 	return common.HashTx(req)
 }
 
-func (c *CChainAtomicTxBackend) ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	return common.SubmitTx(c.cClient, ctx, req)
+func (b *Backend) ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
+	return common.SubmitTx(b.cClient, ctx, req)
 }

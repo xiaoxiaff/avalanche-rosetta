@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ava-labs/avalanche-rosetta/service/chain"
-
 	ethtypes "github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/interfaces"
 	"github.com/coinbase/rosetta-sdk-go/parser"
@@ -30,20 +28,31 @@ const (
 	transferDataLength  = 68                          // 4 (method id) + 2*32 (args)
 )
 
+type ConstructionBackend interface {
+	ConstructionDerive(ctx context.Context, req *types.ConstructionDeriveRequest) (*types.ConstructionDeriveResponse, *types.Error)
+	ConstructionPreprocess(ctx context.Context, req *types.ConstructionPreprocessRequest) (*types.ConstructionPreprocessResponse, *types.Error)
+	ConstructionMetadata(ctx context.Context, req *types.ConstructionMetadataRequest) (*types.ConstructionMetadataResponse, *types.Error)
+	ConstructionPayloads(ctx context.Context, req *types.ConstructionPayloadsRequest) (*types.ConstructionPayloadsResponse, *types.Error)
+	ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error)
+	ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error)
+	ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error)
+	ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error)
+}
+
 // ConstructionService implements /construction/* endpoints
 type ConstructionService struct {
 	config           *Config
 	client           client.Client
-	pChainBackend    chain.ConstructionBackend
-	cAtomicTxBackend chain.ConstructionBackend
+	pChainBackend    ConstructionBackend
+	cAtomicTxBackend ConstructionBackend
 }
 
 // NewConstructionService returns a new construction service
 func NewConstructionService(
 	config *Config,
 	client client.Client,
-	pChainBackend chain.ConstructionBackend,
-	cAtomicTxBackend chain.ConstructionBackend,
+	pChainBackend ConstructionBackend,
+	cAtomicTxBackend ConstructionBackend,
 ) server.ConstructionAPIServicer {
 	return &ConstructionService{
 		config:           config,

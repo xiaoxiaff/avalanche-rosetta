@@ -1,4 +1,4 @@
-package c
+package cchainatomictx
 
 import (
 	"encoding/hex"
@@ -78,7 +78,7 @@ var (
 )
 
 func TestConstructionDerive(t *testing.T) {
-	backend := NewAtomicTxBackend(&mocks.Client{}, ids.Empty)
+	backend := NewBackend(&mocks.Client{}, ids.Empty)
 
 	t.Run("c-chain address", func(t *testing.T) {
 		src := "02e0d4392cfa224d4be19db416b3cf62e90fb2b7015e7b62a95c8cb490514943f6"
@@ -104,7 +104,7 @@ func TestConstructionDerive(t *testing.T) {
 }
 
 func TestConstructionPreprocess(t *testing.T) {
-	backend := NewAtomicTxBackend(&mocks.Client{}, ids.Empty)
+	backend := NewBackend(&mocks.Client{}, ids.Empty)
 
 	t.Run("C-chain export preprocess", func(t *testing.T) {
 		req := &types.ConstructionPreprocessRequest{
@@ -186,7 +186,7 @@ func TestConstructionPreprocess(t *testing.T) {
 
 func TestConstructionMetadata(t *testing.T) {
 	clientMock := &mocks.Client{}
-	backend := NewAtomicTxBackend(clientMock, ids.Empty)
+	backend := NewBackend(clientMock, ids.Empty)
 
 	t.Run("C-chain export metadata", func(t *testing.T) {
 		req := &types.ConstructionMetadataRequest{
@@ -245,7 +245,7 @@ func TestConstructionMetadata(t *testing.T) {
 }
 
 func TestConstructionPayload(t *testing.T) {
-	backend := NewAtomicTxBackend(&mocks.Client{}, avaxAssetID)
+	backend := NewBackend(&mocks.Client{}, avaxAssetID)
 
 	t.Run("C-chain export payloads", func(t *testing.T) {
 		req := &types.ConstructionPayloadsRequest{
@@ -345,7 +345,7 @@ func TestConstructionPayload(t *testing.T) {
 }
 
 func TestConstructionParse(t *testing.T) {
-	backend := NewAtomicTxBackend(&mocks.Client{}, ids.Empty)
+	backend := NewBackend(&mocks.Client{}, ids.Empty)
 
 	exportOperations := []*types.Operation{
 		{
@@ -455,7 +455,7 @@ func TestConstructionParse(t *testing.T) {
 }
 
 func TestConstructionCombine(t *testing.T) {
-	backend := NewAtomicTxBackend(&mocks.Client{}, ids.Empty)
+	backend := NewBackend(&mocks.Client{}, ids.Empty)
 
 	t.Run("C-chain export combine", func(t *testing.T) {
 		req := &types.ConstructionCombineRequest{
@@ -506,7 +506,7 @@ func TestConstructionCombine(t *testing.T) {
 }
 
 func TestConstructionHash(t *testing.T) {
-	backend := NewAtomicTxBackend(&mocks.Client{}, ids.Empty)
+	backend := NewBackend(&mocks.Client{}, ids.Empty)
 
 	t.Run("C-chain valid atomic export transaction", func(t *testing.T) {
 		resp, err := backend.ConstructionHash(context.Background(), &types.ConstructionHashRequest{
@@ -520,7 +520,7 @@ func TestConstructionHash(t *testing.T) {
 
 func TestConstructionSubmit(t *testing.T) {
 	clientMock := &mocks.Client{}
-	backend := NewAtomicTxBackend(clientMock, ids.Empty)
+	backend := NewBackend(clientMock, ids.Empty)
 
 	t.Run("C-chain valid atomic export transaction", func(t *testing.T) {
 		signedTxBytes, _ := formatting.Decode(formatting.Hex, signedImportTx)

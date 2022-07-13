@@ -1,4 +1,4 @@
-package p
+package pchain
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	p "github.com/ava-labs/avalanche-rosetta/mapper/p"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/hashing"
@@ -23,13 +23,13 @@ import (
 
 var codecVersion uint16 = platformvm.CodecVersion
 
-func (c *Backend) ConstructionDerive(
+func (b *Backend) ConstructionDerive(
 	ctx context.Context,
 	req *types.ConstructionDeriveRequest,
 ) (*types.ConstructionDeriveResponse, *types.Error) {
-	return common.DeriveBech32Address(c.fac, mapper.PChainIDAlias, req)
+	return common.DeriveBech32Address(b.fac, mapper.PChainNetworkIdentifier, req)
 }
-func (c *Backend) ConstructionPreprocess(
+func (b *Backend) ConstructionPreprocess(
 	ctx context.Context,
 	req *types.ConstructionPreprocessRequest,
 ) (*types.ConstructionPreprocessResponse, *types.Error) {
@@ -45,7 +45,7 @@ func (c *Backend) ConstructionPreprocess(
 		Options: reqMetadata,
 	}, nil
 }
-func (c *Backend) ConstructionMetadata(
+func (b *Backend) ConstructionMetadata(
 	ctx context.Context,
 	req *types.ConstructionMetadataRequest,
 ) (*types.ConstructionMetadataResponse, *types.Error) {
@@ -54,13 +54,13 @@ func (c *Backend) ConstructionMetadata(
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	networkID, err := c.pClient.GetNetworkID(context.Background())
+	networkID, err := b.pClient.GetNetworkID(context.Background())
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
 	// Getting Chain ID from Info APIs
-	pChainID, err := c.pClient.GetBlockchainID(ctx, mapper.PChainNetworkIdentifier)
+	pChainID, err := b.pClient.GetBlockchainID(ctx, mapper.PChainNetworkIdentifier)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -68,12 +68,12 @@ func (c *Backend) ConstructionMetadata(
 	var metadataMap map[string]interface{}
 	switch opMetadata.Type {
 	case mapper.OpImportAvax, mapper.OpExportAvax:
-		metadataMap, err = c.buildTxMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
+		metadataMap, err = b.buildTxMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
 	case mapper.OpAddValidator, mapper.OpAddDelegator:
-		metadataMap, err = c.buildStakingMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
+		metadataMap, err = b.buildStakingMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
@@ -89,7 +89,7 @@ func (c *Backend) ConstructionMetadata(
 	}, nil
 }
 
-func (c *Backend) buildTxMetadata(
+func (b *Backend) buildTxMetadata(
 	ctx context.Context,
 	txType string,
 	options map[string]interface{},
@@ -108,13 +108,13 @@ func (c *Backend) buildTxMetadata(
 
 	switch txType {
 	case mapper.OpImportAvax:
-		sourceChainID, err := c.pClient.GetBlockchainID(ctx, preprocessOptions.SourceChain)
+		sourceChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.SourceChain)
 		if err != nil {
 			return nil, err
 		}
 		txMetadata.SourceChainID = sourceChainID.String()
 	case mapper.OpExportAvax:
-		destinationChainID, err := c.pClient.GetBlockchainID(ctx, preprocessOptions.DestinationChain)
+		destinationChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.DestinationChain)
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +125,7 @@ func (c *Backend) buildTxMetadata(
 	return mapper.MarshalJSONMap(txMetadata)
 }
 
-func (c *Backend) buildStakingMetadata(
+func (b *Backend) buildStakingMetadata(
 	ctx context.Context,
 	txType string,
 	options map[string]interface{},
@@ -154,7 +154,7 @@ func (c *Backend) buildStakingMetadata(
 	return mapper.MarshalJSONMap(stakingMetadata)
 }
 
-func (c *Backend) ConstructionPayloads(
+func (b *Backend) ConstructionPayloads(
 	ctx context.Context,
 	req *types.ConstructionPayloadsRequest,
 ) (*types.ConstructionPayloadsResponse, *types.Error) {
@@ -168,12 +168,12 @@ func (c *Backend) ConstructionPayloads(
 		return nil, service.WrapError(service.ErrBlockInvalidInput, err)
 	}
 
-	tx, signers, err := c.buildTransaction(ctx, opType, matches, req.Metadata)
+	tx, signers, err := b.buildTransaction(ctx, opType, matches, req.Metadata)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	unsignedBytes, err := c.codec.Marshal(codecVersion, &tx.UnsignedTx)
+	unsignedBytes, err := b.codec.Marshal(codecVersion, &tx.UnsignedTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, fmt.Errorf("couldn't marshal UnsignedTx: %w", err))
 	}
@@ -190,7 +190,7 @@ func (c *Backend) ConstructionPayloads(
 		}
 	}
 
-	txBytes, err := c.codec.Marshal(codecVersion, tx)
+	txBytes, err := b.codec.Marshal(codecVersion, tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
@@ -201,7 +201,7 @@ func (c *Backend) ConstructionPayloads(
 	}, nil
 }
 
-func (c *Backend) buildTransaction(
+func (b *Backend) buildTransaction(
 	ctx context.Context,
 	opType string,
 	matches []*parser.Match,
@@ -209,19 +209,19 @@ func (c *Backend) buildTransaction(
 ) (*platformvm.Tx, []string, error) {
 	switch opType {
 	case mapper.OpImportAvax:
-		return c.buildImportTx(ctx, matches, payloadMetadata)
+		return b.buildImportTx(ctx, matches, payloadMetadata)
 	case mapper.OpExportAvax:
-		return c.buildExportTx(ctx, matches, payloadMetadata)
+		return b.buildExportTx(ctx, matches, payloadMetadata)
 	case mapper.OpAddValidator:
-		return c.buildAddValidatorTx(ctx, matches, payloadMetadata)
+		return b.buildAddValidatorTx(ctx, matches, payloadMetadata)
 	case mapper.OpAddDelegator:
-		return c.buildAddDelegatorTx(ctx, matches, payloadMetadata)
+		return b.buildAddDelegatorTx(ctx, matches, payloadMetadata)
 	default:
 		return nil, nil, fmt.Errorf("invalid tx type: %s", opType)
 	}
 }
 
-func (c *Backend) buildImportTx(
+func (b *Backend) buildImportTx(
 	ctx context.Context,
 	matches []*parser.Match,
 	metadata map[string]interface{},
@@ -240,12 +240,12 @@ func (c *Backend) buildImportTx(
 		return nil, nil, fmt.Errorf("invalid source chain id: %s", tMetadata.SourceChainID)
 	}
 
-	ins, imported, signers, err := c.buildInputs(matches[0].Operations)
+	ins, imported, signers, err := b.buildInputs(matches[0].Operations)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse inputs failed: %w", err)
 	}
 
-	outs, _, _, err := c.buildOutputs(matches[1].Operations)
+	outs, _, _, err := b.buildOutputs(matches[1].Operations)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse outputs failed: %w", err)
 	}
@@ -264,7 +264,7 @@ func (c *Backend) buildImportTx(
 	return tx, signers, nil
 }
 
-func (c *Backend) buildExportTx(
+func (b *Backend) buildExportTx(
 	ctx context.Context,
 	matches []*parser.Match,
 	metadata map[string]interface{},
@@ -283,12 +283,12 @@ func (c *Backend) buildExportTx(
 		return nil, nil, err
 	}
 
-	ins, _, signers, err := c.buildInputs(matches[0].Operations)
+	ins, _, signers, err := b.buildInputs(matches[0].Operations)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse inputs failed: %w", err)
 	}
 
-	outs, _, exported, err := c.buildOutputs(matches[1].Operations)
+	outs, _, exported, err := b.buildOutputs(matches[1].Operations)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse outputs failed: %w", err)
 	}
@@ -307,7 +307,7 @@ func (c *Backend) buildExportTx(
 	return tx, signers, nil
 }
 
-func (c *Backend) buildAddValidatorTx(
+func (b *Backend) buildAddValidatorTx(
 	ctx context.Context,
 	matches []*parser.Match,
 	metadata map[string]interface{},
@@ -335,12 +335,12 @@ func (c *Backend) buildAddValidatorTx(
 		return nil, nil, err
 	}
 
-	ins, _, signers, err := c.buildInputs(matches[0].Operations)
+	ins, _, signers, err := b.buildInputs(matches[0].Operations)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse inputs failed: %w", err)
 	}
 
-	outs, stakeOutputs, _, err := c.buildOutputs(matches[1].Operations)
+	outs, stakeOutputs, _, err := b.buildOutputs(matches[1].Operations)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse outputs failed: %w", err)
 	}
@@ -372,7 +372,7 @@ func (c *Backend) buildAddValidatorTx(
 	return tx, signers, nil
 }
 
-func (c *Backend) buildAddDelegatorTx(
+func (b *Backend) buildAddDelegatorTx(
 	ctx context.Context,
 	matches []*parser.Match,
 	metadata map[string]interface{},
@@ -395,12 +395,12 @@ func (c *Backend) buildAddDelegatorTx(
 		return nil, nil, err
 	}
 
-	ins, _, signers, err := c.buildInputs(matches[0].Operations)
+	ins, _, signers, err := b.buildInputs(matches[0].Operations)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse inputs failed: %w", err)
 	}
 
-	outs, stakeOutputs, _, err := c.buildOutputs(matches[1].Operations)
+	outs, stakeOutputs, _, err := b.buildOutputs(matches[1].Operations)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse outputs failed: %w", err)
 	}
@@ -456,7 +456,7 @@ func buildOutputOwner(
 	}, nil
 }
 
-func (c *Backend) buildInputs(
+func (b *Backend) buildInputs(
 	operations []*types.Operation,
 ) (
 	ins []*avax.TransferableInput,
@@ -489,7 +489,7 @@ func (c *Backend) buildInputs(
 
 		in := &avax.TransferableInput{
 			UTXOID: *UTXOID,
-			Asset:  avax.Asset{ID: c.assetID},
+			Asset:  avax.Asset{ID: b.assetID},
 			In: &secp256k1fx.TransferInput{
 				Amt: val.Uint64(),
 				Input: secp256k1fx.Input{
@@ -498,9 +498,9 @@ func (c *Backend) buildInputs(
 			}}
 
 		switch opMetadata.Type {
-		case p.OpImport:
+		case pmapper.OpImport:
 			imported = append(imported, in)
-		case p.OpInput:
+		case pmapper.OpInput:
 			ins = append(ins, in)
 		default:
 			return nil, nil, nil, fmt.Errorf("invalid option type: %s", op.Type)
@@ -514,7 +514,7 @@ func (c *Backend) buildInputs(
 	return ins, imported, signers, nil
 }
 
-func (c *Backend) buildOutputs(
+func (b *Backend) buildOutputs(
 	operations []*types.Operation,
 ) (
 	outs []*avax.TransferableOutput,
@@ -534,7 +534,7 @@ func (c *Backend) buildOutputs(
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("decode output owner hex failed: %w", err)
 		}
-		if _, err := c.codec.Unmarshal(outputOwnerBytes, &outputOwners); err != nil {
+		if _, err := b.codec.Unmarshal(outputOwnerBytes, &outputOwners); err != nil {
 			return nil, nil, nil, fmt.Errorf("parse output owner failed: %w", err)
 		}
 
@@ -544,33 +544,33 @@ func (c *Backend) buildOutputs(
 		}
 
 		out := &avax.TransferableOutput{
-			Asset: avax.Asset{ID: c.assetID},
+			Asset: avax.Asset{ID: b.assetID},
 			Out: &secp256k1fx.TransferOutput{
 				Amt:          val.Uint64(),
 				OutputOwners: outputOwners,
 			}}
 
 		switch opMetadata.Type {
-		case p.OpOutput:
+		case pmapper.OpOutput:
 			outs = append(outs, out)
-		case p.OpStakeOutput:
+		case pmapper.OpStakeOutput:
 			stakeOutputs = append(stakeOutputs, out)
-		case p.OpExport:
+		case pmapper.OpExport:
 			exported = append(exported, out)
 		default:
 			return nil, nil, nil, fmt.Errorf("invalid option type: %s", op.Type)
 		}
 	}
 
-	avax.SortTransferableOutputs(outs, c.codec)
-	avax.SortTransferableOutputs(stakeOutputs, c.codec)
-	avax.SortTransferableOutputs(exported, c.codec)
+	avax.SortTransferableOutputs(outs, b.codec)
+	avax.SortTransferableOutputs(stakeOutputs, b.codec)
+	avax.SortTransferableOutputs(exported, b.codec)
 
 	return outs, stakeOutputs, exported, nil
 }
 
-func parseOpMetadata(metadata map[string]interface{}) (*p.OperationMetadata, error) {
-	var operationMetadata p.OperationMetadata
+func parseOpMetadata(metadata map[string]interface{}) (*pmapper.OperationMetadata, error) {
+	var operationMetadata pmapper.OperationMetadata
 	if err := mapper.UnmarshalJSONMap(metadata, &operationMetadata); err != nil {
 		return nil, err
 	}
@@ -578,15 +578,15 @@ func parseOpMetadata(metadata map[string]interface{}) (*p.OperationMetadata, err
 	return &operationMetadata, nil
 }
 
-func (c *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
+func (b *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
 	tx := platformvm.Tx{}
 
-	_, err := c.codec.Unmarshal([]byte(req.Transaction), &tx)
+	_, err := b.codec.Unmarshal([]byte(req.Transaction), &tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	transactions, err := p.Transaction(tx.UnsignedTx)
+	transactions, err := pmapper.Transaction(tx.UnsignedTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -595,7 +595,7 @@ func (c *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 	for _, v := range transactions.Operations {
 		opMetadata, _ := parseOpMetadata(v.Metadata)
 		switch opMetadata.Type {
-		case p.OpImport, p.OpInput:
+		case pmapper.OpImport, pmapper.OpInput:
 			signers = append(signers, v.Account.Address)
 		}
 	}
@@ -616,10 +616,10 @@ func (c *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 	return resp, nil
 }
 
-func (c *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
+func (b *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
 	tx := platformvm.Tx{}
 
-	_, err := c.codec.Unmarshal([]byte(req.UnsignedTransaction), &tx)
+	_, err := b.codec.Unmarshal([]byte(req.UnsignedTransaction), &tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -675,15 +675,15 @@ func getTxInputs(
 	}
 }
 
-func (c *Backend) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
+func (b *Backend) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
 	return common.HashTx(req)
 }
 
-func (c *Backend) ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	return common.SubmitTx(c, ctx, req)
+func (b *Backend) ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
+	return common.SubmitTx(b, ctx, req)
 }
 
 // Defining IssueTx here without rpc.Options... to be able to use it with common.SubmitTx
-func (c *Backend) IssueTx(ctx context.Context, txByte []byte) (ids.ID, error) {
-	return c.pClient.IssueTx(ctx, txByte)
+func (b *Backend) IssueTx(ctx context.Context, txByte []byte) (ids.ID, error) {
+	return b.pClient.IssueTx(ctx, txByte)
 }

@@ -1,23 +1,23 @@
-package p
+package pchain
 
 import (
 	"context"
 	"errors"
+
 	"strconv"
 
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
 )
 
-func (c *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error) {
+func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error) {
 	if req.AccountIdentifier == nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "account indentifier is not provided")
 	}
@@ -31,7 +31,7 @@ func (c *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 		balanceType = req.AccountIdentifier.SubAccount.Address
 	}
 
-	balanceResponse, err := c.pClient.GetBalance(ctx, []ids.ShortID{addr})
+	balanceResponse, err := b.pClient.GetBalance(ctx, []ids.ShortID{addr})
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to get balance from input address")
 	}
@@ -61,7 +61,7 @@ func (c *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 	}, nil
 }
 
-func (c *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error) {
+func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error) {
 	if req.AccountIdentifier == nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "account identifier is not provided")
 	}
@@ -71,7 +71,7 @@ func (c *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to convert address")
 	}
 
-	currencyAssetIDs, wrappedErr := c.buildCurrencyAssetIDs(ctx, req)
+	currencyAssetIDs, wrappedErr := b.buildCurrencyAssetIDs(ctx, req)
 	if err != nil {
 		return nil, wrappedErr
 	}
@@ -86,13 +86,13 @@ func (c *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 		var utxos [][]byte
 
 		// GetUTXOs controlled by addr
-		utxos, startAddr, startUTXOID, err = c.pClient.GetUTXOs(ctx, []ids.ShortID{addr}, c.getUTXOsPageSize, startAddr, startUTXOID)
+		utxos, startAddr, startUTXOID, err = b.pClient.GetUTXOs(ctx, []ids.ShortID{addr}, b.getUTXOsPageSize, startAddr, startUTXOID)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, "unable to get UTXOs")
 		}
 
 		// convert raw UTXO bytes to Rosetta Coins
-		coinsPage, err := c.processUtxos(currencyAssetIDs, utxos)
+		coinsPage, err := b.processUtxos(currencyAssetIDs, utxos)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
@@ -100,7 +100,7 @@ func (c *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 		coins = append(coins, coinsPage...)
 
 		// Fetch next page only if there may be more UTXOs
-		if len(utxos) < int(c.getUTXOsPageSize) {
+		if len(utxos) < int(b.getUTXOsPageSize) {
 			break
 		}
 	}
@@ -112,10 +112,10 @@ func (c *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 	}, nil
 }
 
-func (c *Backend) buildCurrencyAssetIDs(ctx context.Context, req *types.AccountCoinsRequest) (map[ids.ID]struct{}, *types.Error) {
+func (b *Backend) buildCurrencyAssetIDs(ctx context.Context, req *types.AccountCoinsRequest) (map[ids.ID]struct{}, *types.Error) {
 	currencyAssetIDs := make(map[ids.ID]struct{})
 	for _, reqCurrency := range req.Currencies {
-		description, err := c.pClient.GetAssetDescription(ctx, reqCurrency.Symbol)
+		description, err := b.pClient.GetAssetDescription(ctx, reqCurrency.Symbol)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, "unable to get asset description")
 		}
@@ -128,11 +128,11 @@ func (c *Backend) buildCurrencyAssetIDs(ctx context.Context, req *types.AccountC
 	return currencyAssetIDs, nil
 }
 
-func (c *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos [][]byte) ([]*types.Coin, error) {
+func (b *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos [][]byte) ([]*types.Coin, error) {
 	var coins []*types.Coin
 	for _, utxoBytes := range utxos {
 		utxo := avax.UTXO{}
-		_, err := platformvm.Codec.Unmarshal(utxoBytes, &utxo)
+		_, err := b.codec.Unmarshal(utxoBytes, &utxo)
 		if err != nil {
 			return nil, errors.New("unable to parse UTXO")
 		}

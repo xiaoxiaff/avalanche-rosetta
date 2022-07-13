@@ -1,10 +1,10 @@
-package c
+package cchainatomictx
 
 import (
 	"context"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -31,7 +31,7 @@ var utxos = []utxo{
 
 func TestAccountBalance(t *testing.T) {
 	evmMock := &mocks.Client{}
-	backend := NewAtomicTxBackend(evmMock, ids.Empty)
+	backend := NewBackend(evmMock, ids.Empty)
 	accountAddress := "C-fuji15f9g0h5xkr5cp47n6u3qxj6yjtzzzrdr23a3tl"
 
 	t.Run("C-chain atomic tx balance is sum of UTXOs", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestAccountBalance(t *testing.T) {
 
 func TestAccountCoins(t *testing.T) {
 	evmMock := &mocks.Client{}
-	backend := NewAtomicTxBackend(evmMock, ids.Empty)
+	backend := NewBackend(evmMock, ids.Empty)
 	// changing page size to 2 to test pagination as well
 	backend.getUTXOsPageSize = 2
 	accountAddress := "C-fuji15f9g0h5xkr5cp47n6u3qxj6yjtzzzrdr23a3tl"
@@ -84,7 +84,7 @@ func TestAccountCoins(t *testing.T) {
 			Return([][]byte{utxo2Bytes, utxo3Bytes}, api.Index{Address: accountAddress, UTXO: utxos[3].id}, nil)
 		evmMock.
 			On("GetAtomicUTXOs", mock.Anything, []string{accountAddress}, "P", backend.getUTXOsPageSize, accountAddress, utxos[3].id).
-			Return([][]byte{}, api.Index{}, nil)
+			Return([][]byte{utxo3Bytes}, api.Index{Address: accountAddress, UTXO: utxos[3].id}, nil)
 		evmMock.
 			On("GetAtomicUTXOs", mock.Anything, []string{accountAddress}, "X", backend.getUTXOsPageSize, "", "").
 			Return([][]byte{}, api.Index{}, nil)
@@ -115,7 +115,7 @@ func TestAccountCoins(t *testing.T) {
 	})
 }
 
-func makeUtxoBytes(t *testing.T, backend *CChainAtomicTxBackend, utxoIdStr string, amount uint64) []byte {
+func makeUtxoBytes(t *testing.T, backend *Backend, utxoIdStr string, amount uint64) []byte {
 	utxoId, err := common.DecodeUTXOID(utxoIdStr)
 	if err != nil {
 		t.Fail()

@@ -1,4 +1,4 @@
-package p
+package pchain
 
 import (
 	"context"
@@ -7,36 +7,36 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/types"
 )
 
-func (c *Backend) NetworkIdentifier() *types.NetworkIdentifier {
-	return c.networkIdentifier
+func (b *Backend) NetworkIdentifier() *types.NetworkIdentifier {
+	return b.networkIdentifier
 }
 
-func (c *Backend) NetworkStatus(ctx context.Context, req *types.NetworkRequest) (*types.NetworkStatusResponse, *types.Error) {
+func (b *Backend) NetworkStatus(ctx context.Context, req *types.NetworkRequest) (*types.NetworkStatusResponse, *types.Error) {
 	// Fetch peers
-	infoPeers, err := c.pClient.Peers(ctx)
+	infoPeers, err := b.pClient.Peers(ctx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
 	peers := mapper.Peers(infoPeers)
 
 	// Check if network is bootstrapped
-	ready, err := c.pClient.IsBootstrapped(ctx, mapper.PChainNetworkIdentifier)
+	ready, err := b.pClient.IsBootstrapped(ctx, mapper.PChainNetworkIdentifier)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
 
 	if !ready {
 		return &types.NetworkStatusResponse{
-			CurrentBlockIdentifier: c.genesisBlockIdentifier,
-			CurrentBlockTimestamp:  c.genesisBlock.Timestamp,
-			GenesisBlockIdentifier: c.genesisBlockIdentifier,
+			CurrentBlockIdentifier: b.genesisBlockIdentifier,
+			CurrentBlockTimestamp:  b.genesisBlock.Timestamp,
+			GenesisBlockIdentifier: b.genesisBlockIdentifier,
 			SyncStatus:             mapper.StageBootstrap,
 			Peers:                  peers,
 		}, nil
 	}
 
 	// Current block height
-	currentBlock, err := c.indexerParser.ParseCurrentBlock(ctx)
+	currentBlock, err := b.indexerParser.ParseCurrentBlock(ctx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
@@ -47,13 +47,13 @@ func (c *Backend) NetworkStatus(ctx context.Context, req *types.NetworkRequest) 
 			Hash:  currentBlock.BlockID.String(),
 		},
 		CurrentBlockTimestamp:  mapper.UnixToUnixMilli(currentBlock.Timestamp),
-		GenesisBlockIdentifier: c.genesisBlockIdentifier,
+		GenesisBlockIdentifier: b.genesisBlockIdentifier,
 		SyncStatus:             mapper.StageSynced,
 		Peers:                  peers,
 	}, nil
 }
 
-func (c *Backend) NetworkOptions(ctx context.Context, request *types.NetworkRequest) (*types.NetworkOptionsResponse, *types.Error) {
+func (b *Backend) NetworkOptions(ctx context.Context, request *types.NetworkRequest) (*types.NetworkOptionsResponse, *types.Error) {
 	return &types.NetworkOptionsResponse{
 		Version: &types.Version{
 			RosettaVersion:    types.RosettaAPIVersion,

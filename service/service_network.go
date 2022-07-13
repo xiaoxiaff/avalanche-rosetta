@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"github.com/ava-labs/avalanche-rosetta/service/chain"
 	"math/big"
 
 	"github.com/coinbase/rosetta-sdk-go/server"
@@ -13,16 +12,22 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
+type NetworkBackend interface {
+	NetworkIdentifier() *types.NetworkIdentifier
+	NetworkStatus(ctx context.Context, request *types.NetworkRequest) (*types.NetworkStatusResponse, *types.Error)
+	NetworkOptions(ctx context.Context, request *types.NetworkRequest) (*types.NetworkOptionsResponse, *types.Error)
+}
+
 // NetworkService implements all /network endpoints
 type NetworkService struct {
 	config        *Config
-	pChainBackend chain.NetworkBackend
+	pChainBackend NetworkBackend
 	client        client.Client
 	genesisBlock  *types.Block
 }
 
 // NewNetworkService returns a new network servicer
-func NewNetworkService(config *Config, client client.Client, pChainBackend chain.NetworkBackend) server.NetworkAPIServicer {
+func NewNetworkService(config *Config, client client.Client, pChainBackend NetworkBackend) server.NetworkAPIServicer {
 	genesisBlock := makeGenesisBlock(config.GenesisBlockHash)
 
 	return &NetworkService{

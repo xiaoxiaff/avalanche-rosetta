@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	mocks "github.com/ava-labs/avalanche-rosetta/mocks/service/chain"
+	mocks "github.com/ava-labs/avalanche-rosetta/mocks/service"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

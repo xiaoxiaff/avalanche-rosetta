@@ -1,4 +1,4 @@
-package p
+package pchain
 
 type txOptions struct {
 	SourceChain      string `json:"source_chain"`

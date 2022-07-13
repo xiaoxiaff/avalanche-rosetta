@@ -13,7 +13,6 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	"github.com/ava-labs/avalanche-rosetta/service/chain"
 	"github.com/ava-labs/coreth/interfaces"
 )
 
@@ -21,12 +20,17 @@ import (
 type AccountService struct {
 	config           *Config
 	client           client.Client
-	pChainBackend    chain.AccountBackend
-	cAtomicTxBackend chain.AccountBackend
+	pChainBackend    AccountBackend
+	cAtomicTxBackend AccountBackend
+}
+
+type AccountBackend interface {
+	AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error)
+	AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error)
 }
 
 // NewAccountService returns a new network servicer
-func NewAccountService(config *Config, client client.Client, pChainBackend, cAtomicTxBackend chain.AccountBackend) server.AccountAPIServicer {
+func NewAccountService(config *Config, client client.Client, pChainBackend, cAtomicTxBackend AccountBackend) server.AccountAPIServicer {
 	return &AccountService{
 		config:           config,
 		client:           client,

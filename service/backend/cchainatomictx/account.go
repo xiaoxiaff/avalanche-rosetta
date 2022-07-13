@@ -1,9 +1,9 @@
-package c
+package cchainatomictx
 
 import (
 	"context"
 	"errors"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/utils/math"
 	"strconv"
@@ -16,11 +16,11 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/service"
 )
 
-func (c *CChainAtomicTxBackend) AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error) {
+func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error) {
 	if req.AccountIdentifier == nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "account identifier is not provided")
 	}
-	coins, wrappedErr := c.getAccountCoins(ctx, req.AccountIdentifier.Address)
+	coins, wrappedErr := b.getAccountCoins(ctx, req.AccountIdentifier.Address)
 	if wrappedErr != nil {
 		return nil, wrappedErr
 	}
@@ -51,11 +51,11 @@ func (c *CChainAtomicTxBackend) AccountBalance(ctx context.Context, req *types.A
 	}, nil
 }
 
-func (c *CChainAtomicTxBackend) AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error) {
+func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error) {
 	if req.AccountIdentifier == nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "account identifier is not provided")
 	}
-	coins, wrappedErr := c.getAccountCoins(ctx, req.AccountIdentifier.Address)
+	coins, wrappedErr := b.getAccountCoins(ctx, req.AccountIdentifier.Address)
 	if wrappedErr != nil {
 		return nil, wrappedErr
 	}
@@ -67,15 +67,15 @@ func (c *CChainAtomicTxBackend) AccountCoins(ctx context.Context, req *types.Acc
 	}, nil
 }
 
-func (c *CChainAtomicTxBackend) getAccountCoins(ctx context.Context, address string) ([]*types.Coin, *types.Error) {
+func (b *Backend) getAccountCoins(ctx context.Context, address string) ([]*types.Coin, *types.Error) {
 	var coins []*types.Coin
 	sourceChains := []string{
-		mapper.PChainIDAlias,
-		mapper.XChainIDAlias,
+		mapper.PChainNetworkIdentifier,
+		mapper.XChainNetworkIdentifier,
 	}
 
 	for _, chain := range sourceChains {
-		chainCoins, wrappedErr := c.fetchCoinsFromChain(ctx, address, chain)
+		chainCoins, wrappedErr := b.fetchCoinsFromChain(ctx, address, chain)
 		if wrappedErr != nil {
 			return nil, wrappedErr
 		}
@@ -85,7 +85,7 @@ func (c *CChainAtomicTxBackend) getAccountCoins(ctx context.Context, address str
 	return coins, nil
 }
 
-func (c *CChainAtomicTxBackend) fetchCoinsFromChain(ctx context.Context, address string, sourceChain string) ([]*types.Coin, *types.Error) {
+func (b *Backend) fetchCoinsFromChain(ctx context.Context, address string, sourceChain string) ([]*types.Coin, *types.Error) {
 	var coins []*types.Coin
 
 	// Used for pagination
@@ -94,13 +94,13 @@ func (c *CChainAtomicTxBackend) fetchCoinsFromChain(ctx context.Context, address
 	for {
 
 		// GetUTXOs controlled by addr
-		utxos, newUtxoIndex, err := c.cClient.GetAtomicUTXOs(ctx, []string{address}, sourceChain, c.getUTXOsPageSize, lastUtxoIndex.Address, lastUtxoIndex.UTXO)
+		utxos, newUtxoIndex, err := b.cClient.GetAtomicUTXOs(ctx, []string{address}, sourceChain, b.getUTXOsPageSize, lastUtxoIndex.Address, lastUtxoIndex.UTXO)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, "unable to get UTXOs")
 		}
 
 		// convert raw UTXO bytes to Rosetta Coins
-		coinsPage, err := c.processUtxos(sourceChain, utxos)
+		coinsPage, err := b.processUtxos(sourceChain, utxos)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
@@ -108,7 +108,7 @@ func (c *CChainAtomicTxBackend) fetchCoinsFromChain(ctx context.Context, address
 		coins = append(coins, coinsPage...)
 
 		// Fetch next page only if there may be more UTXOs
-		if len(utxos) < int(c.getUTXOsPageSize) {
+		if len(utxos) < int(b.getUTXOsPageSize) {
 			break
 		}
 
@@ -118,7 +118,7 @@ func (c *CChainAtomicTxBackend) fetchCoinsFromChain(ctx context.Context, address
 	return coins, nil
 }
 
-func (c *CChainAtomicTxBackend) processUtxos(sourceChain string, utxos [][]byte) ([]*types.Coin, error) {
+func (b *Backend) processUtxos(sourceChain string, utxos [][]byte) ([]*types.Coin, error) {
 	var coins []*types.Coin
 	for _, utxoBytes := range utxos {
 		utxo := avax.UTXO{}

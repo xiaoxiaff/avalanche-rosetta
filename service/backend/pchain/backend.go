@@ -1,11 +1,11 @@
-package p
+package pchain
 
 import (
 	"context"
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	"github.com/ava-labs/avalanche-rosetta/service/chain"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/p/indexer"
+	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/pchain/indexer"
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
@@ -14,8 +14,8 @@ import (
 )
 
 type Backend struct {
-	chain.ConstructionBackend
-	chain.NetworkBackend
+	service.ConstructionBackend
+	service.NetworkBackend
 
 	networkIdentifier      *types.NetworkIdentifier
 	fac                    *crypto.FactorySECP256K1R
@@ -29,13 +29,13 @@ type Backend struct {
 	genesisBlockIdentifier *types.BlockIdentifier
 }
 
-func (c *Backend) makeGenesisBlock() *types.BlockResponse {
+func (b *Backend) makeGenesisBlock() *types.BlockResponse {
 	return &types.BlockResponse{
 		Block: &types.Block{
-			BlockIdentifier:       c.genesisBlockIdentifier,
-			ParentBlockIdentifier: c.genesisBlockIdentifier,
+			BlockIdentifier:       b.genesisBlockIdentifier,
+			ParentBlockIdentifier: b.genesisBlockIdentifier,
 			Transactions:          []*types.Transaction{},
-			Timestamp:             mapper.UnixToUnixMilli(c.genesisBlock.Timestamp),
+			Timestamp:             mapper.UnixToUnixMilli(b.genesisBlock.Timestamp),
 		},
 	}
 }

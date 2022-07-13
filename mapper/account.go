@@ -24,7 +24,7 @@ func IsBech32(accountIdentifier *types.AccountIdentifier) bool {
 
 func IsCChainBech32(accountIdentifier *types.AccountIdentifier) bool {
 	if chainID, _, _, err := address.Parse(accountIdentifier.Address); err == nil {
-		return chainID == CChainIDAlias
+		return chainID == CChainNetworkIdentifier
 	}
 	return false
 }

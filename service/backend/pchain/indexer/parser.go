@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
@@ -48,7 +48,7 @@ func NewParser(ctx context.Context, pChainClient client.PChainClient) (*Parser, 
 	errs.Add(err)
 
 	aliaser := ids.NewAliaser()
-	errs.Add(aliaser.Alias(constants.PlatformChainID, mapper.PChainIDAlias))
+	errs.Add(aliaser.Alias(constants.PlatformChainID, mapper.PChainNetworkIdentifier))
 
 	return &Parser{
 		networkID:    networkID,

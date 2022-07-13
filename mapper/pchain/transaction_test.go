@@ -1,8 +1,6 @@
-package mapper
+package pchain
 
 import (
-	"github.com/ava-labs/avalanchego/utils/crypto"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"testing"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"

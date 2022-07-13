@@ -1,8 +1,7 @@
-package p
+package pchain
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -16,7 +15,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
-	"github.com/ava-labs/avalanche-rosetta/service/chain/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
 type utxo struct {
@@ -105,15 +104,16 @@ func TestAccountCoins(t *testing.T) {
 		// Mock on GetUTXOs
 		utxo0Bytes := makeUtxoBytes(t, service, utxos[0].id, utxos[0].amount)
 		utxo1Bytes := makeUtxoBytes(t, service, utxos[1].id, utxos[1].amount)
-
-		addr, errp := address.ParseToID(pChainAddr)
+		utxo1Id, _ := ids.FromString(utxos[1].id)
+		pChainAddrId, errp := address.ParseToID(pChainAddr)
 		assert.Nil(t, errp)
 
-		var startAddr ids.ShortID
-		var startUTXOID ids.ID
-		utxo1idShortID, _ := ids.FromString(strings.Split(utxos[1].id, ":")[0])
-		pChainMock.Mock.On("GetUTXOs", ctx, []ids.ShortID{addr}, uint32(1024), startAddr, startUTXOID).
-			Return([][]byte{utxo0Bytes, utxo1Bytes}, addr, utxo1idShortID, nil)
+		// Make sure pagination works as well
+		service.getUTXOsPageSize = 2
+		pChainMock.Mock.On("GetUTXOs", ctx, []ids.ShortID{pChainAddrId}, uint32(2), ids.ShortEmpty, ids.Empty).
+			Return([][]byte{utxo0Bytes, utxo1Bytes}, pChainAddrId, utxo1Id, nil).Times(1)
+		pChainMock.Mock.On("GetUTXOs", ctx, []ids.ShortID{pChainAddrId}, uint32(2), pChainAddrId, utxo1Id).
+			Return([][]byte{utxo1Bytes}, pChainAddrId, utxo1Id, nil).Times(1)
 
 		resp, err := service.AccountCoins(
 			ctx,
@@ -139,7 +139,6 @@ func TestAccountCoins(t *testing.T) {
 						Identifier: "NGcWaGCzBUtUsD85wDuX1DwbHFkvMHwJ9tDFiN7HCCnVcB9B8:0",
 					},
 					Amount: &types.Amount{
-						//Value:    "9000000",
 						Value:    "1000000000",
 						Currency: mapper.AvaxCurrency,
 					},
@@ -149,7 +148,6 @@ func TestAccountCoins(t *testing.T) {
 						Identifier: "pyQfA1Aq9vLaDETjeQe5DAwVxr2KAYdHg4CHzawmaj9oA6ppn:0",
 					},
 					Amount: &types.Amount{
-						//Value:    "2877137500",
 						Value:    "2000000000",
 						Currency: mapper.AvaxCurrency,
 					},
