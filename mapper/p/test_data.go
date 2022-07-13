@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
@@ -12,9 +13,9 @@ func buildImport() *platformvm.UnsignedImportTx {
 
 	avaxAssetID, _ := ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
 	sourceChain, _ := ids.FromString("2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm")
-	outAddr1, _ := ids.ShortFromString("P-fuji1xm0r37l6gyf2mly4pmzc0tz6wnwqkugedh95fk")
-	outAddr2, _ := ids.ShortFromString("P-fuji1fmragvegm5k26qzlt6vy0ghhdr508u6r4a5rxj")
-	outAddr3, _ := ids.ShortFromString("P-fuji1j3sw805usytrsymfwxxrcwfqguyarumn45cllj")
+	outAddr1, _ := address.ParseToID("P-fuji1xm0r37l6gyf2mly4pmzc0tz6wnwqkugedh95fk")
+	outAddr2, _ := address.ParseToID("P-fuji1fmragvegm5k26qzlt6vy0ghhdr508u6r4a5rxj")
+	outAddr3, _ := address.ParseToID("P-fuji1j3sw805usytrsymfwxxrcwfqguyarumn45cllj")
 	importedTxId, _ := ids.FromString("2DtYhzCvo9LRYMRJ6sCtYJ4aNPRpsibp46ETNyY6H5Cox1VLvX")
 	impTx := &platformvm.UnsignedImportTx{
 		BaseTx: platformvm.BaseTx{
@@ -98,8 +99,8 @@ var importTxString = `{
 
 func buildExport() *platformvm.UnsignedExportTx {
 	avaxAssetID, _ := ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
-	outAddr, _ := ids.ShortFromString("P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399")
-	exportOutAddr, _ := ids.ShortFromString("P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399")
+	outAddr, _ := address.ParseToID("P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399")
+	exportOutAddr, _ := address.ParseToID("P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399")
 	txId, _ := ids.FromString("27LaDkrUrMY1bhVf2i8RARCrRwFjeRw7vEu8ntLQXracgLzL1v")
 	destinationId, _ := ids.FromString("yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp")
 	exTx := &platformvm.UnsignedExportTx{
@@ -201,10 +202,10 @@ var exportTxString = `{
 func buildAddDelegator() *platformvm.UnsignedAddDelegatorTx {
 	avaxAssetID, _ := ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
 	txId, _ := ids.FromString("2JQGX1MBdszAaeV6eApCZm7CBpc917qWiyQ2cygFRJ6WteDkre")
-	outAddr, _ := ids.ShortFromString("P-fuji1gdkq8g208e3j4epyjmx65jglsw7vauh86l47ac")
+	outAddr, _ := address.ParseToID("P-fuji1gdkq8g208e3j4epyjmx65jglsw7vauh86l47ac")
 	validatorId, _ := ids.NodeIDFromString("NodeID-BFa1padLXBj7VHa2JYvYGzcTBPQGjPhUy")
-	stakeAddr, _ := ids.ShortFromString("P-fuji1l022sue7g2kzvrcuxughl30xkss2cj0az3e5r2")
-	rewardAddr, _ := ids.ShortFromString("P-fuji1l022sue7g2kzvrcuxughl30xkss2cj0az3e5r2")
+	stakeAddr, _ := address.ParseToID("P-fuji1l022sue7g2kzvrcuxughl30xkss2cj0az3e5r2")
+	rewardAddr, _ := address.ParseToID("P-fuji1l022sue7g2kzvrcuxughl30xkss2cj0az3e5r2")
 	tx := &platformvm.UnsignedAddDelegatorTx{
 		BaseTx: platformvm.BaseTx{
 			BaseTx: avax.BaseTx{
@@ -328,8 +329,8 @@ func buildValidatorTx() *platformvm.UnsignedAddValidatorTx {
 	avaxAssetID, _ := ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
 
 	txId, _ := ids.FromString("88tfp1Pkw9vyKrRtVNiMrghFBrre6Q6CzqPW1t7StDNX9PJEo")
-	stakeAddr, _ := ids.ShortFromString("P-fuji1ljdzyey6vu3hgn3cwg4j5lpy0svd6arlxpj6je")
-	rewardAddr, _ := ids.ShortFromString("P-fuji1ljdzyey6vu3hgn3cwg4j5lpy0svd6arlxpj6je")
+	stakeAddr, _ := address.ParseToID("P-fuji1ljdzyey6vu3hgn3cwg4j5lpy0svd6arlxpj6je")
+	rewardAddr, _ := address.ParseToID("P-fuji1ljdzyey6vu3hgn3cwg4j5lpy0svd6arlxpj6je")
 	validatorId, _ := ids.NodeIDFromString("NodeID-CCecHmRK3ANe92VyvASxkNav26W4vAVpX")
 	addvalidator := &platformvm.UnsignedAddValidatorTx{
 		BaseTx: platformvm.BaseTx{

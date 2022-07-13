@@ -2,6 +2,7 @@ package p
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -108,10 +109,9 @@ func TestAccountCoins(t *testing.T) {
 		addr, _ := address.ParseToID(pChainAddr)
 		var startAddr ids.ShortID
 		var startUTXOID ids.ID
-		pChainAddrShortID, _ := ids.ShortFromString(pChainAddr)
-		utxo1idShortID, _ := ids.FromString(utxos[1].id)
+		utxo1idShortID, _ := ids.FromString(strings.Split(utxos[1].id, ":")[0])
 		pChainMock.Mock.On("GetUTXOs", ctx, []ids.ShortID{addr}, uint32(1024), startAddr, startUTXOID).
-			Return([][]byte{utxo0Bytes, utxo1Bytes}, pChainAddrShortID, utxo1idShortID, nil)
+			Return([][]byte{utxo0Bytes, utxo1Bytes}, addr, utxo1idShortID, nil)
 
 		resp, err := service.AccountCoins(
 			ctx,
@@ -123,7 +123,7 @@ func TestAccountCoins(t *testing.T) {
 					},
 				},
 				AccountIdentifier: &types.AccountIdentifier{
-					Address: pChainAddr,
+					Address: addr.String(),
 				},
 				Currencies: []*types.Currency{
 					mapper.AvaxCurrency,

@@ -30,28 +30,22 @@ func TestMapInOperation(t *testing.T) {
 }
 
 func TestMapOutOperation(t *testing.T) {
-	pTx := platformvm.Tx{}
-	_, err := platformvm.Codec.Unmarshal(addValidatortxBytes, &pTx)
-	assert.Nil(t, err)
-	err = pTx.Sign(platformvm.Codec, [][]*crypto.PrivateKeySECP256K1R{})
-	assert.Nil(t, err)
-	addvalidatorTx := pTx.UnsignedTx.(*platformvm.UnsignedAddValidatorTx)
+	addDelegatorTx := buildAddDelegator()
 
-	assert.Equal(t, 8, len(addvalidatorTx.Ins))
-	assert.Equal(t, 1, len(addvalidatorTx.Outs))
+	assert.Equal(t, 1, len(addDelegatorTx.Ins))
+	assert.Equal(t, 1, len(addDelegatorTx.Outs))
 
-	avaxOut := addvalidatorTx.Outs[0]
+	avaxOut := addDelegatorTx.Outs[0]
 
 	rosettaInOp, err := outToOperation([]*avax.TransferableOutput{avaxOut}, 9, mapper.OpAddValidator, OpOutput)
 	assert.Nil(t, err)
 
-	assert.Equal(t, rosettaInOp[0].OperationIdentifier.Index, 9)
-	assert.Equal(t, rosettaInOp[0].Type, mapper.OpAddValidator)
-	assert.Equal(t, rosettaInOp[0].Account.Address, "P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399")
-	assert.Equal(t, rosettaInOp[0].Amount.Currency, mapper.AvaxCurrency)
-	assert.Equal(t, rosettaInOp[0].Amount.Value, "1054637500")
-	assert.Equal(t, rosettaInOp[0].CoinChange, nil)
-	assert.Equal(t, rosettaInOp[0].Metadata["type"], OpOutput)
+	assert.Equal(t, int64(9), rosettaInOp[0].OperationIdentifier.Index)
+	assert.Equal(t, mapper.OpAddValidator, rosettaInOp[0].Type)
+	assert.Equal(t, "P-fuji1gdkq8g208e3j4epyjmx65jglsw7vauh86l47ac", rosettaInOp[0].Account.Address)
+	assert.Equal(t, mapper.AvaxCurrency, rosettaInOp[0].Amount.Currency)
+	assert.Equal(t, "996649063", rosettaInOp[0].Amount.Value)
+	assert.Equal(t, OpOutput, rosettaInOp[0].Metadata["type"])
 }
 
 func TestMapAddValidatorTx(t *testing.T) {
