@@ -556,6 +556,11 @@ func ParseOpMetadata(metadata map[string]interface{}) (*OperationMetadata, error
 		return nil, err
 	}
 
+	// set threshold default to 1
+	if operationMetadata.Threshold == 0 {
+		operationMetadata.Threshold = 1
+	}
+
 	return &operationMetadata, nil
 }
 
