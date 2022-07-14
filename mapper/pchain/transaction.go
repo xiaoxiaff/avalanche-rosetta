@@ -36,17 +36,8 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 		}
 
 		if transferOutput, ok := out.Out.(*secp256k1fx.TransferOutput); ok {
-			outputOwnersBytes, err := platformvm.Codec.Marshal(platformvm.CodecVersion, transferOutput.OutputOwners)
-			if err != nil {
-				return nil, err
-			}
-
-			outputOwnersHex, err := formatting.EncodeWithChecksum(formatting.Hex, outputOwnersBytes)
-			if err != nil {
-				return nil, err
-			}
-
-			metadata.OutputOwners = outputOwnersHex
+			metadata.Threshold = transferOutput.OutputOwners.Threshold
+			metadata.Locktime = transferOutput.OutputOwners.Locktime
 		}
 
 		opMetadata, err := mapper.MarshalJSONMap(metadata)
@@ -565,6 +556,11 @@ func ParseOpMetadata(metadata map[string]interface{}) (*OperationMetadata, error
 		return nil, err
 	}
 
+	// set threshold default to 1
+	if operationMetadata.Threshold == 0 {
+		operationMetadata.Threshold = 1
+	}
+
 	return &operationMetadata, nil
 }
 
@@ -584,14 +580,15 @@ func buildOutputs(
 			return nil, nil, nil, fmt.Errorf("parse output operation Metadata failed: %w", err)
 		}
 
-		var outputOwners secp256k1fx.OutputOwners
-
-		outputOwnerBytes, err := mapper.DecodeToBytes(opMetadata.OutputOwners)
+		addrID, err := address.ParseToID(op.Account.Address)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("decode output owner hex failed: %w", err)
+			return nil, nil, nil, fmt.Errorf("parse output address failed: %w", err)
 		}
-		if _, err := codec.Unmarshal(outputOwnerBytes, &outputOwners); err != nil {
-			return nil, nil, nil, fmt.Errorf("parse output owner failed: %w", err)
+
+		outputOwners := &secp256k1fx.OutputOwners{
+			Addrs:     []ids.ShortID{addrID},
+			Locktime:  opMetadata.Locktime,
+			Threshold: opMetadata.Threshold,
 		}
 
 		val, err := types.AmountValue(op.Amount)
@@ -603,7 +600,7 @@ func buildOutputs(
 			Asset: avax.Asset{ID: avaxAssetId},
 			Out: &secp256k1fx.TransferOutput{
 				Amt:          val.Uint64(),
-				OutputOwners: outputOwners,
+				OutputOwners: *outputOwners,
 			}}
 
 		switch opMetadata.Type {
