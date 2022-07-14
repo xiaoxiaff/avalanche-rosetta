@@ -11,6 +11,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/pchain/indexer"
 )
@@ -74,4 +75,37 @@ func NewBackend(
 			Hash:  genesisBlock.BlockID.String(),
 		},
 	}, nil
+}
+
+func (*Backend) ShouldHandleRequest(req interface{}) bool {
+	switch r := req.(type) {
+	case *types.AccountBalanceRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.AccountCoinsRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.BlockRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.BlockTransactionRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.ConstructionDeriveRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.ConstructionMetadataRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.ConstructionPreprocessRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.ConstructionPayloadsRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.ConstructionParseRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.ConstructionCombineRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.ConstructionHashRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.ConstructionSubmitRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	case *types.NetworkRequest:
+		return pmapper.IsPChain(r.NetworkIdentifier)
+	}
+
+	return false
 }

@@ -9,41 +9,14 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
-func IsCChainAtomicRequest(req interface{}) bool {
-	switch r := req.(type) {
-	case *types.AccountBalanceRequest:
-		return isCChainBech32(r.AccountIdentifier)
-	case *types.AccountCoinsRequest:
-		return isCChainBech32(r.AccountIdentifier)
-	case *types.ConstructionDeriveRequest:
-		return r.Metadata[mapper.MetaAddressFormat] == mapper.AddressFormatBech32
-	case *types.ConstructionMetadataRequest:
-		return r.Options[MetadataAtomicTxGas] != nil
-	case *types.ConstructionPreprocessRequest:
-		return isAtomicOpType(r.Operations[0].Type)
-	case *types.ConstructionPayloadsRequest:
-		return isAtomicOpType(r.Operations[0].Type)
-	case *types.ConstructionParseRequest:
-		return isEvmAtomicTx(r.Transaction)
-	case *types.ConstructionCombineRequest:
-		return isEvmAtomicTx(r.UnsignedTransaction)
-	case *types.ConstructionHashRequest:
-		return isEvmAtomicTx(r.SignedTransaction)
-	case *types.ConstructionSubmitRequest:
-		return isEvmAtomicTx(r.SignedTransaction)
-	}
-
-	return false
-}
-
-func isCChainBech32(accountIdentifier *types.AccountIdentifier) bool {
+func IsCChainBech32Address(accountIdentifier *types.AccountIdentifier) bool {
 	if chainID, _, _, err := address.Parse(accountIdentifier.Address); err == nil {
 		return chainID == mapper.CChainNetworkIdentifier
 	}
 	return false
 }
 
-func isAtomicOpType(t string) bool {
+func IsAtomicOpType(t string) bool {
 	atomicTypes := []string{
 		mapper.OpExport,
 		mapper.OpImport,
@@ -58,7 +31,7 @@ func isAtomicOpType(t string) bool {
 	return false
 }
 
-func isEvmAtomicTx(transaction string) bool {
+func IsEvmAtomicTx(transaction string) bool {
 	txBytes, err := formatting.Decode(formatting.Hex, transaction)
 	if err != nil {
 		return false

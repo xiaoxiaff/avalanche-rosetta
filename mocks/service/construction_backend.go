@@ -215,6 +215,20 @@ func (_m *ConstructionBackend) ConstructionSubmit(ctx context.Context, req *type
 	return r0, r1
 }
 
+// ShouldHandleRequest provides a mock function with given fields: req
+func (_m *ConstructionBackend) ShouldHandleRequest(req interface{}) bool {
+	ret := _m.Called(req)
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(interface{}) bool); ok {
+		r0 = rf(req)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
 type NewConstructionBackendT interface {
 	mock.TestingT
 	Cleanup(func())

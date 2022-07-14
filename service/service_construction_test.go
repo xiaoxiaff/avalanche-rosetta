@@ -31,9 +31,14 @@ const (
 func TestConstructionMetadata(t *testing.T) {
 	client := &mocks.Client{}
 	ctx := context.Background()
+	skippedBackend := &backendMocks.ConstructionBackend{}
+	skippedBackend.On("ShouldHandleRequest", mock.Anything).Return(false)
+
 	service := ConstructionService{
-		config: &Config{Mode: ModeOnline},
-		client: client,
+		config:                &Config{Mode: ModeOnline},
+		client:                client,
+		pChainBackend:         skippedBackend,
+		cChainAtomicTxBackend: skippedBackend,
 	}
 
 	t.Run("unavailable in offline mode", func(t *testing.T) {
@@ -178,7 +183,13 @@ func TestConstructionMetadata(t *testing.T) {
 }
 
 func TestContructionHash(t *testing.T) {
-	service := ConstructionService{}
+	skippedBackend := &backendMocks.ConstructionBackend{}
+	skippedBackend.On("ShouldHandleRequest", mock.Anything).Return(false)
+
+	service := ConstructionService{
+		pChainBackend:         skippedBackend,
+		cChainAtomicTxBackend: skippedBackend,
+	}
 
 	t.Run("no transaction", func(t *testing.T) {
 		resp, err := service.ConstructionHash(
@@ -242,9 +253,11 @@ func TestContructionHash(t *testing.T) {
 }
 
 func TestConstructionDerive(t *testing.T) {
-	mockPBackend := &backendMocks.ConstructionBackend{}
+	skippedBackend := &backendMocks.ConstructionBackend{}
+	skippedBackend.On("ShouldHandleRequest", mock.Anything).Return(false)
 	service := ConstructionService{
-		pChainBackend: mockPBackend,
+		pChainBackend:         skippedBackend,
+		cChainAtomicTxBackend: skippedBackend,
 	}
 
 	t.Run("no public key", func(t *testing.T) {
@@ -292,36 +305,6 @@ func TestConstructionDerive(t *testing.T) {
 			resp.AccountIdentifier.Address,
 		)
 	})
-
-	t.Run("p-chain request is delegated to p-chain backend", func(t *testing.T) {
-		src := "02e0d4392cfa224d4be19db416b3cf62e90fb2b7015e7b62a95c8cb490514943f6"
-		b, _ := hex.DecodeString(src)
-		req := &types.ConstructionDeriveRequest{
-			NetworkIdentifier: &types.NetworkIdentifier{
-				Network: mapper.FujiNetwork,
-				SubNetworkIdentifier: &types.SubNetworkIdentifier{
-					Network: mapper.PChainNetworkIdentifier,
-				},
-			},
-			PublicKey: &types.PublicKey{
-				Bytes:     b,
-				CurveType: types.Secp256k1,
-			},
-		}
-
-		expectedResp := &types.ConstructionDeriveResponse{
-			AccountIdentifier: &types.AccountIdentifier{
-				Address: "P-fuji15f9g0h5xkr5cp47n6u3qxj6yjtzzzrdr23a3tl",
-			},
-		}
-
-		mockPBackend.On("ConstructionDerive", mock.Anything, req).Return(expectedResp, nil)
-
-		resp, err := service.ConstructionDerive(context.Background(), req)
-
-		assert.Nil(t, err)
-		assert.Equal(t, expectedResp, resp)
-	})
 }
 
 func forceMarshalMap(t *testing.T, i interface{}) map[string]interface{} {
@@ -340,9 +323,13 @@ func TestPreprocessMetadata(t *testing.T) {
 		Network:    "Fuji",
 		Blockchain: "Avalanche",
 	}
+	skippedBackend := &backendMocks.ConstructionBackend{}
+	skippedBackend.On("ShouldHandleRequest", mock.Anything).Return(false)
 	service := ConstructionService{
-		config: &Config{Mode: ModeOnline},
-		client: client,
+		config:                &Config{Mode: ModeOnline},
+		client:                client,
+		pChainBackend:         skippedBackend,
+		cChainAtomicTxBackend: skippedBackend,
 	}
 	intent := `[{"operation_identifier":{"index":0},"type":"CALL","account":{"address":"0xe3a5B4d7f79d64088C8d4ef153A7DDe2B2d47309"},"amount":{"value":"-42894881044106498","currency":{"symbol":"AVAX","decimals":18}}},{"operation_identifier":{"index":1},"type":"CALL","account":{"address":"0x57B414a0332B5CaB885a451c2a28a07d1e9b8a8d"},"amount":{"value":"42894881044106498","currency":{"symbol":"AVAX","decimals":18}}}]`
 	t.Run("currency info doesn't match between the operations", func(t *testing.T) {
@@ -809,8 +796,10 @@ func TestPreprocessMetadata(t *testing.T) {
 		tokenList := []string{defaultContractAddress}
 
 		service := ConstructionService{
-			config: &Config{Mode: ModeOnline, TokenWhiteList: tokenList},
-			client: client,
+			config:                &Config{Mode: ModeOnline, TokenWhiteList: tokenList},
+			client:                client,
+			pChainBackend:         skippedBackend,
+			cChainAtomicTxBackend: skippedBackend,
 		}
 		currency := &types.Currency{Symbol: defaultSymbol, Decimals: defaultDecimals}
 		client.On(
@@ -889,4 +878,168 @@ func TestPreprocessMetadata(t *testing.T) {
 			},
 		}, metadataResponse)
 	})
+}
+
+func TestBackendDelegations(t *testing.T) {
+	testCases := []string{
+		"p-chain",
+		"c-chain-atomic-tx",
+	}
+
+	makeBackends := func(currentBackend int) []*backendMocks.ConstructionBackend {
+		backends := make([]*backendMocks.ConstructionBackend, len(testCases))
+		for i, _ := range backends {
+			backends[i] = &backendMocks.ConstructionBackend{}
+
+			if i == currentBackend {
+				backends[i].On("ShouldHandleRequest", mock.Anything).Return(true)
+				break
+			}
+
+			backends[i].On("ShouldHandleRequest", mock.Anything).Return(false)
+		}
+		return backends
+	}
+
+	assertBackendCalls := func(backends []*backendMocks.ConstructionBackend) {
+		for _, b := range backends {
+			if b != nil {
+				b.AssertExpectations(t)
+			}
+		}
+	}
+
+	for idx, backendName := range testCases {
+		backends := makeBackends(idx)
+
+		offlineService := ConstructionService{
+			config:                &Config{Mode: ModeOffline},
+			pChainBackend:         backends[0],
+			cChainAtomicTxBackend: backends[1],
+		}
+
+		onlineService := ConstructionService{
+			config:                &Config{Mode: ModeOnline},
+			pChainBackend:         backends[0],
+			cChainAtomicTxBackend: backends[1],
+		}
+
+		t.Run("Derive request is delegated to "+backendName, func(t *testing.T) {
+			req := &types.ConstructionDeriveRequest{
+				PublicKey: &types.PublicKey{},
+			}
+
+			expectedResp := &types.ConstructionDeriveResponse{
+				AccountIdentifier: &types.AccountIdentifier{
+					Address: "P-fuji15f9g0h5xkr5cp47n6u3qxj6yjtzzzrdr23a3tl",
+				},
+			}
+
+			backends[idx].On("ConstructionDerive", mock.Anything, req).Return(expectedResp, nil).Once()
+			resp, err := offlineService.ConstructionDerive(context.Background(), req)
+
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResp, resp)
+			assertBackendCalls(backends)
+		})
+
+		t.Run("Preprocess request is delegated to "+backendName, func(t *testing.T) {
+			req := &types.ConstructionPreprocessRequest{}
+
+			expectedResp := &types.ConstructionPreprocessResponse{
+				Options: map[string]interface{}{"key": "value"},
+			}
+
+			backends[idx].On("ConstructionPreprocess", mock.Anything, req).Return(expectedResp, nil).Once()
+			resp, err := offlineService.ConstructionPreprocess(context.Background(), req)
+
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResp, resp)
+			assertBackendCalls(backends)
+		})
+
+		t.Run("Metadata request is delegated to "+backendName, func(t *testing.T) {
+			req := &types.ConstructionMetadataRequest{}
+
+			expectedResp := &types.ConstructionMetadataResponse{
+				Metadata: map[string]interface{}{"key": "value"},
+			}
+
+			backends[idx].On("ConstructionMetadata", mock.Anything, req).Return(expectedResp, nil).Once()
+			resp, err := onlineService.ConstructionMetadata(context.Background(), req)
+
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResp, resp)
+			assertBackendCalls(backends)
+		})
+
+		t.Run("Payloads request is delegated to "+backendName, func(t *testing.T) {
+			req := &types.ConstructionPayloadsRequest{}
+
+			expectedResp := &types.ConstructionPayloadsResponse{UnsignedTransaction: "unsignedtxn"}
+
+			backends[idx].On("ConstructionPayloads", mock.Anything, req).Return(expectedResp, nil).Once()
+			resp, err := offlineService.ConstructionPayloads(context.Background(), req)
+
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResp, resp)
+			assertBackendCalls(backends)
+		})
+
+		t.Run("Combine request is delegated to "+backendName, func(t *testing.T) {
+			req := &types.ConstructionCombineRequest{
+				UnsignedTransaction: "unsignedtxn",
+				Signatures:          []*types.Signature{{}},
+			}
+
+			expectedResp := &types.ConstructionCombineResponse{SignedTransaction: "unsignedtxn"}
+
+			backends[idx].On("ConstructionCombine", mock.Anything, req).Return(expectedResp, nil).Once()
+			resp, err := offlineService.ConstructionCombine(context.Background(), req)
+
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResp, resp)
+			assertBackendCalls(backends)
+		})
+
+		t.Run("Parse request is delegated to "+backendName, func(t *testing.T) {
+			req := &types.ConstructionParseRequest{}
+			expectedResp := &types.ConstructionParseResponse{}
+
+			backends[idx].On("ConstructionParse", mock.Anything, req).Return(expectedResp, nil).Once()
+			resp, err := offlineService.ConstructionParse(context.Background(), req)
+
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResp, resp)
+			assertBackendCalls(backends)
+		})
+
+		t.Run("Hash request is delegated to "+backendName, func(t *testing.T) {
+			req := &types.ConstructionHashRequest{SignedTransaction: "signedtxn"}
+			expectedResp := &types.TransactionIdentifierResponse{
+				TransactionIdentifier: &types.TransactionIdentifier{Hash: "txn hash"},
+			}
+
+			backends[idx].On("ConstructionHash", mock.Anything, req).Return(expectedResp, nil).Once()
+			resp, err := offlineService.ConstructionHash(context.Background(), req)
+
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResp, resp)
+			assertBackendCalls(backends)
+		})
+
+		t.Run("Submit request is delegated to "+backendName, func(t *testing.T) {
+			req := &types.ConstructionSubmitRequest{SignedTransaction: "signedtxn"}
+			expectedResp := &types.TransactionIdentifierResponse{
+				TransactionIdentifier: &types.TransactionIdentifier{Hash: "txn hash"},
+			}
+
+			backends[idx].On("ConstructionSubmit", mock.Anything, req).Return(expectedResp, nil).Once()
+			resp, err := onlineService.ConstructionSubmit(context.Background(), req)
+
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResp, resp)
+			assertBackendCalls(backends)
+		})
+	}
 }

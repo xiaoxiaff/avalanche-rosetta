@@ -81,6 +81,20 @@ func (_m *NetworkBackend) NetworkStatus(ctx context.Context, request *types.Netw
 	return r0, r1
 }
 
+// ShouldHandleRequest provides a mock function with given fields: req
+func (_m *NetworkBackend) ShouldHandleRequest(req interface{}) bool {
+	ret := _m.Called(req)
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(interface{}) bool); ok {
+		r0 = rf(req)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
 type NewNetworkBackendT interface {
 	mock.TestingT
 	Cleanup(func())

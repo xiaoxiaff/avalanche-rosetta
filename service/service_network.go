@@ -10,10 +10,10 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 )
 
 type NetworkBackend interface {
+	ShouldHandleRequest(req interface{}) bool
 	NetworkIdentifier() *types.NetworkIdentifier
 	NetworkStatus(ctx context.Context, request *types.NetworkRequest) (*types.NetworkStatusResponse, *types.Error)
 	NetworkOptions(ctx context.Context, request *types.NetworkRequest) (*types.NetworkOptionsResponse, *types.Error)
@@ -61,7 +61,7 @@ func (s *NetworkService) NetworkStatus(
 		return nil, ErrUnavailableOffline
 	}
 
-	if pmapper.IsPChainRequest(request) {
+	if s.pChainBackend.ShouldHandleRequest(request) {
 		return s.pChainBackend.NetworkStatus(ctx, request)
 	}
 
@@ -124,7 +124,7 @@ func (s *NetworkService) NetworkOptions(
 	ctx context.Context,
 	request *types.NetworkRequest,
 ) (*types.NetworkOptionsResponse, *types.Error) {
-	if pmapper.IsPChainRequest(request) {
+	if s.pChainBackend.ShouldHandleRequest(request) {
 		return s.pChainBackend.NetworkOptions(ctx, request)
 	}
 

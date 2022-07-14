@@ -19,8 +19,6 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
-	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 )
 
 const (
@@ -31,6 +29,7 @@ const (
 )
 
 type ConstructionBackend interface {
+	ShouldHandleRequest(req interface{}) bool
 	ConstructionDerive(ctx context.Context, req *types.ConstructionDeriveRequest) (*types.ConstructionDeriveResponse, *types.Error)
 	ConstructionPreprocess(ctx context.Context, req *types.ConstructionPreprocessRequest) (*types.ConstructionPreprocessResponse, *types.Error)
 	ConstructionMetadata(ctx context.Context, req *types.ConstructionMetadataRequest) (*types.ConstructionMetadataResponse, *types.Error)
@@ -43,10 +42,10 @@ type ConstructionBackend interface {
 
 // ConstructionService implements /construction/* endpoints
 type ConstructionService struct {
-	config           *Config
-	client           client.Client
-	pChainBackend    ConstructionBackend
-	cAtomicTxBackend ConstructionBackend
+	config                *Config
+	client                client.Client
+	pChainBackend         ConstructionBackend
+	cChainAtomicTxBackend ConstructionBackend
 }
 
 // NewConstructionService returns a new construction service
@@ -54,13 +53,13 @@ func NewConstructionService(
 	config *Config,
 	client client.Client,
 	pChainBackend ConstructionBackend,
-	cAtomicTxBackend ConstructionBackend,
+	cChainAtomicTxBackend ConstructionBackend,
 ) server.ConstructionAPIServicer {
 	return &ConstructionService{
-		config:           config,
-		client:           client,
-		pChainBackend:    pChainBackend,
-		cAtomicTxBackend: cAtomicTxBackend,
+		config:                config,
+		client:                client,
+		pChainBackend:         pChainBackend,
+		cChainAtomicTxBackend: cChainAtomicTxBackend,
 	}
 }
 
@@ -79,8 +78,12 @@ func (s ConstructionService) ConstructionMetadata(
 		return nil, ErrUnavailableOffline
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.ConstructionMetadata(ctx, req)
+	if s.pChainBackend.ShouldHandleRequest(req) {
+		return s.pChainBackend.ConstructionMetadata(ctx, req)
+	}
+
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.ConstructionMetadata(ctx, req)
 	}
 
 	var input options
@@ -90,10 +93,6 @@ func (s ConstructionService) ConstructionMetadata(
 
 	if len(input.From) == 0 {
 		return nil, WrapError(ErrInvalidInput, "from address is not provided")
-	}
-
-	if pmapper.IsPChainRequest(req) {
-		return s.pChainBackend.ConstructionMetadata(ctx, req)
 	}
 
 	var nonce uint64
@@ -171,12 +170,12 @@ func (s ConstructionService) ConstructionHash(
 		return nil, WrapError(ErrInvalidInput, "signed transaction value is not provided")
 	}
 
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.ConstructionHash(ctx, req)
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.ConstructionHash(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.ConstructionHash(ctx, req)
 	}
 
 	var wrappedTx signedTransactionWrapper
@@ -213,12 +212,12 @@ func (s ConstructionService) ConstructionCombine(
 		return nil, WrapError(ErrInvalidInput, "signature is not provided")
 	}
 
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.ConstructionCombine(ctx, req)
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.ConstructionCombine(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.ConstructionCombine(ctx, req)
 	}
 
 	var unsignedTx transaction
@@ -271,12 +270,12 @@ func (s ConstructionService) ConstructionDerive(
 		return nil, WrapError(ErrInvalidInput, "public key is not provided")
 	}
 
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.ConstructionDerive(ctx, req)
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.ConstructionDerive(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.ConstructionDerive(ctx, req)
 	}
 
 	key, err := ethcrypto.DecompressPubkey(req.PublicKey.Bytes)
@@ -301,12 +300,12 @@ func (s ConstructionService) ConstructionParse(
 	ctx context.Context,
 	req *types.ConstructionParseRequest,
 ) (*types.ConstructionParseResponse, *types.Error) {
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.ConstructionParse(ctx, req)
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.ConstructionParse(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.ConstructionParse(ctx, req)
 	}
 
 	var tx transaction
@@ -452,12 +451,12 @@ func (s ConstructionService) ConstructionPayloads(
 	ctx context.Context,
 	req *types.ConstructionPayloadsRequest,
 ) (*types.ConstructionPayloadsResponse, *types.Error) {
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.ConstructionPayloads(ctx, req)
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.ConstructionPayloads(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.ConstructionPayloads(ctx, req)
 	}
 
 	operationDescriptions, err := s.CreateOperationDescription(req.Operations)
@@ -564,12 +563,12 @@ func (s ConstructionService) ConstructionPreprocess(
 	ctx context.Context,
 	req *types.ConstructionPreprocessRequest,
 ) (*types.ConstructionPreprocessResponse, *types.Error) {
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.ConstructionPreprocess(ctx, req)
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.ConstructionPreprocess(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.ConstructionPreprocess(ctx, req)
 	}
 
 	operationDescriptions, err := s.CreateOperationDescription(req.Operations)
@@ -671,12 +670,12 @@ func (s ConstructionService) ConstructionSubmit(
 		return nil, WrapError(ErrInvalidInput, "signed transaction value is not provided")
 	}
 
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.ConstructionSubmit(ctx, req)
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.ConstructionSubmit(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.ConstructionSubmit(ctx, req)
 	}
 
 	var wrappedTx signedTransactionWrapper

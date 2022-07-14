@@ -16,9 +16,9 @@ func TestAccountBalance(t *testing.T) {
 	pBackendMock := &mocks.AccountBackend{}
 	cBackendMock := &mocks.AccountBackend{}
 	service := AccountService{
-		config:           &Config{Mode: ModeOnline},
-		pChainBackend:    pBackendMock,
-		cAtomicTxBackend: cBackendMock,
+		config:                &Config{Mode: ModeOnline},
+		pChainBackend:         pBackendMock,
+		cChainAtomicTxBackend: cBackendMock,
 	}
 	t.Run("p-chain request is delegated to p-chain backend", func(t *testing.T) {
 		req := &types.AccountBalanceRequest{
@@ -34,7 +34,7 @@ func TestAccountBalance(t *testing.T) {
 		}
 
 		expectedResp := &types.AccountBalanceResponse{}
-
+		pBackendMock.On("ShouldHandleRequest", req).Return(true)
 		pBackendMock.On("AccountBalance", mock.Anything, req).Return(expectedResp, nil)
 
 		resp, err := service.AccountBalance(context.Background(), req)
@@ -55,7 +55,8 @@ func TestAccountBalance(t *testing.T) {
 		}
 
 		expectedResp := &types.AccountBalanceResponse{}
-
+		pBackendMock.On("ShouldHandleRequest", req).Return(false)
+		cBackendMock.On("ShouldHandleRequest", req).Return(true)
 		cBackendMock.On("AccountBalance", mock.Anything, req).Return(expectedResp, nil)
 
 		resp, err := service.AccountBalance(context.Background(), req)
@@ -69,10 +70,11 @@ func TestAccountBalance(t *testing.T) {
 func TestAccountCoins(t *testing.T) {
 	pBackendMock := &mocks.AccountBackend{}
 	cBackendMock := &mocks.AccountBackend{}
+
 	service := AccountService{
-		config:           &Config{Mode: ModeOnline},
-		pChainBackend:    pBackendMock,
-		cAtomicTxBackend: cBackendMock,
+		config:                &Config{Mode: ModeOnline},
+		pChainBackend:         pBackendMock,
+		cChainAtomicTxBackend: cBackendMock,
 	}
 	t.Run("p-chain request is delegated to p-chain backend", func(t *testing.T) {
 		req := &types.AccountCoinsRequest{
@@ -89,6 +91,7 @@ func TestAccountCoins(t *testing.T) {
 
 		expectedResp := &types.AccountCoinsResponse{}
 
+		pBackendMock.On("ShouldHandleRequest", req).Return(true)
 		pBackendMock.On("AccountCoins", mock.Anything, req).Return(expectedResp, nil)
 
 		resp, err := service.AccountCoins(context.Background(), req)
@@ -110,6 +113,8 @@ func TestAccountCoins(t *testing.T) {
 
 		expectedResp := &types.AccountCoinsResponse{}
 
+		pBackendMock.On("ShouldHandleRequest", req).Return(false)
+		cBackendMock.On("ShouldHandleRequest", req).Return(true)
 		cBackendMock.On("AccountCoins", mock.Anything, req).Return(expectedResp, nil)
 
 		resp, err := service.AccountCoins(context.Background(), req)
@@ -128,6 +133,9 @@ func TestAccountCoins(t *testing.T) {
 				Address: "0x197E90f9FAD81970bA7976f33CbD77088E5D7cf7",
 			},
 		}
+
+		pBackendMock.On("ShouldHandleRequest", req).Return(false)
+		cBackendMock.On("ShouldHandleRequest", req).Return(false)
 
 		resp, err := service.AccountCoins(context.Background(), req)
 

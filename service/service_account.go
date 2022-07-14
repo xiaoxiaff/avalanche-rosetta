@@ -16,30 +16,33 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
-	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 )
 
 // AccountService implements the /account/* endpoints
 type AccountService struct {
-	config           *Config
-	client           client.Client
-	pChainBackend    AccountBackend
-	cAtomicTxBackend AccountBackend
+	config                *Config
+	client                client.Client
+	pChainBackend         AccountBackend
+	cChainAtomicTxBackend AccountBackend
 }
 
 type AccountBackend interface {
+	ShouldHandleRequest(req interface{}) bool
 	AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error)
 	AccountCoins(ctx context.Context, req *types.AccountCoinsRequest) (*types.AccountCoinsResponse, *types.Error)
 }
 
 // NewAccountService returns a new network servicer
-func NewAccountService(config *Config, client client.Client, pChainBackend, cAtomicTxBackend AccountBackend) server.AccountAPIServicer {
+func NewAccountService(
+	config *Config,
+	client client.Client,
+	pChainBackend, cChainAtomicTxBackend AccountBackend,
+) server.AccountAPIServicer {
 	return &AccountService{
-		config:           config,
-		client:           client,
-		pChainBackend:    pChainBackend,
-		cAtomicTxBackend: cAtomicTxBackend,
+		config:                config,
+		client:                client,
+		pChainBackend:         pChainBackend,
+		cChainAtomicTxBackend: cChainAtomicTxBackend,
 	}
 }
 
@@ -52,7 +55,7 @@ func (s AccountService) AccountBalance(
 		return nil, ErrUnavailableOffline
 	}
 
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.AccountBalance(ctx, req)
 	}
 
@@ -61,8 +64,8 @@ func (s AccountService) AccountBalance(
 	}
 
 	// If the address is in Bech32 format, we check the atomic balance
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.AccountBalance(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.AccountBalance(ctx, req)
 	}
 
 	header, terr := blockHeaderFromInput(ctx, s.client, req.BlockIdentifier)
@@ -147,12 +150,12 @@ func (s AccountService) AccountCoins(
 		return nil, ErrUnavailableOffline
 	}
 
-	if pmapper.IsPChainRequest(req) {
+	if s.pChainBackend.ShouldHandleRequest(req) {
 		return s.pChainBackend.AccountCoins(ctx, req)
 	}
 
-	if cmapper.IsCChainAtomicRequest(req) {
-		return s.cAtomicTxBackend.AccountCoins(ctx, req)
+	if s.cChainAtomicTxBackend.ShouldHandleRequest(req) {
+		return s.cChainAtomicTxBackend.AccountCoins(ctx, req)
 	}
 
 	return nil, ErrNotImplemented
