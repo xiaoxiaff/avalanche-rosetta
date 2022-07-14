@@ -1,0 +1,73 @@
+{
+	"id": "d7WYmb8VeZNHsny3EJCwMm6QA37s1EHwMxw1Y71V3FqPZ5EFG",
+	"type": "*platformvm.StandardBlock",
+	"parent": "5615di9ytxujackzaXNrVuWQy5y8Yrt8chPCscMr5Ku9YxJ1S",
+	"timestamp": 0,
+	"height": 1000001,
+	"transactions": [
+		{
+			"id": "AkTcR1J5b6qPdLaUDycs1YqPAoNY9aPNyb33VSnvyQ6vTCryQ",
+			"type": "*platformvm.UnsignedExportTx",
+			"block": "d7WYmb8VeZNHsny3EJCwMm6QA37s1EHwMxw1Y71V3FqPZ5EFG",
+			"timestamp": 0,
+			"credentials": [
+				[
+					{
+						"address": "P-avax1w5uedtd2sglyx05f2nm3h8l5s8s03yps88szus",
+						"publicKey": "Ax6jhw1eWtaucKE7Rx6Fj8XjJTzUTFnzX9AlR7n70uGJ",
+						"signature": "x5cRxLSNzeIFtjYD7+98YXc6DrR++1A/zr5A0hlit8JevXNAV0AKEszpz5ms7shGKSPV2R//4cuQg3IoHtc4WAE"
+					}
+				]
+			],
+			"fee": 1000000,
+			"outputs": [],
+			"networkID": 1,
+			"blockchainID": "11111111111111111111111111111111LpoYY",
+			"inputs": [
+				{
+					"txID": "DTqiagiMFdqbNQ62V2Gt1GddTVLkKUk2caGr4pyza9hTtsfta",
+					"outputIndex": 0,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 0,
+						"input": {
+							"amount": 13839124063,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				}
+			],
+			"memo": "0x",
+			"data": {
+				"destinationChain": "2q9e4r6Mu3U68nU1fYjgbR6JvwrRx36CohpAX5UQxse55x1Q5",
+				"exportedOutputs": [
+					{
+						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+						"output": {
+							"locktime": 0,
+							"output": {
+								"addresses": [
+									"P-avax1jkjyvlwclyu42n4yuegpczpfgwrf8r9lyj0d3c"
+								],
+								"amount": 13838124063,
+								"locktime": 0,
+								"threshold": 1
+							}
+						}
+					}
+				]
+			}
+		}
+	],
+	"proposer": {
+		"id": "KXR1Ys335NiUE9XKPt7ixBjHQsmrVuH681fZaPmfGnENcuKsG",
+		"parent": "2PdY2BgLwvSk8jpuyVn2j1rwDqKbUATQGDpqxuwgdpziHUPPdt",
+		"nodeID": "NodeID-B4EU3Tk8BsVczMpkPtJAqS9FSYxNjYNBz",
+		"pChainHeight": 999744,
+		"timestamp": 1638504075
+	}
+}

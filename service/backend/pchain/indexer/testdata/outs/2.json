@@ -1,0 +1,270 @@
+{
+	"id": "2SqWZicfDEQhebMA7Ab3W9uLHiBv2eMNwQ3w9LSbymCuARiWTZ",
+	"type": "*platformvm.ProposalBlock",
+	"parent": "2peK2rrira1UUdFuLWZTMHFdGe3JY8sQeKLfPj5jhPdK8mMAcJ",
+	"timestamp": 0,
+	"height": 3,
+	"transactions": [
+		{
+			"id": "2gZCB2pSLarX8YRsYkxScLZr18PNNVnoJCj1jDh2MUTBCYUP4x",
+			"type": "*platformvm.UnsignedAddDelegatorTx",
+			"block": "2SqWZicfDEQhebMA7Ab3W9uLHiBv2eMNwQ3w9LSbymCuARiWTZ",
+			"timestamp": 0,
+			"credentials": [
+				[
+					{
+						"address": "P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg",
+						"publicKey": "AsLIwE4grgj/0ZmAhZxRP25nMutopglQEMop9mYGGmB6",
+						"signature": "PWqYGRU+3ZDiJ09vhGHwB1ksjcT2LbC0dRA3DeK5F8lrP5qrrrPya155utJfE1I2REDRdhXnF2rXe10wIJzYNgA"
+					}
+				],
+				[
+					{
+						"address": "P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg",
+						"publicKey": "AsLIwE4grgj/0ZmAhZxRP25nMutopglQEMop9mYGGmB6",
+						"signature": "PWqYGRU+3ZDiJ09vhGHwB1ksjcT2LbC0dRA3DeK5F8lrP5qrrrPya155utJfE1I2REDRdhXnF2rXe10wIJzYNgA"
+					}
+				],
+				[
+					{
+						"address": "P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg",
+						"publicKey": "AsLIwE4grgj/0ZmAhZxRP25nMutopglQEMop9mYGGmB6",
+						"signature": "PWqYGRU+3ZDiJ09vhGHwB1ksjcT2LbC0dRA3DeK5F8lrP5qrrrPya155utJfE1I2REDRdhXnF2rXe10wIJzYNgA"
+					}
+				],
+				[
+					{
+						"address": "P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg",
+						"publicKey": "AsLIwE4grgj/0ZmAhZxRP25nMutopglQEMop9mYGGmB6",
+						"signature": "PWqYGRU+3ZDiJ09vhGHwB1ksjcT2LbC0dRA3DeK5F8lrP5qrrrPya155utJfE1I2REDRdhXnF2rXe10wIJzYNgA"
+					}
+				],
+				[
+					{
+						"address": "P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg",
+						"publicKey": "AsLIwE4grgj/0ZmAhZxRP25nMutopglQEMop9mYGGmB6",
+						"signature": "PWqYGRU+3ZDiJ09vhGHwB1ksjcT2LbC0dRA3DeK5F8lrP5qrrrPya155utJfE1I2REDRdhXnF2rXe10wIJzYNgA"
+					}
+				],
+				[
+					{
+						"address": "P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg",
+						"publicKey": "AsLIwE4grgj/0ZmAhZxRP25nMutopglQEMop9mYGGmB6",
+						"signature": "PWqYGRU+3ZDiJ09vhGHwB1ksjcT2LbC0dRA3DeK5F8lrP5qrrrPya155utJfE1I2REDRdhXnF2rXe10wIJzYNgA"
+					}
+				]
+			],
+			"fee": 0,
+			"outputs": [],
+			"networkID": 1,
+			"blockchainID": "11111111111111111111111111111111LpoYY",
+			"inputs": [
+				{
+					"txID": "11111111111111111111111111111111LpoYY",
+					"outputIndex": 11112,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 1607472000,
+						"input": {
+							"amount": 960150000000,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				},
+				{
+					"txID": "11111111111111111111111111111111LpoYY",
+					"outputIndex": 11113,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 1615248000,
+						"input": {
+							"amount": 960150000000,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				},
+				{
+					"txID": "11111111111111111111111111111111LpoYY",
+					"outputIndex": 11114,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 1623024000,
+						"input": {
+							"amount": 960150000000,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				},
+				{
+					"txID": "11111111111111111111111111111111LpoYY",
+					"outputIndex": 11115,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 1630800000,
+						"input": {
+							"amount": 960150000000,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				},
+				{
+					"txID": "11111111111111111111111111111111LpoYY",
+					"outputIndex": 11116,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 1638576000,
+						"input": {
+							"amount": 960150000000,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				},
+				{
+					"txID": "11111111111111111111111111111111LpoYY",
+					"outputIndex": 11117,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 1646352000,
+						"input": {
+							"amount": 960150000000,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				}
+			],
+			"memo": "0x00000000",
+			"data": {
+				"validator": {
+					"nodeID": "NodeID-A6onFGyJjA37EZ7kYHANMR1PFRT8NmXrF",
+					"start": 1600741115,
+					"end": 1604283515,
+					"weight": 5760900000000
+				},
+				"rewardOwner": {
+					"addresses": [
+						"P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg"
+					],
+					"locktime": 0,
+					"threshold": 1
+				},
+				"stake": [
+					{
+						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+						"output": {
+							"locktime": 1607472000,
+							"output": {
+								"addresses": [
+									"P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg"
+								],
+								"amount": 960150000000,
+								"locktime": 0,
+								"threshold": 1
+							}
+						}
+					},
+					{
+						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+						"output": {
+							"locktime": 1615248000,
+							"output": {
+								"addresses": [
+									"P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg"
+								],
+								"amount": 960150000000,
+								"locktime": 0,
+								"threshold": 1
+							}
+						}
+					},
+					{
+						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+						"output": {
+							"locktime": 1623024000,
+							"output": {
+								"addresses": [
+									"P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg"
+								],
+								"amount": 960150000000,
+								"locktime": 0,
+								"threshold": 1
+							}
+						}
+					},
+					{
+						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+						"output": {
+							"locktime": 1630800000,
+							"output": {
+								"addresses": [
+									"P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg"
+								],
+								"amount": 960150000000,
+								"locktime": 0,
+								"threshold": 1
+							}
+						}
+					},
+					{
+						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+						"output": {
+							"locktime": 1638576000,
+							"output": {
+								"addresses": [
+									"P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg"
+								],
+								"amount": 960150000000,
+								"locktime": 0,
+								"threshold": 1
+							}
+						}
+					},
+					{
+						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+						"output": {
+							"locktime": 1646352000,
+							"output": {
+								"addresses": [
+									"P-avax1u6xzj47hp5g0atfx4haadhzp6jah52sngfgdvg"
+								],
+								"amount": 960150000000,
+								"locktime": 0,
+								"threshold": 1
+							}
+						}
+					}
+				]
+			}
+		}
+	],
+	"proposer": {
+		"id": "11111111111111111111111111111111LpoYY",
+		"parent": "11111111111111111111111111111111LpoYY",
+		"nodeID": "NodeID-111111111111111111116DBWJs",
+		"pChainHeight": 0,
+		"timestamp": 0
+	}
+}

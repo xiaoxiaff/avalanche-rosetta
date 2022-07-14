@@ -1,0 +1,91 @@
+{
+	"id": "VjXMGrfyxyLZ4GGs3VC5H6mzteQtGVLZpkUs1dwFQnKJRawGt",
+	"type": "*platformvm.ProposalBlock",
+	"parent": "2JxSSBZAQLj8M6oBdUp129J6KSRDFcsyT6GP5k741qNJx6GDNd",
+	"timestamp": 0,
+	"height": 211334,
+	"transactions": [
+		{
+			"id": "2NSNvNtwNLD8hQoeDwkJf126dBj9RdUStodpLuZoWsM8YnV6F",
+			"type": "*platformvm.UnsignedAddSubnetValidatorTx",
+			"block": "VjXMGrfyxyLZ4GGs3VC5H6mzteQtGVLZpkUs1dwFQnKJRawGt",
+			"timestamp": 0,
+			"credentials": [
+				[
+					{
+						"address": "P-avax146sem6srptk2cqpp4txy643qn37zjm3wpdvgd7",
+						"publicKey": "Ave0TAXc02fxOYlIacXcAR527GbUaL/y7qW5HSvudnMP",
+						"signature": "2bN+dWOkOaerMShozEHfUYqqIrUgiVoM+AWJUw7+qu1qvo4M75mVuEA1jnZdy8IkXFI40NxO/uBOMgMepjr4MQA"
+					}
+				],
+				[
+					{
+						"address": "P-avax146sem6srptk2cqpp4txy643qn37zjm3wpdvgd7",
+						"publicKey": "Ave0TAXc02fxOYlIacXcAR527GbUaL/y7qW5HSvudnMP",
+						"signature": "2bN+dWOkOaerMShozEHfUYqqIrUgiVoM+AWJUw7+qu1qvo4M75mVuEA1jnZdy8IkXFI40NxO/uBOMgMepjr4MQA"
+					}
+				]
+			],
+			"fee": 1000000,
+			"outputs": [
+				{
+					"txID": "2NSNvNtwNLD8hQoeDwkJf126dBj9RdUStodpLuZoWsM8YnV6F",
+					"outputIndex": 0,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"output": {
+						"locktime": 0,
+						"output": {
+							"addresses": [
+								"P-avax146sem6srptk2cqpp4txy643qn37zjm3wpdvgd7"
+							],
+							"amount": 458000000,
+							"locktime": 0,
+							"threshold": 1
+						}
+					}
+				}
+			],
+			"networkID": 1,
+			"blockchainID": "11111111111111111111111111111111LpoYY",
+			"inputs": [
+				{
+					"txID": "29ZujU1g8h2qc2JgQjFo7Wby3F2hJhVGohkbeQ9iZ8LjMy2fmZ",
+					"outputIndex": 0,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 0,
+						"input": {
+							"amount": 459000000,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				}
+			],
+			"memo": "0x",
+			"data": {
+				"validator": {
+					"nodeID": "NodeID-AcjjxenGBACbhPfxzZYbbudKPq2K5XqGh",
+					"start": 1603645071,
+					"end": 1605373011,
+					"weight": 20000,
+					"subnet": "jwz8ycZ8V2yHH5b1ysqtZvxtB5UCq34VoHx6C6uy9Gs4GeQ5t"
+				},
+				"subnetAuthorization": {
+					"signatureIndices": [
+						0
+					]
+				}
+			}
+		}
+	],
+	"proposer": {
+		"id": "11111111111111111111111111111111LpoYY",
+		"parent": "11111111111111111111111111111111LpoYY",
+		"nodeID": "NodeID-111111111111111111116DBWJs",
+		"pChainHeight": 0,
+		"timestamp": 0
+	}
+}

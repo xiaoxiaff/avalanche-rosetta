@@ -1,0 +1,27 @@
+{
+	"id": "2Mbfba1sSJw9yrp1ZGpEs4aa7AFkBEofmrXty1CPL2hrnqGeVT",
+	"type": "*platformvm.ProposalBlock",
+	"parent": "d7WYmb8VeZNHsny3EJCwMm6QA37s1EHwMxw1Y71V3FqPZ5EFG",
+	"timestamp": 0,
+	"height": 1000002,
+	"transactions": [
+		{
+			"id": "xBbJXadKPJrLdEsEFNNtVgMCYnn6UkRqZW9Eox8F4LT7ZMZLZ",
+			"type": "*platformvm.UnsignedAdvanceTimeTx",
+			"block": "2Mbfba1sSJw9yrp1ZGpEs4aa7AFkBEofmrXty1CPL2hrnqGeVT",
+			"timestamp": 0,
+			"credentials": [],
+			"fee": 0,
+			"data": {
+				"time": 1638504095
+			}
+		}
+	],
+	"proposer": {
+		"id": "2jsPqeaxacqgMBjQFuiHGiwTjD4kbXqmgbVxXPjTCUtsY5CnJv",
+		"parent": "KXR1Ys335NiUE9XKPt7ixBjHQsmrVuH681fZaPmfGnENcuKsG",
+		"nodeID": "NodeID-E14zCEsVh4oxzcWUVrs7kFGA8ffrhYvNn",
+		"pChainHeight": 999745,
+		"timestamp": 1638504095
+	}
+}

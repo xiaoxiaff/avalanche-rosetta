@@ -1,0 +1,112 @@
+{
+	"id": "2uJMNgW7j7T2Gwp98aHQTgMY47aYC8GZ2hmEGR92k6wM4UCxbC",
+	"type": "*platformvm.AtomicBlock",
+	"parent": "pgCNn9vUpsy4mkY4i3tnAsgmBsYALw92YsXyXxtPph4QPyUtV",
+	"timestamp": 0,
+	"height": 806003,
+	"transactions": [
+		{
+			"id": "9Rg7jCYZCAyFHaYmvYNZBNbTZyoTS9dikV9sL625vrsoM7dSU",
+			"type": "*platformvm.UnsignedExportTx",
+			"block": "2uJMNgW7j7T2Gwp98aHQTgMY47aYC8GZ2hmEGR92k6wM4UCxbC",
+			"timestamp": 0,
+			"credentials": [
+				[
+					{
+						"address": "P-avax1k07se974yqh2j6h96ms6df0t3sjfurjfgm5pm5",
+						"publicKey": "AldAK3LmPf8kTMXPBFPLGVzq6rcnhGcV2TxlLFtHDlwh",
+						"signature": "Ny+sRKdSOQLh0uXdLwVxRf8S9MQW/8FiQc6mrZf7oScZ1hTU6SokRqggwCDHZFj4Y26XoVXuUtNPIKwtl9nWZAA"
+					}
+				],
+				[
+					{
+						"address": "P-avax1k07se974yqh2j6h96ms6df0t3sjfurjfgm5pm5",
+						"publicKey": "AldAK3LmPf8kTMXPBFPLGVzq6rcnhGcV2TxlLFtHDlwh",
+						"signature": "Ny+sRKdSOQLh0uXdLwVxRf8S9MQW/8FiQc6mrZf7oScZ1hTU6SokRqggwCDHZFj4Y26XoVXuUtNPIKwtl9nWZAA"
+					}
+				]
+			],
+			"fee": 1000000,
+			"outputs": [
+				{
+					"txID": "9Rg7jCYZCAyFHaYmvYNZBNbTZyoTS9dikV9sL625vrsoM7dSU",
+					"outputIndex": 0,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"output": {
+						"locktime": 0,
+						"output": {
+							"addresses": [
+								"P-avax1x4t86fpe0e2vdame0jfzsc6gh53npksev5kdl6"
+							],
+							"amount": 61277597674,
+							"locktime": 0,
+							"threshold": 1
+						}
+					}
+				}
+			],
+			"networkID": 1,
+			"blockchainID": "11111111111111111111111111111111LpoYY",
+			"inputs": [
+				{
+					"txID": "UwJboUAnW3fUctUpgZL9QJPqAS5anpTdyXGagkRYFBYtQmv1s",
+					"outputIndex": 0,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 0,
+						"input": {
+							"amount": 111736113231,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				},
+				{
+					"txID": "UwJboUAnW3fUctUpgZL9QJPqAS5anpTdyXGagkRYFBYtQmv1s",
+					"outputIndex": 1,
+					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+					"input": {
+						"locktime": 0,
+						"input": {
+							"amount": 543484443,
+							"signatureIndices": [
+								0
+							]
+						}
+					}
+				}
+			],
+			"memo": "0x",
+			"data": {
+				"destinationChain": "2oYMBNV4eNHyqk2fjjV5nVQLDbtmNJzq5s3qs3Lo6ftnC6FByM",
+				"exportedOutputs": [
+					{
+						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+						"output": {
+							"locktime": 0,
+							"output": {
+								"addresses": [
+									"P-avax1x4t86fpe0e2vdame0jfzsc6gh53npksev5kdl6"
+								],
+								"amount": 51001000000,
+								"locktime": 0,
+								"threshold": 1
+							}
+						}
+					}
+				]
+			}
+		}
+	],
+	"proposer": {
+		"id": "Kr5LmM7WtnV9RYSuUQUYBYKPti9LzxBxhsNUNAd2gcysC6Rhu",
+		"parent": "TmBDZv8EjfcTeQebvPp3vgCxtSMxzxEpsfwbMVZHVDFtEf181",
+		"nodeID": "NodeID-9eH3Zu7LN7kNwvUy3Am8mkgvvekrkxD6d",
+		"pChainHeight": 806002,
+		"timestamp": 1632356898
+	}
+}
