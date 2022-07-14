@@ -4,15 +4,12 @@ import (
 	"bytes"
 	"context"
 	"flag"
-
-	c "github.com/ava-labs/avalanche-rosetta/service/backend/cchainatomictx"
-	p "github.com/ava-labs/avalanche-rosetta/service/backend/pchain"
-	"github.com/ava-labs/avalanchego/ids"
 	"io/ioutil"
 	"log"
 	"math/big"
 	"net/http"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/coinbase/rosetta-sdk-go/asserter"
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -20,6 +17,9 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
+	c "github.com/ava-labs/avalanche-rosetta/service/backend/cchainatomictx"
+	p "github.com/ava-labs/avalanche-rosetta/service/backend/pchain"
+	pIndexer "github.com/ava-labs/avalanche-rosetta/service/backend/pchain/indexer"
 )
 
 var (
@@ -159,11 +159,12 @@ func main() {
 	}
 
 	pChainClient := client.NewPChainClient(context.Background(), cfg.RPCEndpoint)
-
-	pChainBackend, err := p.NewBackend(context.Background(), pChainClient, avaxAssetID, networkP)
+	pChainIndexParser, err := pIndexer.NewParser(pChainClient)
 	if err != nil {
-		log.Fatal("unable to construct p-chain backend:", err)
+		log.Fatal("unable to construct p-chain index parser:", err)
 	}
+
+	pChainBackend := p.NewBackend(pChainClient, pChainIndexParser, avaxAssetID, networkP)
 
 	cAtomicTxBackend := c.NewBackend(apiClient, avaxAssetID)
 

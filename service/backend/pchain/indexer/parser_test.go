@@ -77,7 +77,7 @@ func TestMain(m *testing.M) {
 
 	pchainClient.On("GetHeight", ctx, mock.Anything).Return(uint64(1000000), nil)
 
-	p, err = NewParser(ctx, pchainClient)
+	p, err = NewParser(pchainClient)
 	if err != nil {
 		panic(err)
 	}

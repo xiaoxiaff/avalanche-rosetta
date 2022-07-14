@@ -32,6 +32,7 @@ import (
 type Parser struct {
 	networkID   uint32
 	avaxAssetID ids.ID
+	aliaser     ids.Aliaser
 
 	codec codec.Manager
 
@@ -42,27 +43,42 @@ type Parser struct {
 	pChainClient client.PChainClient
 }
 
-func NewParser(ctx context.Context, pChainClient client.PChainClient) (*Parser, error) {
+func NewParser(pChainClient client.PChainClient) (*Parser, error) {
 	errs := wrappers.Errs{}
-
-	networkID, err := pChainClient.GetNetworkID(ctx)
-	errs.Add(err)
 
 	aliaser := ids.NewAliaser()
 	errs.Add(aliaser.Alias(constants.PlatformChainID, mapper.PChainNetworkIdentifier))
 
 	return &Parser{
-		networkID:    networkID,
 		codec:        platformvm.Codec,
 		pChainClient: pChainClient,
-		ctx: &snow.Context{
-			BCLookup:  aliaser,
-			NetworkID: networkID,
-		},
+		aliaser:      aliaser,
 	}, errs.Err
 }
 
+func (p *Parser) initCtx(ctx context.Context) error {
+	if p.ctx == nil {
+		networkID, err := p.pChainClient.GetNetworkID(ctx)
+		if err != nil {
+			return err
+		}
+
+		p.networkID = networkID
+		p.ctx = &snow.Context{
+			BCLookup:  p.aliaser,
+			NetworkID: networkID,
+		}
+	}
+
+	return nil
+}
+
 func (p *Parser) GetPlatformHeight(ctx context.Context) (uint64, error) {
+	err := p.initCtx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	return p.pChainClient.GetHeight(ctx)
 }
 
@@ -110,6 +126,11 @@ func (p *Parser) extractCredData(creds []verify.Verifiable, bytes []byte) ([][]C
 }
 
 func (p *Parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
+	err := p.initCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	errs := wrappers.Errs{}
 
 	bytes, avaxAssetID, err := genesis.FromConfig(genesis.GetConfig(p.networkID))
@@ -153,6 +174,11 @@ func (p *Parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
 }
 
 func (p *Parser) ParseCurrentBlock(ctx context.Context) (*ParsedBlock, error) {
+	err := p.initCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	height, err := p.GetPlatformHeight(ctx)
 	if err != nil {
 		return nil, err
@@ -162,6 +188,11 @@ func (p *Parser) ParseCurrentBlock(ctx context.Context) (*ParsedBlock, error) {
 }
 
 func (p *Parser) ParseBlockAtIndex(ctx context.Context, index uint64) (*ParsedBlock, error) {
+	err := p.initCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	container, err := p.pChainClient.GetContainerByIndex(ctx, index-1)
 	if err != nil {
 		return nil, err

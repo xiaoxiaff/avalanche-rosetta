@@ -15,6 +15,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/pchain/indexer"
 )
 
 type utxo struct {
@@ -32,7 +33,7 @@ func TestAccountBalance(t *testing.T) {
 	ctx := context.Background()
 	pChainMock.Mock.On("GetNetworkID", ctx).Return(uint32(5), nil)
 
-	service, _ := NewBackend(ctx, pChainMock, ids.Empty, nil)
+	service := NewBackend(pChainMock, &indexer.Parser{}, ids.Empty, nil)
 
 	t.Run("Account Balance Test", func(t *testing.T) {
 		pChainAddr := "P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399"
@@ -87,7 +88,7 @@ func TestAccountCoins(t *testing.T) {
 	ctx := context.Background()
 	pChainMock.Mock.On("GetNetworkID", ctx).Return(uint32(5), nil)
 
-	service, _ := NewBackend(ctx, pChainMock, ids.Empty, nil)
+	service := NewBackend(pChainMock, &indexer.Parser{}, ids.Empty, nil)
 
 	t.Run("Account Coins Test", func(t *testing.T) {
 		pChainAddr := "P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399"

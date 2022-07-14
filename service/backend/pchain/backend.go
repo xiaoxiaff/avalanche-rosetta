@@ -10,7 +10,6 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/client"
-	"github.com/ava-labs/avalanche-rosetta/mapper"
 	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/pchain/indexer"
@@ -32,34 +31,24 @@ type Backend struct {
 	genesisBlockIdentifier *types.BlockIdentifier
 }
 
-func (b *Backend) makeGenesisBlock() *types.BlockResponse {
-	return &types.BlockResponse{
-		Block: &types.Block{
-			BlockIdentifier:       b.genesisBlockIdentifier,
-			ParentBlockIdentifier: b.genesisBlockIdentifier,
-			Transactions:          []*types.Transaction{},
-			Timestamp:             mapper.UnixToUnixMilli(b.genesisBlock.Timestamp),
-		},
+func (b *Backend) getGenesisBlock(ctx context.Context) (*indexer.ParsedGenesisBlock, error) {
+	// Initializing parser gives parsed genesis block
+	return b.indexerParser.Initialize(ctx)
+}
+
+func (b *Backend) buildGenesisBlockIdentifier(genesisBlock *indexer.ParsedGenesisBlock) *types.BlockIdentifier {
+	return &types.BlockIdentifier{
+		Index: int64(genesisBlock.Height),
+		Hash:  genesisBlock.BlockID.String(),
 	}
 }
 
 func NewBackend(
-	ctx context.Context,
 	pClient client.PChainClient,
+	indexerParser *indexer.Parser,
 	assetID ids.ID,
 	networkIdentifier *types.NetworkIdentifier,
-) (*Backend, error) {
-	indexerParser, err := indexer.NewParser(ctx, pClient)
-	if err != nil {
-		return nil, err
-	}
-
-	// Initializing parser gives parsed genesis block
-	genesisBlock, err := indexerParser.Initialize(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+) *Backend {
 	return &Backend{
 		fac:               &crypto.FactorySECP256K1R{},
 		pClient:           pClient,
@@ -69,12 +58,7 @@ func NewBackend(
 		codecVersion:      platformvm.CodecVersion,
 		assetID:           assetID,
 		indexerParser:     indexerParser,
-		genesisBlock:      genesisBlock,
-		genesisBlockIdentifier: &types.BlockIdentifier{
-			Index: int64(genesisBlock.Height),
-			Hash:  genesisBlock.BlockID.String(),
-		},
-	}, nil
+	}
 }
 
 func (*Backend) ShouldHandleRequest(req interface{}) bool {

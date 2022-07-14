@@ -11,16 +11,25 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
-
+	"github.com/ava-labs/avalanche-rosetta/mapper"
 	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
 // Block implements the /block endpoint
 func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*types.BlockResponse, *types.Error) {
-	if b.isGenesisBlockRequest(request.BlockIdentifier) {
-		return b.makeGenesisBlock(), nil
+	isGenesisBlockRequest, err := b.isGenesisBlockRequest(ctx, request.BlockIdentifier)
+	if err != nil {
+		return nil, service.WrapError(service.ErrClientError, err)
+	}
+
+	if isGenesisBlockRequest {
+		block, err := b.buildGenesisBlockResponse(ctx)
+		if err != nil {
+			return nil, service.WrapError(service.ErrClientError, err)
+		}
+		return block, nil
 	}
 
 	var blockIndex int64
@@ -81,6 +90,23 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 	}
 
 	return resp, nil
+}
+
+func (b *Backend) buildGenesisBlockResponse(ctx context.Context) (*types.BlockResponse, error) {
+	genesisBlock, err := b.getGenesisBlock(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	genesisBlockIdentifier := b.buildGenesisBlockIdentifier(genesisBlock)
+	return &types.BlockResponse{
+		Block: &types.Block{
+			BlockIdentifier:       genesisBlockIdentifier,
+			ParentBlockIdentifier: genesisBlockIdentifier,
+			Transactions:          []*types.Transaction{},
+			Timestamp:             mapper.UnixToUnixMilli(genesisBlock.Timestamp),
+		},
+	}, err
 }
 
 // BlockTransaction implements the /block/transaction endpoint.
@@ -172,12 +198,18 @@ func (b *Backend) getBlock(ctx context.Context, index int64, hash string) (platf
 	return block, blockId.String(), nil
 }
 
-func (b *Backend) isGenesisBlockRequest(id *types.PartialBlockIdentifier) bool {
+func (b *Backend) isGenesisBlockRequest(ctx context.Context, id *types.PartialBlockIdentifier) (bool, error) {
+	genesisBlock, err := b.getGenesisBlock(ctx)
+	if err != nil {
+		return false, err
+	}
+	genesisBlockIdentifier := b.buildGenesisBlockIdentifier(genesisBlock)
+
 	if number := id.Index; number != nil {
-		return *number == b.genesisBlockIdentifier.Index
+		return *number == genesisBlockIdentifier.Index, nil
 	}
 	if hash := id.Hash; hash != nil {
-		return *hash == b.genesisBlockIdentifier.Hash
+		return *hash == genesisBlockIdentifier.Hash, nil
 	}
-	return false
+	return false, nil
 }

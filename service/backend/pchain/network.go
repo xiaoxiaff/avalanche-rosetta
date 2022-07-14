@@ -28,11 +28,18 @@ func (b *Backend) NetworkStatus(ctx context.Context, req *types.NetworkRequest) 
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
 
+	genesisBlock, err := b.getGenesisBlock(ctx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrClientError, err)
+	}
+
+	genesisBlockIdentifier := b.buildGenesisBlockIdentifier(genesisBlock)
+
 	if !ready {
 		return &types.NetworkStatusResponse{
-			CurrentBlockIdentifier: b.genesisBlockIdentifier,
-			CurrentBlockTimestamp:  b.genesisBlock.Timestamp,
-			GenesisBlockIdentifier: b.genesisBlockIdentifier,
+			CurrentBlockIdentifier: genesisBlockIdentifier,
+			CurrentBlockTimestamp:  genesisBlock.Timestamp,
+			GenesisBlockIdentifier: genesisBlockIdentifier,
 			SyncStatus:             mapper.StageBootstrap,
 			Peers:                  peers,
 		}, nil
@@ -50,7 +57,7 @@ func (b *Backend) NetworkStatus(ctx context.Context, req *types.NetworkRequest) 
 			Hash:  currentBlock.BlockID.String(),
 		},
 		CurrentBlockTimestamp:  mapper.UnixToUnixMilli(currentBlock.Timestamp),
-		GenesisBlockIdentifier: b.genesisBlockIdentifier,
+		GenesisBlockIdentifier: genesisBlockIdentifier,
 		SyncStatus:             mapper.StageSynced,
 		Peers:                  peers,
 	}, nil
