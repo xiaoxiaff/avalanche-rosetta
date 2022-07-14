@@ -29,9 +29,10 @@ var (
 )
 
 type OperationMetadata struct {
-	Type         string   `json:"type"`
-	SigIndices   []uint32 `json:"sig_indices"`
-	OutputOwners string   `json:"output_owners"`
+	Type       string   `json:"type"`
+	SigIndices []uint32 `json:"sig_indices"`
+	Locktime   uint64   `json:"locktime"`
+	Threshold  uint32   `json:"threshold"`
 }
 
 type ImportExportOptions struct {
@@ -70,8 +71,4 @@ type StakingMetadata struct {
 	Locktime        uint64   `json:"locktime"`
 	Threshold       uint32   `json:"threshold"`
 	RewardAddresses []string `json:"reward_addresses"`
-}
-
-type SigIndicesMetadata struct {
-	Type string `json:"type"`
 }
