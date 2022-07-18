@@ -2,6 +2,7 @@ package cchainatomictx
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 
@@ -200,11 +201,6 @@ func (b *Backend) ConstructionPayloads(ctx context.Context, req *types.Construct
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
-	unsignedBytes, err := b.codec.Marshal(b.codecVersion, &tx)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInternalError, err)
-	}
-
 	unsignedAtomicBytes, err := b.codec.Marshal(b.codecVersion, &tx.UnsignedAtomicTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
@@ -212,44 +208,76 @@ func (b *Backend) ConstructionPayloads(ctx context.Context, req *types.Construct
 
 	hash := hashing.ComputeHash256(unsignedAtomicBytes)
 
-	return common.BuildPayloadsResponse(unsignedBytes, hash, signers)
+	payloads := make([]*types.SigningPayload, len(signers))
+	for i, signer := range signers {
+		payloads[i] = &types.SigningPayload{
+			AccountIdentifier: signer,
+			Bytes:             hash,
+			SignatureType:     types.EcdsaRecovery,
+		}
+	}
+
+	accountIdentifierSigners := make([]Signer, 0, len(req.Operations))
+	for _, o := range req.Operations {
+		accountIdentifierSigners = append(accountIdentifierSigners, Signer{
+			OperationIdentifier: o.OperationIdentifier,
+			AccountIdentifier:   o.Account,
+		})
+	}
+
+	txJson, err := json.Marshal(&Transaction{
+		Tx:                       tx,
+		AccountIdentifierSigners: accountIdentifierSigners,
+	})
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	return &types.ConstructionPayloadsResponse{
+		UnsignedTransaction: string(txJson),
+		Payloads:            payloads,
+	}, nil
 }
 
 func (b *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
-	hrp, err := mapper.GetHRP(req.NetworkIdentifier)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "incorrect network identifier")
-	}
+	// Unmarshal input transaction
+	wrappedTx := Transaction{}
 
-	tx := evm.Tx{}
-
-	txBytes, err := mapper.DecodeToBytes(req.Transaction)
+	err := json.Unmarshal([]byte(req.Transaction), &wrappedTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "undecodable transaction")
 	}
 
-	_, err = b.codec.Unmarshal(txBytes, &tx)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unparsable transaction")
+	if wrappedTx.Tx == nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "no transaction was given")
 	}
+	tx := *wrappedTx.Tx
 
-	var signers []*types.AccountIdentifier
+	// Convert input tx into operations
+	hrp, err := mapper.GetHRP(req.NetworkIdentifier)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "incorrect network identifier")
+	}
 
 	operations, err := cmapper.ParseTx(tx, hrp)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "incorrect transaction input")
 	}
 
+	// Generate AccountIdentifierSigners if request is signed
+	var signers []*types.AccountIdentifier
 	if req.Signed {
-		accountIdentifiers := map[*types.AccountIdentifier]struct{}{}
-		for _, op := range operations {
-			// we are treating all negative amounts as inputs and extracting account identifiers from them
-			if op.Amount.Value[0] == '-' && op.Account != nil {
-				accountIdentifiers[op.Account] = struct{}{}
-			}
+		operationToAccountMap := make(map[int64]*types.AccountIdentifier)
+		for _, data := range wrappedTx.AccountIdentifierSigners {
+			operationToAccountMap[data.OperationIdentifier.Index] = data.AccountIdentifier
 		}
-		for identifier := range accountIdentifiers {
-			signers = append(signers, identifier)
+
+		for _, op := range operations {
+			signer := operationToAccountMap[op.OperationIdentifier.Index]
+			if signer == nil {
+				return nil, service.WrapError(service.ErrInvalidInput, "not all operations have signers")
+			}
+			signers = append(signers, signer)
 		}
 	}
 
@@ -260,17 +288,16 @@ func (b *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 }
 
 func (b *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
-	unsignedBytes, err := mapper.DecodeToBytes(req.UnsignedTransaction)
+	var wrappedTx Transaction
+	err := json.Unmarshal([]byte(req.UnsignedTransaction), &wrappedTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	var tx evm.Tx
-
-	_, err = b.codec.Unmarshal(unsignedBytes, &tx)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unable to unmarshal transaction")
+	if wrappedTx.Tx == nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "no transaction was given")
 	}
+	tx := wrappedTx.Tx
 
 	var creds []verify.Verifiable
 	switch uat := tx.UnsignedAtomicTx.(type) {
@@ -279,10 +306,15 @@ func (b *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 	case *evm.UnsignedExportTx:
 		creds, err = common.BuildSingletonCredentialList(req.Signatures)
 	}
-
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable attach signatures to transaction")
 	}
+
+	unsignedBytes, err := b.codec.Marshal(b.codecVersion, tx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to encode unsigned transaction")
+	}
+
 	tx.Creds = creds
 
 	signedBytes, err := b.codec.Marshal(b.codecVersion, tx)
@@ -292,13 +324,16 @@ func (b *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 
 	tx.Initialize(unsignedBytes, signedBytes)
 
-	signedTransaction, err := mapper.EncodeBytes(signedBytes)
+	signedTransaction, err := json.Marshal(&Transaction{
+		Tx:                       tx,
+		AccountIdentifierSigners: wrappedTx.AccountIdentifierSigners,
+	})
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, "unable to encode signed transaction")
 	}
 
 	return &types.ConstructionCombineResponse{
-		SignedTransaction: signedTransaction,
+		SignedTransaction: string(signedTransaction),
 	}, nil
 }
 

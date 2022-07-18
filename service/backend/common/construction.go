@@ -155,27 +155,6 @@ func MatchOperations(operations []*types.Operation) ([]*parser.Match, error) {
 	return parser.MatchOperations(descriptions, operations)
 }
 
-func BuildPayloadsResponse(unsignedBytes, signingHash []byte, signers []*types.AccountIdentifier) (*types.ConstructionPayloadsResponse, *types.Error) {
-	payloads := make([]*types.SigningPayload, len(signers))
-	for i, signer := range signers {
-		payloads[i] = &types.SigningPayload{
-			AccountIdentifier: signer,
-			Bytes:             signingHash,
-			SignatureType:     types.EcdsaRecovery,
-		}
-	}
-
-	txHex, err := mapper.EncodeBytes(unsignedBytes)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInternalError, err)
-	}
-
-	return &types.ConstructionPayloadsResponse{
-		UnsignedTransaction: txHex,
-		Payloads:            payloads,
-	}, nil
-}
-
 // Based on tx inputs, we can determine the number of signatures
 // required by each input and put correct number of signatures to
 // construct the signed tx.
