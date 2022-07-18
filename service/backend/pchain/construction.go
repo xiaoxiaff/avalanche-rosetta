@@ -2,6 +2,7 @@ package pchain
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -173,8 +174,16 @@ func (b *Backend) ConstructionPayloads(
 		return nil, service.WrapError(service.ErrInvalidInput, fmt.Errorf("couldn't marshal UnsignedTx: %w", err))
 	}
 
-	hash := hashing.ComputeHash256(unsignedBytes)
+	input := make([]AccountIdentifierSigners, len(req.Operations))
+	for i, v := range req.Operations {
+		input[i] = AccountIdentifierSigners{
+			OperationIdentifier: v.OperationIdentifier,
+			AccountIdentifier:   v.Account,
+		}
+	}
 
+	wrappedTx := &Transaction{Tx: tx, AccountIdentifierSigners: input}
+	hash := hashing.ComputeHash256(unsignedBytes)
 	payloads := make([]*types.SigningPayload, len(signers))
 
 	for i, signer := range signers {
@@ -185,7 +194,7 @@ func (b *Backend) ConstructionPayloads(
 		}
 	}
 
-	txBytes, err := b.codec.Marshal(codecVersion, tx)
+	txBytes, err := json.Marshal(wrappedTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
@@ -197,32 +206,29 @@ func (b *Backend) ConstructionPayloads(
 }
 
 func (b *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
-	tx := platformvm.Tx{}
+	tx := Transaction{}
 
-	_, err := b.codec.Unmarshal([]byte(req.Transaction), &tx)
+	err := json.Unmarshal([]byte(req.Transaction), &tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	transactions, err := pmapper.Transaction(tx.UnsignedTx)
+	transactions, err := pmapper.Transaction(tx.Tx.UnsignedTx, true)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	signers := make([]string, 0)
-	for _, v := range transactions.Operations {
-		opMetadata, _ := pmapper.ParseOpMetadata(v.Metadata)
-		switch opMetadata.Type {
-		case pmapper.OpTypeImport, pmapper.OpTypeInput:
-			signers = append(signers, v.Account.Address)
+	inputDataMap := make(map[int64]*types.AccountIdentifier)
+	for _, v := range tx.AccountIdentifierSigners {
+		inputDataMap[v.OperationIdentifier.Index] = v.AccountIdentifier
+	}
+
+	accountIDSigners := make([]*types.AccountIdentifier, 0, len(tx.AccountIdentifierSigners))
+	if req.Signed {
+		for _, v := range transactions.Operations {
+			v.Account = inputDataMap[v.OperationIdentifier.Index]
+			accountIDSigners = append(accountIDSigners, inputDataMap[v.OperationIdentifier.Index])
 		}
-	}
-	accountIDSigners := make([]*types.AccountIdentifier, len(signers))
-
-	for _, v := range signers {
-		ai := &types.AccountIdentifier{Address: v}
-		accountIDSigners = append(accountIDSigners, ai)
-
 	}
 
 	resp := &types.ConstructionParseResponse{
@@ -235,14 +241,14 @@ func (b *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 }
 
 func (b *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
-	tx := platformvm.Tx{}
+	tx := Transaction{}
 
-	_, err := b.codec.Unmarshal([]byte(req.UnsignedTransaction), &tx)
+	err := json.Unmarshal([]byte(req.UnsignedTransaction), &tx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	ins, err := getTxInputs(tx.UnsignedTx)
+	ins, err := getTxInputs(tx.Tx.UnsignedTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -252,20 +258,27 @@ func (b *Backend) ConstructionCombine(ctx context.Context, req *types.Constructi
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	tx.Creds = creds
-
-	signedBytes, err := platformvm.Codec.Marshal(platformvm.CodecVersion, tx)
+	unsignedBytes, err := b.codec.Marshal(b.codecVersion, tx.Tx)
 	if err != nil {
-		return nil, service.WrapError(service.ErrInternalError, err)
+		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	signedTx, err := mapper.EncodeBytes(signedBytes)
+	tx.Tx.Creds = creds
+	signedBytes, err := b.codec.Marshal(b.codecVersion, tx.Tx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+	tx.Tx.Initialize(unsignedBytes, signedBytes)
+
+	wrappedTx := &Transaction{Tx: tx.Tx, AccountIdentifierSigners: tx.AccountIdentifierSigners}
+
+	signedTx, err := json.Marshal(wrappedTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
 	return &types.ConstructionCombineResponse{
-		SignedTransaction: signedTx,
+		SignedTransaction: string(signedTx),
 	}, nil
 }
 

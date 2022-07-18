@@ -3,6 +3,7 @@ package cchainatomictx
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"strconv"
 
 	"github.com/ava-labs/avalanchego/codec"
@@ -186,10 +187,7 @@ func parseImportedInputs(startIdx int64, opType string, ins []*avax.Transferable
 			Type: opType,
 			// We are unable to get account information from UTXOs offline
 			// therefore Account field is omitted for imported inputs
-			Amount: &types.Amount{
-				Value:    strconv.FormatInt(-int64(in.In.Amount()), 10),
-				Currency: mapper.AvaxCurrency,
-			},
+			Amount: mapper.AvaxAmount(new(big.Int).Neg(big.NewInt(int64(in.In.Amount())))),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: in.UTXOID.String()},
 				CoinAction:     types.CoinSpent,

@@ -18,14 +18,19 @@ func TestMapInOperation(t *testing.T) {
 
 	avaxIn := addValidatorTx.Ins[0]
 
-	rosettaInOp, err := inToOperation([]*avax.TransferableInput{avaxIn}, 9, OpAddValidator, OpTypeInput)
+	rosettaInOp, err := inToOperation([]*avax.TransferableInput{avaxIn}, 9, OpAddValidator, OpTypeInput, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, int64(9), rosettaInOp[0].OperationIdentifier.Index)
 	assert.Equal(t, OpAddValidator, rosettaInOp[0].Type)
-	assert.Equal(t, avaxIn.AssetID().String(), rosettaInOp[0].CoinChange.CoinIdentifier.Identifier)
+	assert.Equal(t, avaxIn.UTXOID.String(), rosettaInOp[0].CoinChange.CoinIdentifier.Identifier)
 	assert.Equal(t, types.CoinSpent, rosettaInOp[0].CoinChange.CoinAction)
 	assert.Equal(t, OpTypeInput, rosettaInOp[0].Metadata["type"])
+	assert.Equal(t, OpAddValidator, rosettaInOp[0].Type)
+	assert.Equal(t, types.String(mapper.StatusSuccess), rosettaInOp[0].Status)
+
+	assert.Nil(t, rosettaInOp[0].Metadata["threshold"])
+	assert.NotNil(t, rosettaInOp[0].Metadata["sig_indices"])
 }
 
 func TestMapOutOperation(t *testing.T) {
@@ -36,15 +41,21 @@ func TestMapOutOperation(t *testing.T) {
 
 	avaxOut := addDelegatorTx.Outs[0]
 
-	rosettaInOp, err := outToOperation([]*avax.TransferableOutput{avaxOut}, 9, OpAddValidator, OpTypeOutput)
+	rosettaOutOp, err := outToOperation([]*avax.TransferableOutput{avaxOut}, 0, OpAddDelegator, OpTypeOutput, true)
 	assert.Nil(t, err)
 
-	assert.Equal(t, int64(9), rosettaInOp[0].OperationIdentifier.Index)
-	assert.Equal(t, OpAddValidator, rosettaInOp[0].Type)
-	assert.Equal(t, "P-fuji1gdkq8g208e3j4epyjmx65jglsw7vauh86l47ac", rosettaInOp[0].Account.Address)
-	assert.Equal(t, mapper.AvaxCurrency, rosettaInOp[0].Amount.Currency)
-	assert.Equal(t, "996649063", rosettaInOp[0].Amount.Value)
-	assert.Equal(t, OpTypeOutput, rosettaInOp[0].Metadata["type"])
+	assert.Equal(t, int64(0), rosettaOutOp[0].OperationIdentifier.Index)
+	assert.Equal(t, "P-fuji1gdkq8g208e3j4epyjmx65jglsw7vauh86l47ac", rosettaOutOp[0].Account.Address)
+	assert.Equal(t, mapper.AvaxCurrency, rosettaOutOp[0].Amount.Currency)
+	assert.Equal(t, "996649063", rosettaOutOp[0].Amount.Value)
+	assert.Equal(t, OpTypeOutput, rosettaOutOp[0].Metadata["type"])
+	assert.Nil(t, rosettaOutOp[0].Status)
+	assert.Equal(t, OpAddDelegator, rosettaOutOp[0].Type)
+
+	assert.NotNil(t, rosettaOutOp[0].Metadata["threshold"])
+	assert.NotNil(t, rosettaOutOp[0].Metadata["locktime"])
+	assert.Nil(t, rosettaOutOp[0].Metadata["sig_indices"])
+
 }
 
 func TestMapAddValidatorTx(t *testing.T) {
@@ -54,7 +65,7 @@ func TestMapAddValidatorTx(t *testing.T) {
 	assert.Equal(t, 1, len(addvalidatorTx.Ins))
 	assert.Equal(t, 0, len(addvalidatorTx.Outs))
 
-	rosettaTransaction, err := Transaction(addvalidatorTx)
+	rosettaTransaction, err := Transaction(addvalidatorTx, true)
 	assert.Nil(t, err)
 
 	total := len(addvalidatorTx.Ins) + len(addvalidatorTx.Outs) + len(addvalidatorTx.Stake)
@@ -77,7 +88,7 @@ func TestMapAddDelegatorTx(t *testing.T) {
 	assert.Equal(t, 1, len(addDelegatorTx.Outs))
 	assert.Equal(t, 1, len(addDelegatorTx.Stake))
 
-	rosettaTransaction, err := Transaction(addDelegatorTx)
+	rosettaTransaction, err := Transaction(addDelegatorTx, true)
 	assert.Nil(t, err)
 
 	total := len(addDelegatorTx.Ins) + len(addDelegatorTx.Outs) + len(addDelegatorTx.Stake)
@@ -90,6 +101,25 @@ func TestMapAddDelegatorTx(t *testing.T) {
 	assert.Equal(t, 1, nbOutputMeta)
 	assert.Equal(t, 1, nbMetaType)
 
+	assert.Equal(t, types.CoinSpent, rosettaTransaction.Operations[0].CoinChange.CoinAction)
+	assert.Equal(t, types.CoinCreated, rosettaTransaction.Operations[1].CoinChange.CoinAction)
+	assert.Equal(t, types.CoinCreated, rosettaTransaction.Operations[2].CoinChange.CoinAction)
+
+	assert.Equal(t, addDelegatorTx.Ins[0].UTXOID.String(), rosettaTransaction.Operations[0].CoinChange.CoinIdentifier.Identifier)
+	assert.Equal(t, (*types.CoinIdentifier)(nil), rosettaTransaction.Operations[1].CoinChange.CoinIdentifier)
+	assert.Equal(t, (*types.CoinIdentifier)(nil), rosettaTransaction.Operations[2].CoinChange.CoinIdentifier)
+
+	assert.Equal(t, int64(0), rosettaTransaction.Operations[0].OperationIdentifier.Index)
+	assert.Equal(t, int64(1), rosettaTransaction.Operations[1].OperationIdentifier.Index)
+	assert.Equal(t, int64(2), rosettaTransaction.Operations[2].OperationIdentifier.Index)
+
+	assert.Equal(t, OpAddDelegator, rosettaTransaction.Operations[0].Type)
+	assert.Equal(t, OpAddDelegator, rosettaTransaction.Operations[1].Type)
+	assert.Equal(t, OpAddDelegator, rosettaTransaction.Operations[2].Type)
+
+	assert.Equal(t, OpTypeInput, rosettaTransaction.Operations[0].Metadata["type"])
+	assert.Equal(t, OpTypeOutput, rosettaTransaction.Operations[1].Metadata["type"])
+	assert.Equal(t, OpTypeStakeOutput, rosettaTransaction.Operations[2].Metadata["type"])
 }
 func TestMapImportTx(t *testing.T) {
 
@@ -99,19 +129,21 @@ func TestMapImportTx(t *testing.T) {
 	assert.Equal(t, 1, len(importTx.Outs))
 	assert.Equal(t, 1, len(importTx.ImportedInputs))
 
-	rosettaTransaction, err := Transaction(importTx)
+	rosettaTransaction, err := Transaction(importTx, true)
 	assert.Nil(t, err)
 
 	total := len(importTx.Ins) + len(importTx.Outs) + len(importTx.ImportedInputs)
 	assert.Equal(t, total, len(rosettaTransaction.Operations))
 
-	nbTxType, nbInputMeta, nbOutputMeta, nbMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, mapper.OpImport, OpTypeImport)
+	nbTxType, nbInputMeta, nbOutputMeta, nbMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpImportAvax, OpTypeImport)
 
 	assert.Equal(t, 2, nbTxType)
 	assert.Equal(t, 0, nbInputMeta)
 	assert.Equal(t, 1, nbOutputMeta)
 	assert.Equal(t, 1, nbMetaType)
 
+	assert.Equal(t, types.CoinSpent, rosettaTransaction.Operations[0].CoinChange.CoinAction)
+	assert.Equal(t, types.CoinCreated, rosettaTransaction.Operations[1].CoinChange.CoinAction)
 }
 
 func TestMapExportTx(t *testing.T) {
@@ -122,7 +154,7 @@ func TestMapExportTx(t *testing.T) {
 	assert.Equal(t, 1, len(exportTx.Outs))
 	assert.Equal(t, 1, len(exportTx.ExportedOutputs))
 
-	rosettaTransaction, err := Transaction(exportTx)
+	rosettaTransaction, err := Transaction(exportTx, true)
 	assert.Nil(t, err)
 
 	total := len(exportTx.Ins) + len(exportTx.Outs) + len(exportTx.ExportedOutputs)

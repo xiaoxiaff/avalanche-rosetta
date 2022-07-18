@@ -20,7 +20,11 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
-func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType string, metaType string) ([]*types.Operation, error) {
+func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType string, metaType string, isConstruction bool) ([]*types.Operation, error) {
+	status := types.String(mapper.StatusSuccess)
+	if isConstruction {
+		status = nil
+	}
 
 	outs := make([]*types.Operation, 0)
 	for _, out := range txOut {
@@ -50,7 +54,7 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: int64(startIndex),
 			},
-			Status:   types.String(mapper.StatusSuccess),
+			Status:   status,
 			Account:  &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
 			Amount:   mapper.AvaxAmount(big.NewInt(int64(out.Out.Amount()))),
 			Metadata: opMetadata,
@@ -62,7 +66,11 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 	return outs, nil
 }
 
-func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType string, metaType string) ([]*types.Operation, error) {
+func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType string, metaType string, isConstruction bool) ([]*types.Operation, error) {
+	status := types.String(mapper.StatusSuccess)
+	if isConstruction {
+		status = nil
+	}
 
 	ins := make([]*types.Operation, 0)
 	for _, in := range txIns {
@@ -84,11 +92,11 @@ func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType strin
 				Index: int64(startIndex),
 			},
 			Type:   opType,
-			Status: types.String(mapper.StatusSuccess),
-			Amount: mapper.AvaxAmount(big.NewInt(int64(in.In.Amount()))),
+			Status: status,
+			Amount: mapper.AvaxAmount(new(big.Int).Neg(big.NewInt(int64(in.In.Amount())))),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{
-					Identifier: in.AssetID().String(),
+					Identifier: in.UTXOID.String(),
 				},
 				CoinAction: types.CoinSpent,
 			},
@@ -101,23 +109,19 @@ func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType strin
 	return ins, nil
 }
 
-func baseTxToOperations(tx *platformvm.BaseTx, txType string) ([]*types.Operation, error) {
+func baseTxToOperations(tx *platformvm.BaseTx, txType string, isConstruction bool) ([]*types.Operation, []*types.Operation, error) {
 
-	insAndOuts := make([]*types.Operation, 0)
-	ins, err := inToOperation(tx.Ins, 0, txType, OpTypeInput)
+	ins, err := inToOperation(tx.Ins, 0, txType, OpTypeInput, isConstruction)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	outs, err := outToOperation(tx.Outs, len(ins), txType, OpTypeOutput)
+	outs, err := outToOperation(tx.Outs, len(ins), txType, OpTypeOutput, isConstruction)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	insAndOuts = append(insAndOuts, ins...)
-	insAndOuts = append(insAndOuts, outs...)
-
-	return insAndOuts, nil
+	return ins, outs, nil
 }
 
 func rewardValidatorToOperation(v *platformvm.UnsignedRewardValidatorTx) []*types.Operation {
@@ -133,7 +137,7 @@ func rewardValidatorToOperation(v *platformvm.UnsignedRewardValidatorTx) []*type
 	}
 }
 
-func Transaction(tx interface{}) (*types.Transaction, error) {
+func Transaction(tx interface{}, isConstruction bool) (*types.Transaction, error) {
 	var (
 		ops []*types.Operation
 		err error
@@ -145,40 +149,52 @@ func Transaction(tx interface{}) (*types.Transaction, error) {
 		return nil, errors.New("tx unknown")
 	case *platformvm.UnsignedExportTx:
 		id = v.ID()
-		ops, err = baseTxToOperations(&v.BaseTx, mapper.OpExport)
+		ins, outs, err := baseTxToOperations(&v.BaseTx, OpExportAvax, isConstruction)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, ins...)
+		ops = append(ops, outs...)
+
+		exportedOuts, err := outToOperation(v.ExportedOutputs, len(ops), OpExportAvax, OpTypeOutput, isConstruction)
 		if err != nil {
 			return nil, err
 		}
 
-		exportedOuts, err := outToOperation(v.ExportedOutputs, len(ops), mapper.OpExport, OpTypeOutput)
-		if err != nil {
-			return nil, err
-		}
 		ops = append(ops, exportedOuts...)
 
 	case *platformvm.UnsignedImportTx:
 		id = v.ID()
-		ops, err = baseTxToOperations(&v.BaseTx, mapper.OpImport)
+		ins, err := inToOperation(v.Ins, 0, OpImportAvax, OpTypeInput, isConstruction)
 		if err != nil {
 			return nil, err
 		}
 
-		importedIns, err := inToOperation(v.ImportedInputs, len(ops), mapper.OpImport, OpTypeImport)
+		ops = append(ops, ins...)
+		importedIns, err := inToOperation(v.ImportedInputs, len(ops), OpImportAvax, OpTypeImport, isConstruction)
 		if err != nil {
 			return nil, err
 		}
 
 		ops = append(ops, importedIns...)
-
-	case *platformvm.UnsignedAddValidatorTx:
-		id = v.ID()
-
-		ops, err = baseTxToOperations(&v.BaseTx, OpAddValidator)
+		outs, err := outToOperation(v.Outs, len(ops), OpImportAvax, OpTypeOutput, isConstruction)
 		if err != nil {
 			return nil, err
 		}
 
-		stakeOuts, err := outToOperation(v.Stake, len(ops), OpAddValidator, OpTypeStakeOutput)
+		ops = append(ops, outs...)
+
+	case *platformvm.UnsignedAddValidatorTx:
+		id = v.ID()
+
+		ins, outs, err := baseTxToOperations(&v.BaseTx, OpAddValidator, isConstruction)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, ins...)
+		ops = append(ops, outs...)
+
+		stakeOuts, err := outToOperation(v.Stake, len(ops), OpAddValidator, OpTypeStakeOutput, isConstruction)
 		if err != nil {
 			return nil, err
 		}
@@ -188,12 +204,14 @@ func Transaction(tx interface{}) (*types.Transaction, error) {
 	case *platformvm.UnsignedAddDelegatorTx:
 		id = v.ID()
 
-		ops, err = baseTxToOperations(&v.BaseTx, OpAddDelegator)
+		ins, outs, err := baseTxToOperations(&v.BaseTx, OpAddDelegator, isConstruction)
 		if err != nil {
 			return nil, err
 		}
+		ops = append(ops, ins...)
+		ops = append(ops, outs...)
 
-		stakeOuts, err := outToOperation(v.Stake, len(ops), OpAddDelegator, OpTypeStakeOutput)
+		stakeOuts, err := outToOperation(v.Stake, len(ops), OpAddDelegator, OpTypeStakeOutput, isConstruction)
 		if err != nil {
 			return nil, err
 		}

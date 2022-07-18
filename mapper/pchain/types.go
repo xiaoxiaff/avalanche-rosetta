@@ -30,9 +30,9 @@ var (
 
 type OperationMetadata struct {
 	Type       string   `json:"type"`
-	SigIndices []uint32 `json:"sig_indices"`
+	SigIndices []uint32 `json:"sig_indices,omitempty"`
 	Locktime   uint64   `json:"locktime"`
-	Threshold  uint32   `json:"threshold"`
+	Threshold  uint32   `json:"threshold,omitempty"`
 }
 
 type ImportExportOptions struct {
