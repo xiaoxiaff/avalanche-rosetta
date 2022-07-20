@@ -224,10 +224,12 @@ func (b *Backend) ConstructionParse(ctx context.Context, req *types.Construction
 	}
 
 	accountIDSigners := make([]*types.AccountIdentifier, 0, len(tx.AccountIdentifierSigners))
-	if req.Signed {
-		for _, v := range transactions.Operations {
-			v.Account = inputDataMap[v.OperationIdentifier.Index]
-			accountIDSigners = append(accountIDSigners, inputDataMap[v.OperationIdentifier.Index])
+	for _, v := range transactions.Operations {
+		v.Account = inputDataMap[v.OperationIdentifier.Index]
+		if req.Signed {
+			if v.Metadata["type"] == pmapper.OpTypeImport || v.Metadata["type"] == pmapper.OpTypeInput {
+				accountIDSigners = append(accountIDSigners, inputDataMap[v.OperationIdentifier.Index])
+			}
 		}
 	}
 
