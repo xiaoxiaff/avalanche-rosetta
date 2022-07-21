@@ -6,20 +6,22 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ava-labs/avalanche-rosetta/mapper"
-	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
-	"github.com/ava-labs/avalanche-rosetta/service"
-
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
+	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
-var codecVersion uint16 = platformvm.CodecVersion
+var (
+	errUnknownTxType = errors.New("unknown tx type")
+	errUndecodableTx = errors.New("undecodable transaction")
+	errNoTxGiven     = errors.New("no transaction was given")
+)
 
 func (b *Backend) ConstructionDerive(
 	ctx context.Context,
@@ -27,22 +29,24 @@ func (b *Backend) ConstructionDerive(
 ) (*types.ConstructionDeriveResponse, *types.Error) {
 	return common.DeriveBech32Address(b.fac, mapper.PChainNetworkIdentifier, req)
 }
+
 func (b *Backend) ConstructionPreprocess(
 	ctx context.Context,
 	req *types.ConstructionPreprocessRequest,
 ) (*types.ConstructionPreprocessResponse, *types.Error) {
-	opType, err := common.ParseOpType(req.Operations)
+	matches, err := common.MatchOperations(req.Operations)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
 	reqMetadata := req.Metadata
-	reqMetadata[pmapper.MetadataOpType] = opType
+	reqMetadata[pmapper.MetadataOpType] = matches[0].Operations[0].Type
 
 	return &types.ConstructionPreprocessResponse{
 		Options: reqMetadata,
 	}, nil
 }
+
 func (b *Backend) ConstructionMetadata(
 	ctx context.Context,
 	req *types.ConstructionMetadataRequest,
@@ -83,7 +87,8 @@ func (b *Backend) ConstructionMetadata(
 	}
 
 	return &types.ConstructionMetadataResponse{
-		Metadata: metadataMap,
+		Metadata:     metadataMap,
+		SuggestedFee: nil, // TODO: return tx fee based on type
 	}, nil
 }
 
@@ -154,134 +159,75 @@ func (b *Backend) ConstructionPayloads(
 	ctx context.Context,
 	req *types.ConstructionPayloadsRequest,
 ) (*types.ConstructionPayloadsResponse, *types.Error) {
-	opType, err := common.ParseOpType(req.Operations)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
+	builder := pTxBuilder{
+		avaxAssetID:  b.avaxAssetID,
+		codec:        b.codec,
+		codecVersion: b.codecVersion,
 	}
-
-	matches, err := common.MatchOperations(req.Operations)
-	if err != nil {
-		return nil, service.WrapError(service.ErrBlockInvalidInput, err)
-	}
-
-	tx, signers, err := pmapper.BuildTransaction(opType, matches, req.Metadata, b.codec, b.assetID)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-
-	unsignedBytes, err := b.codec.Marshal(codecVersion, &tx.UnsignedTx)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, fmt.Errorf("couldn't marshal UnsignedTx: %w", err))
-	}
-
-	input := make([]AccountIdentifierSigners, len(req.Operations))
-	for i, v := range req.Operations {
-		input[i] = AccountIdentifierSigners{
-			OperationIdentifier: v.OperationIdentifier,
-			AccountIdentifier:   v.Account,
-		}
-	}
-
-	wrappedTx := &Transaction{Tx: tx, AccountIdentifierSigners: input}
-	hash := hashing.ComputeHash256(unsignedBytes)
-	payloads := make([]*types.SigningPayload, len(signers))
-
-	for i, signer := range signers {
-		payloads[i] = &types.SigningPayload{
-			AccountIdentifier: &types.AccountIdentifier{Address: signer},
-			Bytes:             hash,
-			SignatureType:     types.EcdsaRecovery,
-		}
-	}
-
-	txBytes, err := json.Marshal(wrappedTx)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInternalError, err)
-	}
-
-	return &types.ConstructionPayloadsResponse{
-		UnsignedTransaction: string(txBytes),
-		Payloads:            payloads,
-	}, nil
+	return common.BuildPayloads(builder, req)
 }
 
-func (b *Backend) ConstructionParse(ctx context.Context, req *types.ConstructionParseRequest) (*types.ConstructionParseResponse, *types.Error) {
-	tx := Transaction{}
-
-	err := json.Unmarshal([]byte(req.Transaction), &tx)
+func (b *Backend) ConstructionParse(
+	ctx context.Context,
+	req *types.ConstructionParseRequest,
+) (*types.ConstructionParseResponse, *types.Error) {
+	rosettaTx, err := b.parsePayloadTxFromString(req.Transaction)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	transactions, err := pmapper.Transaction(tx.Tx.UnsignedTx, true)
+	hrp, err := mapper.GetHRP(req.NetworkIdentifier)
 	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
+		return nil, service.WrapError(service.ErrInvalidInput, "incorrect network identifier")
 	}
+	txParser := pTxParser{hrp: hrp}
 
-	inputDataMap := make(map[int64]*types.AccountIdentifier)
-	for _, v := range tx.AccountIdentifierSigners {
-		inputDataMap[v.OperationIdentifier.Index] = v.AccountIdentifier
-	}
-
-	accountIDSigners := make([]*types.AccountIdentifier, 0, len(tx.AccountIdentifierSigners))
-	for _, v := range transactions.Operations {
-		v.Account = inputDataMap[v.OperationIdentifier.Index]
-		if req.Signed {
-			if v.Metadata["type"] == pmapper.OpTypeImport || v.Metadata["type"] == pmapper.OpTypeInput {
-				accountIDSigners = append(accountIDSigners, inputDataMap[v.OperationIdentifier.Index])
-			}
-		}
-	}
-
-	resp := &types.ConstructionParseResponse{
-		Operations:               transactions.Operations,
-		AccountIdentifierSigners: accountIDSigners,
-		Metadata:                 nil,
-	}
-
-	return resp, nil
+	return common.Parse(txParser, rosettaTx, req.Signed)
 }
 
-func (b *Backend) ConstructionCombine(ctx context.Context, req *types.ConstructionCombineRequest) (*types.ConstructionCombineResponse, *types.Error) {
-	tx := Transaction{}
-
-	err := json.Unmarshal([]byte(req.UnsignedTransaction), &tx)
+func (b *Backend) ConstructionCombine(
+	ctx context.Context,
+	req *types.ConstructionCombineRequest,
+) (*types.ConstructionCombineResponse, *types.Error) {
+	rosettaTx, err := b.parsePayloadTxFromString(req.UnsignedTransaction)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	ins, err := getTxInputs(tx.Tx.UnsignedTx)
+	return common.Combine(b, rosettaTx, req.Signatures)
+}
+
+func (b *Backend) CombineTx(tx common.AvaxTx, signatures []*types.Signature) (common.AvaxTx, *types.Error) {
+	pTx, ok := tx.(*pTx)
+	if !ok {
+		return nil, service.WrapError(service.ErrInvalidInput, "invalid transaction")
+	}
+
+	ins, err := getTxInputs(pTx.Tx.UnsignedTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	creds, err := common.BuildCredentialList(ins, req.Signatures)
+	creds, err := common.BuildCredentialList(ins, signatures)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	unsignedBytes, err := b.codec.Marshal(b.codecVersion, tx.Tx)
+	unsignedBytes, err := pTx.Marshal()
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	tx.Tx.Creds = creds
-	signedBytes, err := b.codec.Marshal(b.codecVersion, tx.Tx)
+	pTx.Tx.Creds = creds
+
+	signedBytes, err := pTx.Marshal()
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
-	tx.Tx.Initialize(unsignedBytes, signedBytes)
 
-	wrappedTx := &Transaction{Tx: tx.Tx, AccountIdentifierSigners: tx.AccountIdentifierSigners}
+	pTx.Tx.Initialize(unsignedBytes, signedBytes)
 
-	signedTx, err := json.Marshal(wrappedTx)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInternalError, err)
-	}
-
-	return &types.ConstructionCombineResponse{
-		SignedTransaction: string(signedTx),
-	}, nil
+	return pTx, nil
 }
 
 // getTxInputs fetches tx inputs based on the tx type.
@@ -304,19 +250,56 @@ func getTxInputs(
 	case *platformvm.UnsignedExportTx:
 		return utx.Ins, nil
 	default:
-		return nil, errors.New("unknown tx type")
+		return nil, errUnknownTxType
 	}
 }
 
-func (b *Backend) ConstructionHash(ctx context.Context, req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	return common.HashTx(req)
+func (b *Backend) ConstructionHash(
+	ctx context.Context,
+	req *types.ConstructionHashRequest,
+) (*types.TransactionIdentifierResponse, *types.Error) {
+	rosettaTx, err := b.parsePayloadTxFromString(req.SignedTransaction)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	return common.HashTx(rosettaTx)
 }
 
-func (b *Backend) ConstructionSubmit(ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	return common.SubmitTx(b, ctx, req)
+func (b *Backend) ConstructionSubmit(
+	ctx context.Context,
+	req *types.ConstructionSubmitRequest,
+) (*types.TransactionIdentifierResponse, *types.Error) {
+	rosettaTx, err := b.parsePayloadTxFromString(req.SignedTransaction)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	return common.SubmitTx(ctx, b, rosettaTx)
 }
 
 // Defining IssueTx here without rpc.Options... to be able to use it with common.SubmitTx
 func (b *Backend) IssueTx(ctx context.Context, txByte []byte) (ids.ID, error) {
 	return b.pClient.IssueTx(ctx, txByte)
+}
+
+func (b *Backend) parsePayloadTxFromString(transaction string) (*common.RosettaTx, error) {
+	// Unmarshal input transaction
+	payloadsTx := &common.RosettaTx{
+		Tx: &pTx{
+			Codec:        b.codec,
+			CodecVersion: b.codecVersion,
+		},
+	}
+
+	err := json.Unmarshal([]byte(transaction), payloadsTx)
+	if err != nil {
+		return nil, errUndecodableTx
+	}
+
+	if payloadsTx.Tx == nil {
+		return nil, errNoTxGiven
+	}
+
+	return payloadsTx, nil
 }

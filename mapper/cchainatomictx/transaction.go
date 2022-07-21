@@ -129,16 +129,15 @@ func parseIns(startIdx int64, opType string, ins []evm.EVMInput) []*types.Operat
 	idx := startIdx
 	var operations []*types.Operation
 	for _, in := range ins {
+		inputAmount := new(big.Int).SetUint64(in.Amount)
 		operations = append(operations, &types.Operation{
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: idx,
 			},
 			Type:    opType,
 			Account: &types.AccountIdentifier{Address: in.Address.Hex()},
-			Amount: &types.Amount{
-				Value:    strconv.FormatInt(-int64(in.Amount), 10),
-				Currency: mapper.AvaxCurrency,
-			},
+			// Negating input amount
+			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
 		})
 		idx++
 	}
@@ -180,14 +179,14 @@ func parseImportedInputs(startIdx int64, opType string, ins []*avax.Transferable
 	idx := startIdx
 	var operations []*types.Operation
 	for _, in := range ins {
+		inputAmount := new(big.Int).SetUint64(in.In.Amount())
 		operations = append(operations, &types.Operation{
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: idx,
 			},
 			Type: opType,
-			// We are unable to get account information from UTXOs offline
-			// therefore Account field is omitted for imported inputs
-			Amount: mapper.AvaxAmount(new(big.Int).Neg(big.NewInt(int64(in.In.Amount())))),
+			// Negating input amount
+			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: in.UTXOID.String()},
 				CoinAction:     types.CoinSpent,

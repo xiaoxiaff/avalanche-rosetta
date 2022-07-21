@@ -1,67 +1,98 @@
 package cchainatomictx
 
 import (
-	"encoding/json"
+	"errors"
 
+	"github.com/ava-labs/avalanchego/codec"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	cmapper "github.com/ava-labs/avalanche-rosetta/mapper/cchainatomictx"
+	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
-type Transaction struct {
-	Tx                       *evm.Tx
-	AccountIdentifierSigners []Signer
+type cAtomicTx struct {
+	Tx           *evm.Tx
+	Codec        codec.Manager
+	CodecVersion uint16
 }
 
-type Signer struct {
-	OperationIdentifier *types.OperationIdentifier
-	AccountIdentifier   *types.AccountIdentifier
+func (c *cAtomicTx) Marshal() ([]byte, error) {
+	return c.Codec.Marshal(c.CodecVersion, c.Tx)
 }
 
-type transactionWire struct {
-	Tx                       string   `json:"tx"`
-	AccountIdentifierSigners []Signer `json:"signers"`
-}
-
-func (t *Transaction) MarshalJSON() ([]byte, error) {
-	bytes, err := evm.Codec.Marshal(0, t.Tx)
-	if err != nil {
-		return nil, err
-	}
-
-	str, err := mapper.EncodeBytes(bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	txWire := &transactionWire{
-		Tx:                       str,
-		AccountIdentifierSigners: t.AccountIdentifierSigners,
-	}
-	return json.Marshal(txWire)
-}
-
-func (t *Transaction) UnmarshalJSON(data []byte) error {
-	txWire := &transactionWire{}
-	err := json.Unmarshal(data, txWire)
-	if err != nil {
-		return err
-	}
-
-	bytes, err := mapper.DecodeToBytes(txWire.Tx)
-	if err != nil {
-		return err
-	}
-
+func (c *cAtomicTx) Unmarshal(bytes []byte) error {
 	tx := evm.Tx{}
-	_, err = evm.Codec.Unmarshal(bytes, &tx)
+	_, err := c.Codec.Unmarshal(bytes, &tx)
 	if err != nil {
 		return err
 	}
-
-	t.Tx = &tx
-	t.AccountIdentifierSigners = txWire.AccountIdentifierSigners
-
+	c.Tx = &tx
 	return nil
+}
+
+func (c *cAtomicTx) SigningPayload() ([]byte, error) {
+	unsignedAtomicBytes, err := c.Codec.Marshal(c.CodecVersion, &c.Tx.UnsignedAtomicTx)
+	if err != nil {
+		return nil, err
+	}
+
+	hash := hashing.ComputeHash256(unsignedAtomicBytes)
+	return hash, nil
+}
+
+func (c *cAtomicTx) Hash() ([]byte, error) {
+	bytes, err := c.Codec.Marshal(c.CodecVersion, &c.Tx)
+	if err != nil {
+		return nil, err
+	}
+
+	hash := hashing.ComputeHash256(bytes)
+	return hash, nil
+}
+
+type cAtomicTxParser struct {
+	hrp string
+}
+
+func (c cAtomicTxParser) ParseTx(tx common.AvaxTx, isConstruction bool) ([]*types.Operation, error) {
+	cTx, ok := tx.(*cAtomicTx)
+	if !ok {
+		return nil, errors.New("invalid transaction")
+	}
+	return cmapper.ParseTx(*cTx.Tx, c.hrp)
+}
+
+type cAtomicTxBuilder struct {
+	avaxAssetID  ids.ID
+	codec        codec.Manager
+	codecVersion uint16
+}
+
+func (c cAtomicTxBuilder) BuildTx(operations []*types.Operation, metadata map[string]interface{}) (common.AvaxTx, []*types.AccountIdentifier, *types.Error) {
+	cMetadata := cmapper.Metadata{}
+	err := mapper.UnmarshalJSONMap(metadata, &cMetadata)
+	if err != nil {
+		return nil, nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	matches, err := common.MatchOperations(operations)
+	if err != nil {
+		return nil, nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	tx, signers, err := cmapper.BuildTx(matches[0].Operations[0].Type, matches, cMetadata, c.codec, c.avaxAssetID)
+	if err != nil {
+		return nil, nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	return &cAtomicTx{
+		Tx:           tx,
+		Codec:        c.codec,
+		CodecVersion: c.codecVersion,
+	}, signers, nil
 }

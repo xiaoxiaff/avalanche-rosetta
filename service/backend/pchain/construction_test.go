@@ -4,38 +4,72 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	"github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
+	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/pchain/indexer"
 )
+
+var (
+	pChainNetworkIdentifier = &types.NetworkIdentifier{
+		Blockchain: service.BlockchainName,
+		Network:    mapper.FujiNetwork,
+		SubNetworkIdentifier: &types.SubNetworkIdentifier{
+			Network: mapper.PChainNetworkIdentifier,
+		},
+	}
+
+	cAccountIdentifier = &types.AccountIdentifier{Address: "C-fuji123zu6qwhtd9qdd45ryu3j0qtr325gjgddys6u8"}
+	pAccountIdentifier = &types.AccountIdentifier{Address: "P-fuji123zu6qwhtd9qdd45ryu3j0qtr325gjgddys6u8"}
+
+	cChainID, _ = ids.FromString("yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp")
+	pChainID    = ids.Empty
+
+	networkID = 5
+
+	avaxAssetID, _ = ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
+
+	opTypeInput  = "INPUT"
+	opTypeImport = "IMPORT"
+	opTypeExport = "EXPORT"
+	opTypeOutput = "OUTPUT"
+)
+
+func buildRosettaSignerJson(signers []*types.AccountIdentifier) string {
+	var importSigners []*common.Signer
+	for i, s := range signers {
+		importSigners = append(importSigners, &common.Signer{
+			OperationIdentifier: &types.OperationIdentifier{Index: int64(i)},
+			AccountIdentifier:   s,
+		})
+	}
+	bytes, _ := json.Marshal(importSigners)
+	return string(bytes)
+}
 
 func TestConstructionDerive(t *testing.T) {
 	pChainMock := &mocks.PChainClient{}
 	ctx := context.Background()
 	pChainMock.Mock.On("GetNetworkID", ctx).Return(uint32(5), nil)
-	service := NewBackend(pChainMock, &indexer.Parser{}, ids.Empty, nil)
+	backend := NewBackend(pChainMock, &indexer.Parser{}, ids.Empty, nil)
 
 	t.Run("p-chain address", func(t *testing.T) {
 		src := "02e0d4392cfa224d4be19db416b3cf62e90fb2b7015e7b62a95c8cb490514943f6"
 		b, _ := hex.DecodeString(src)
 
-		resp, err := service.ConstructionDerive(
+		resp, err := backend.ConstructionDerive(
 			context.Background(),
 			&types.ConstructionDeriveRequest{
-				NetworkIdentifier: &types.NetworkIdentifier{
-					Network: mapper.FujiNetwork,
-					SubNetworkIdentifier: &types.SubNetworkIdentifier{
-						Network: mapper.PChainNetworkIdentifier,
-					},
-				},
+				NetworkIdentifier: pChainNetworkIdentifier,
 				PublicKey: &types.PublicKey{
 					Bytes:     b,
 					CurveType: types.Secp256k1,
@@ -51,390 +85,420 @@ func TestConstructionDerive(t *testing.T) {
 	})
 }
 
-func TestConstructionHash(t *testing.T) {
-	pChainMock := &mocks.PChainClient{}
-	ctx := context.Background()
-	pChainMock.Mock.On("GetNetworkID", ctx).Return(uint32(5), nil)
-	service := NewBackend(pChainMock, &indexer.Parser{}, ids.Empty, nil)
+func TestExportTxConstruction(t *testing.T) {
+	opExportAvax := "EXPORT_AVAX"
 
-	t.Run("P-chain valid transaction", func(t *testing.T) {
-		signed := "0x00000000000e000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8724b400000000000000000000000100000001790b9fc4f62b8eb2d2cf0177bda1ecc882a2d19e000000018be2098b614618321c855b6c7ca1cce33006902727d2a05f3ae7d5b18c14e24f000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000007721eeb4000000010000000000000000d325c150d0fec89b706ab5fd75ae7506a9912a9e00000000629a465500000000629b97d5000000003b9aca00000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b9aca0000000000000000000000000100000001790b9fc4f62b8eb2d2cf0177bda1ecc882a2d19e0000000b00000000000000000000000100000001e35e8550c1f09e1d3f6b97292eed8a1a76dcdd8a000000010000000900000001ebd189ad5e808ac24b69d8548980759067ce3b8b8caf9ece3ce3d032c5ec433d59e3767ffbbb2f9940894dd2eb96e6f93942b5535137a46097d124571b8dcf5700f323bc66"
-
-		resp, err := service.ConstructionHash(context.Background(), &types.ConstructionHashRequest{
-			NetworkIdentifier: &types.NetworkIdentifier{
-				SubNetworkIdentifier: &types.SubNetworkIdentifier{
-					Network: mapper.PChainNetworkIdentifier,
-				},
+	exportOperations := []*types.Operation{
+		{
+			OperationIdentifier: &types.OperationIdentifier{Index: 0},
+			RelatedOperations:   nil,
+			Type:                opExportAvax,
+			Account:             pAccountIdentifier,
+			Amount:              mapper.AvaxAmount(big.NewInt(-1_000_000_000)),
+			CoinChange: &types.CoinChange{
+				CoinIdentifier: &types.CoinIdentifier{Identifier: "2ryRVCwNSjEinTViuvDkzX41uQzx3g4babXxZMD46ZV1a9X4Eg:0"},
+				CoinAction:     "coin_spent",
 			},
-			SignedTransaction: signed,
-		})
-		assert.Nil(t, err)
-		assert.Equal(
-			t,
-			"etWqwTN1YwhakxLnMDp7q6yaf4m7VJu4uB4vC4fEtNrFe9sDy",
-			resp.TransactionIdentifier.Hash,
-		)
-	})
-}
-
-// https://explorer-xp.avax-test.network/tx/2boVqhWaZ7M1YmnCe6JscWJESK1LVpcGq5quGpoX4HtLdr1RHN
-func TestConstructionCombine(t *testing.T) {
-	pChainMock := &mocks.PChainClient{}
-	ctx := context.Background()
-	pChainMock.Mock.On("GetNetworkID", ctx).Return(uint32(5), nil)
-	service := NewBackend(pChainMock, &indexer.Parser{}, ids.Empty, nil)
-
-	pChainNetworkIdentifier := &types.NetworkIdentifier{
-		Network:    "Fuji",
-		Blockchain: "Avalanche",
-		SubNetworkIdentifier: &types.SubNetworkIdentifier{
-			Network: mapper.PChainNetworkIdentifier,
+			Metadata: map[string]interface{}{
+				"type":        opTypeInput,
+				"sig_indices": []interface{}{0.0},
+				"locktime":    0.0,
+			},
+		},
+		{
+			OperationIdentifier: &types.OperationIdentifier{Index: 1},
+			Type:                opExportAvax,
+			// FIXME: make this cAccountIdentifier after fixing chain id and hrp in pmapper
+			Account: pAccountIdentifier,
+			Amount:  mapper.AvaxAmount(big.NewInt(999_000_000)),
+			Metadata: map[string]interface{}{
+				"type":      opTypeExport,
+				"threshold": 1.0,
+				"locktime":  0.0,
+			},
 		},
 	}
 
-	t.Run("combine P chain tx", func(t *testing.T) {
-		sigStr := `[{"hex_bytes":"6f3bd238b5957de6ace4b1383bc0cb1e397f2fce81b8b6ee757a40d4cf7382f007a54857ac26128d74b98f45e55a57a0245173a575e420b56cdb6fad285d53d800","signing_payload":{"address":"P-fuji138rfscqfmuyntqrtuhuf9lyhzmr3pzml5fychd","hex_bytes":"29b6ddf6ffa03d82e365c83a44df4862ea57dc24bf1e1f333c1bc1d36c5d6ff3","account_identifier":{"address":"P-fuji138rfscqfmuyntqrtuhuf9lyhzmr3pzml5fychd"},"signature_type":"ecdsa_recovery"},"public_key":{"hex_bytes":"026340da0a388d45dee4915e924ef620360223a3d8a5944f9555e1a588054c549f","curve_type":"secp256k1"},"signature_type":"ecdsa_recovery"},{"hex_bytes":"6f3bd238b5957de6ace4b1383bc0cb1e397f2fce81b8b6ee757a40d4cf7382f007a54857ac26128d74b98f45e55a57a0245173a575e420b56cdb6fad285d53d800","signing_payload":{"address":"P-fuji138rfscqfmuyntqrtuhuf9lyhzmr3pzml5fychd","hex_bytes":"29b6ddf6ffa03d82e365c83a44df4862ea57dc24bf1e1f333c1bc1d36c5d6ff3","account_identifier":{"address":"P-fuji138rfscqfmuyntqrtuhuf9lyhzmr3pzml5fychd"},"signature_type":"ecdsa_recovery"},"public_key":{"hex_bytes":"026340da0a388d45dee4915e924ef620360223a3d8a5944f9555e1a588054c549f","curve_type":"secp256k1"},"signature_type":"ecdsa_recovery"}]`
-		sigs := []*types.Signature{}
-		_ = json.Unmarshal([]byte(sigStr), &sigs)
+	preprocessMetadata := map[string]interface{}{
+		"destination_chain": "C",
+	}
 
-		// unsignedTx := `{"tx":"0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000ecc2021c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d50000000281b8ea7b7282685c79494712a633f9862d342c8dcb0431f88550b39ce4c46a40000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000773130f40000000100000000952e0397dafcf7332370878c007ac07f3005b7faf6731d8523d6a124297dbc05000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000050000000075a01368000000010000000000000000743d6654","input_data":[{"operation_identifier":{"index":0},"account_identifier":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}},{"operation_identifier":{"index":1},"account_identifier":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}},{"operation_identifier":{"index":2},"account_identifier":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}}]}`
-		exportData := `[{"operation_identifier":{"index":0},"account_identifier":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}},{"operation_identifier":{"index":1},"account_identifier":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}},{"operation_identifier":{"index":2},"account_identifier":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}}]`
-		unsignedTx := `0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000ecc2021c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d50000000281b8ea7b7282685c79494712a633f9862d342c8dcb0431f88550b39ce4c46a40000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000773130f40000000100000000952e0397dafcf7332370878c007ac07f3005b7faf6731d8523d6a124297dbc05000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000050000000075a01368000000010000000000000000743d6654`
-		signedTx := "0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000ecc2021c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d50000000281b8ea7b7282685c79494712a633f9862d342c8dcb0431f88550b39ce4c46a40000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000773130f4000"
-		wrappedUnsignedExportTx := `{"tx":"` + unsignedTx + `","signers":` + exportData + `}`
-		wrappedSignedExportTx := `{"tx":"` + signedTx + `","signers":` + exportData + `}`
+	metadataOptions := map[string]interface{}{
+		"destination_chain": "C",
+		"type":              opExportAvax,
+	}
 
-		resp, err := service.ConstructionCombine(
-			context.Background(),
+	payloadsMetadata := map[string]interface{}{
+		"network_id":           float64(networkID),
+		"source_chain_id":      "",
+		"destination_chain_id": cChainID.String(),
+		"blockchain_id":        pChainID.String(),
+	}
+
+	signers := []*types.AccountIdentifier{pAccountIdentifier}
+	exportSigners := buildRosettaSignerJson(signers)
+
+	unsignedExportTx := "0x0000000000120000000500000000000000000000000000000000000000000000000000000000000000000000000000000001f52a5a6dd8f1b3fe05204bdab4f6bcb5a7059f88d0443c636f6c158f838dd1a8000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8b87c0000000000000000000000001000000015445cd01d75b4a06b6b41939193c0b1c5544490d0000000065e8045f"
+	unsignedExportTxHash, _ := hex.DecodeString("44d579f5cb3c83f4137223a0368721734b622ec392007760eed97f3f1a40c595")
+	wrappedUnsignedExportTx := `{"tx":"` + unsignedExportTx + `","signers":` + exportSigners + `}`
+
+	signingPayloads := []*types.SigningPayload{
+		{
+			AccountIdentifier: pAccountIdentifier,
+			Bytes:             unsignedExportTxHash,
+			SignatureType:     types.EcdsaRecovery,
+		},
+	}
+
+	signedExportTx := "0x0000000000120000000500000000000000000000000000000000000000000000000000000000000000000000000000000001f52a5a6dd8f1b3fe05204bdab4f6bcb5a7059f88d0443c636f6c158f838dd1a8000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8b87c0000000000000000000000001000000015445cd01d75b4a06b6b41939193c0b1c5544490d0000000100000009000000017403e32bb967e71902a988b7da635b4bca2475eedbfd23176610a88162f3a92f20b61f2185825b04b7f8ee8c76427c8dc80eb6091f9e594ef259a59856e5401b0137dc0dc4"
+	signedExportTxSignature, _ := hex.DecodeString("7403e32bb967e71902a988b7da635b4bca2475eedbfd23176610a88162f3a92f20b61f2185825b04b7f8ee8c76427c8dc80eb6091f9e594ef259a59856e5401b01")
+	signedExportTxHash := "bG7jzw16x495XSFdhEavHWR836Ya5teoB1YxRC1inN3HEtqbs"
+
+	wrappedSignedExportTx := `{"tx":"` + signedExportTx + `","signers":` + exportSigners + `}`
+
+	signatures := []*types.Signature{{
+		SigningPayload: &types.SigningPayload{
+			AccountIdentifier: pAccountIdentifier,
+			Bytes:             unsignedExportTxHash,
+			SignatureType:     types.EcdsaRecovery,
+		},
+		SignatureType: types.EcdsaRecovery,
+		Bytes:         signedExportTxSignature,
+	}}
+
+	ctx := context.Background()
+	clientMock := &mocks.PChainClient{}
+	backend := NewBackend(clientMock, &indexer.Parser{}, avaxAssetID, pChainNetworkIdentifier)
+
+	t.Run("preprocess endpoint", func(t *testing.T) {
+		resp, err := backend.ConstructionPreprocess(
+			ctx,
+			&types.ConstructionPreprocessRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        exportOperations,
+				Metadata:          preprocessMetadata,
+			},
+		)
+		assert.Nil(t, err)
+		assert.Equal(t, metadataOptions, resp.Options)
+
+		clientMock.AssertExpectations(t)
+	})
+
+	t.Run("metadata endpoint", func(t *testing.T) {
+		clientMock.On("GetNetworkID", ctx).Return(uint32(networkID), nil)
+		clientMock.On("GetBlockchainID", ctx, mapper.PChainNetworkIdentifier).Return(pChainID, nil)
+		clientMock.On("GetBlockchainID", ctx, mapper.CChainNetworkIdentifier).Return(cChainID, nil)
+
+		resp, err := backend.ConstructionMetadata(
+			ctx,
+			&types.ConstructionMetadataRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Options:           metadataOptions,
+			},
+		)
+		assert.Nil(t, err)
+		assert.Equal(t, payloadsMetadata, resp.Metadata)
+
+		clientMock.AssertExpectations(t)
+	})
+
+	t.Run("payloads endpoint", func(t *testing.T) {
+		resp, err := backend.ConstructionPayloads(
+			ctx,
+			&types.ConstructionPayloadsRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Operations:        exportOperations,
+				Metadata:          payloadsMetadata,
+			},
+		)
+		assert.Nil(t, err)
+		assert.Equal(t, wrappedUnsignedExportTx, resp.UnsignedTransaction)
+		assert.Equal(t, signingPayloads, resp.Payloads)
+
+		clientMock.AssertExpectations(t)
+	})
+
+	t.Run("parse endpoint (unsigned)", func(t *testing.T) {
+		resp, err := backend.ConstructionParse(
+			ctx,
+			&types.ConstructionParseRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Transaction:       wrappedUnsignedExportTx,
+				Signed:            false,
+			},
+		)
+		assert.Nil(t, err)
+		assert.Nil(t, resp.AccountIdentifierSigners)
+		assert.Equal(t, exportOperations, resp.Operations)
+
+		clientMock.AssertExpectations(t)
+	})
+
+	t.Run("combine endpoint", func(t *testing.T) {
+		resp, err := backend.ConstructionCombine(
+			ctx,
 			&types.ConstructionCombineRequest{
 				NetworkIdentifier:   pChainNetworkIdentifier,
 				UnsignedTransaction: wrappedUnsignedExportTx,
-				Signatures:          sigs,
+				Signatures:          signatures,
 			},
 		)
+
 		assert.Nil(t, err)
 		assert.Equal(t, wrappedSignedExportTx, resp.SignedTransaction)
 	})
 
-	// t.Run("combine P chain import tx", func(t *testing.T) {
-	// 	sig, _ := hex.DecodeString("292ca729ffbfca3ffe28bdea0f22fac34b1f5cd7d888e5432e72dd6a012b045f469a352f1b238f7c0700cafa8e238e2de2c1de62c1d86745c619bb20c3fabd1401")
-	// 	unsignedTx, _ := hex.DecodeString("000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000007590d12800000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d500000001952e0397dafcf7332370878c007ac07f3005b7faf6731d8523d6a124297dbc05000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000050000000075a01368000000010000000000000000")
-	// 	signedTx := "0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000007590d12800000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d500000001952e0397dafcf7332370878c007ac07f3005b7faf6731d8523d6a124297dbc05000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000050000000075a013680000000100000000000000010000000900000001292ca729ffbfca3ffe28bdea0f22fac34b1f5cd7d888e5432e72dd6a012b045f469a352f1b238f7c0700cafa8e238e2de2c1de62c1d86745c619bb20c3fabd1401129cc8ef"
+	t.Run("parse endpoint (signed)", func(t *testing.T) {
+		resp, err := backend.ConstructionParse(
+			ctx,
+			&types.ConstructionParseRequest{
+				NetworkIdentifier: pChainNetworkIdentifier,
+				Transaction:       wrappedSignedExportTx,
+				Signed:            true,
+			},
+		)
+		assert.Nil(t, err)
+		assert.Equal(t, signers, resp.AccountIdentifierSigners)
+		assert.Equal(t, exportOperations, resp.Operations)
 
-	// 	resp, err := service.ConstructionCombine(
-	// 		context.Background(),
-	// 		&types.ConstructionCombineRequest{
-	// 			NetworkIdentifier:   pChainNetworkIdentifier,
-	// 			UnsignedTransaction: string(unsignedTx),
-	// 			Signatures: []*types.Signature{
-	// 				{Bytes: sig},
-	// 			},
-	// 		},
-	// 	)
-	// 	assert.Nil(t, err)
-	// 	assert.Equal(
-	// 		t,
-	// 		signedTx,
-	// 		resp.SignedTransaction,
-	// 	)
-	// })
+		clientMock.AssertExpectations(t)
+	})
 
-	// t.Run("combine P chain export tx", func(t *testing.T) {
-	// 	sig, _ := hex.DecodeString("23740f4487b97b82c05f30f1ab6d78487315ffba0a6bcec5eb8c2a3a5a06ca96527296f0a2d40559933a7a08122ad043c3d8e8df212118751324127daf9d006300")
-	// 	unsignedTx, _ := hex.DecodeString("000000000012000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000000089544000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000001226fd389f04700af8651a50a631474419ffd71b4c1b03af23d69ab61cedc2a92000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000007721eeb40000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000007689583400000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000")
-	// 	signedTx := "0x000000000012000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000000089544000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000001226fd389f04700af8651a50a631474419ffd71b4c1b03af23d69ab61cedc2a92000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000007721eeb40000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000007689583400000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000001000000090000000123740f4487b97b82c05f30f1ab6d78487315ffba0a6bcec5eb8c2a3a5a06ca96527296f0a2d40559933a7a08122ad043c3d8e8df212118751324127daf9d00630072306cf9"
+	t.Run("hash endpoint", func(t *testing.T) {
+		resp, err := backend.ConstructionHash(ctx, &types.ConstructionHashRequest{
+			NetworkIdentifier: pChainNetworkIdentifier,
+			SignedTransaction: wrappedSignedExportTx,
+		})
+		assert.Nil(t, err)
+		assert.Equal(t, signedExportTxHash, resp.TransactionIdentifier.Hash)
 
-	// 	resp, err := service.ConstructionCombine(
-	// 		context.Background(),
-	// 		&types.ConstructionCombineRequest{
-	// 			NetworkIdentifier:   pChainNetworkIdentifier,
-	// 			UnsignedTransaction: string(unsignedTx),
-	// 			Signatures: []*types.Signature{
-	// 				{Bytes: sig},
-	// 			},
-	// 		},
-	// 	)
-	// 	assert.Nil(t, err)
-	// 	assert.Equal(
-	// 		t,
-	// 		signedTx,
-	// 		resp.SignedTransaction,
-	// 	)
-	// })
+		clientMock.AssertExpectations(t)
+	})
+
+	t.Run("submit endpoint", func(t *testing.T) {
+		signedTxBytes, _ := formatting.Decode(formatting.Hex, signedExportTx)
+		txId, _ := ids.FromString(signedExportTxHash)
+
+		clientMock.On("IssueTx", ctx, signedTxBytes).Return(txId, nil)
+
+		resp, apiErr := backend.ConstructionSubmit(ctx, &types.ConstructionSubmitRequest{
+			NetworkIdentifier: pChainNetworkIdentifier,
+			SignedTransaction: wrappedSignedExportTx,
+		})
+
+		assert.Nil(t, apiErr)
+		assert.Equal(t, signedExportTxHash, resp.TransactionIdentifier.Hash)
+
+		clientMock.AssertExpectations(t)
+	})
 }
 
-func TestConstructionTransaction(t *testing.T) {
-	var (
-		pc                      = &mocks.PChainClient{}
-		ctx                     = context.Background()
-		assetID, _              = ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
-		networkID               = uint32(5)
-		pChainID                = ids.Empty
-		cChainID, _             = ids.FromString("yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp")
-		pChainNetworkIdentifier = &types.NetworkIdentifier{
-			Network:    "Fuji",
-			Blockchain: "Avalanche",
-			SubNetworkIdentifier: &types.SubNetworkIdentifier{
-				Network: mapper.PChainNetworkIdentifier,
+func TestImportTxConstruction(t *testing.T) {
+	opImportAvax := "IMPORT_AVAX"
+
+	importOperations := []*types.Operation{
+		{
+			OperationIdentifier: &types.OperationIdentifier{Index: 0},
+			RelatedOperations:   nil,
+			Type:                opImportAvax,
+			// FIXME: make this cAccountIdentifier after fixing chain id and hrp in pmapper
+			Account: pAccountIdentifier,
+			Amount:  mapper.AvaxAmount(big.NewInt(-1_000_000_000)),
+			CoinChange: &types.CoinChange{
+				CoinIdentifier: &types.CoinIdentifier{Identifier: "2ryRVCwNSjEinTViuvDkzX41uQzx3g4babXxZMD46ZV1a9X4Eg:0"},
+				CoinAction:     "coin_spent",
 			},
-		}
-	)
-	pc.On("GetNetworkID", ctx).Return(networkID, nil)
-	service := NewBackend(pc, &indexer.Parser{}, assetID, nil)
+			Metadata: map[string]interface{}{
+				"type":        opTypeImport,
+				"sig_indices": []interface{}{0.0},
+				"locktime":    0.0,
+			},
+		},
+		{
+			OperationIdentifier: &types.OperationIdentifier{Index: 1},
+			Type:                opImportAvax,
+			Account:             pAccountIdentifier,
+			Amount:              mapper.AvaxAmount(big.NewInt(999_000_000)),
+			Metadata: map[string]interface{}{
+				"type":      opTypeOutput,
+				"threshold": 1.0,
+				"locktime":  0.0,
+			},
+		},
+	}
 
-	pc.On("GetNetworkID", ctx).Return(networkID, nil)
-	pc.On("GetBlockchainID", ctx, mapper.PChainNetworkIdentifier).Return(pChainID, nil)
-	pc.On("GetBlockchainID", ctx, mapper.CChainNetworkIdentifier).Return(cChainID, nil)
+	preprocessMetadata := map[string]interface{}{
+		"source_chain": "C",
+	}
 
-	t.Run("construct p-chain import tx", func(t *testing.T) {
-		intent := `[{"operation_identifier":{"index":0},"type":"IMPORT_AVAX","account":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"-1999712500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"z8aoQdHbAgaj4uWToafsuMZLvKzCt6bSsXbN2Qtyte6GyGbvt:0"},"coin_action":"coin_spent"},"metadata":{"type":"IMPORT","sig_indices":[0]}},{"operation_identifier":{"index":1},"type":"IMPORT_AVAX","account":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"-1973425000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"28hbawmoHaWkmAKjgueWF18LrptCCCfprxaZeCf9QuBTCcLWEd:0"},"coin_action":"coin_spent"},"metadata":{"type":"IMPORT","sig_indices":[0]}},{"operation_identifier":{"index":2},"type":"IMPORT_AVAX","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"3972137500","currency":{"symbol":"AVAX","decimals":18}},"metadata":{"type":"OUTPUT","threshold":1}}]`
-		var ops []*types.Operation
-		assert.NoError(t, json.Unmarshal([]byte(intent), &ops))
+	metadataOptions := map[string]interface{}{
+		"source_chain": "C",
+		"type":         opImportAvax,
+	}
 
-		preprocessResp, err := service.ConstructionPreprocess(
+	payloadsMetadata := map[string]interface{}{
+		"network_id":           float64(networkID),
+		"source_chain_id":      cChainID.String(),
+		"destination_chain_id": "",
+		"blockchain_id":        pChainID.String(),
+	}
+
+	signers := []*types.AccountIdentifier{pAccountIdentifier}
+	importSigners := buildRosettaSignerJson(signers)
+
+	unsignedImportTx := "0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8b87c0000000000000000000000001000000015445cd01d75b4a06b6b41939193c0b1c5544490d00000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d500000001f52a5a6dd8f1b3fe05204bdab4f6bcb5a7059f88d0443c636f6c158f838dd1a8000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000000000004ce8b27d"
+	unsignedImportTxHash, _ := hex.DecodeString("e9114ae12065d1f8631bc40729c806a3a4793de714001bfee66482f520dc1865")
+	wrappedUnsignedImportTx := `{"tx":"` + unsignedImportTx + `","signers":` + importSigners + `}`
+
+	signingPayloads := []*types.SigningPayload{
+		{
+			AccountIdentifier: pAccountIdentifier,
+			Bytes:             unsignedImportTxHash,
+			SignatureType:     types.EcdsaRecovery,
+		},
+	}
+
+	signedImportTx := "0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8b87c0000000000000000000000001000000015445cd01d75b4a06b6b41939193c0b1c5544490d00000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d500000001f52a5a6dd8f1b3fe05204bdab4f6bcb5a7059f88d0443c636f6c158f838dd1a8000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca0000000001000000000000000100000009000000017403e32bb967e71902a988b7da635b4bca2475eedbfd23176610a88162f3a92f20b61f2185825b04b7f8ee8c76427c8dc80eb6091f9e594ef259a59856e5401b018ac25b4e"
+	signedImportTxSignature, _ := hex.DecodeString("7403e32bb967e71902a988b7da635b4bca2475eedbfd23176610a88162f3a92f20b61f2185825b04b7f8ee8c76427c8dc80eb6091f9e594ef259a59856e5401b01")
+	signedImportTxHash := "byyEVU6RL7PQNSVT8qEnybWGV5BbBfJwFV6bEDV5mkymXRz62"
+
+	wrappedSignedImportTx := `{"tx":"` + signedImportTx + `","signers":` + importSigners + `}`
+
+	signatures := []*types.Signature{{
+		SigningPayload: &types.SigningPayload{
+			AccountIdentifier: pAccountIdentifier,
+			Bytes:             unsignedImportTxHash,
+			SignatureType:     types.EcdsaRecovery,
+		},
+		SignatureType: types.EcdsaRecovery,
+		Bytes:         signedImportTxSignature,
+	}}
+
+	ctx := context.Background()
+	clientMock := &mocks.PChainClient{}
+	backend := NewBackend(clientMock, &indexer.Parser{}, avaxAssetID, pChainNetworkIdentifier)
+
+	t.Run("preprocess endpoint", func(t *testing.T) {
+		resp, err := backend.ConstructionPreprocess(
 			ctx,
 			&types.ConstructionPreprocessRequest{
 				NetworkIdentifier: pChainNetworkIdentifier,
-				Operations:        ops,
-				Metadata: map[string]interface{}{
-					"source_chain": mapper.CChainNetworkIdentifier,
-				},
+				Operations:        importOperations,
+				Metadata:          preprocessMetadata,
 			},
 		)
 		assert.Nil(t, err)
-		assert.NotNil(t, preprocessResp)
+		assert.Equal(t, metadataOptions, resp.Options)
 
-		assert.Equal(t, "IMPORT_AVAX", preprocessResp.Options["type"])
+		clientMock.AssertExpectations(t)
+	})
 
-		metadataResp, err := service.ConstructionMetadata(
+	t.Run("metadata endpoint", func(t *testing.T) {
+		clientMock.On("GetNetworkID", ctx).Return(uint32(networkID), nil)
+		clientMock.On("GetBlockchainID", ctx, mapper.PChainNetworkIdentifier).Return(pChainID, nil)
+		clientMock.On("GetBlockchainID", ctx, mapper.CChainNetworkIdentifier).Return(cChainID, nil)
+
+		resp, err := backend.ConstructionMetadata(
 			ctx,
 			&types.ConstructionMetadataRequest{
 				NetworkIdentifier: pChainNetworkIdentifier,
-				Options:           preprocessResp.Options,
+				Options:           metadataOptions,
 			},
 		)
 		assert.Nil(t, err)
-		assert.NotNil(t, metadataResp)
+		assert.Equal(t, payloadsMetadata, resp.Metadata)
 
-		payloadResp, err := service.ConstructionPayloads(
+		clientMock.AssertExpectations(t)
+	})
+
+	t.Run("payloads endpoint", func(t *testing.T) {
+		resp, err := backend.ConstructionPayloads(
 			ctx,
 			&types.ConstructionPayloadsRequest{
 				NetworkIdentifier: pChainNetworkIdentifier,
-				Operations:        ops,
-				Metadata:          metadataResp.Metadata,
+				Operations:        importOperations,
+				Metadata:          payloadsMetadata,
 			},
 		)
 		assert.Nil(t, err)
-		assert.NotNil(t, payloadResp)
-		fmt.Println(payloadResp.UnsignedTransaction)
+		assert.Equal(t, wrappedUnsignedImportTx, resp.UnsignedTransaction)
+		assert.Equal(t, signingPayloads, resp.Payloads)
 
-		wrappedTx := &transactionWire{}
-		errU := json.Unmarshal([]byte(payloadResp.UnsignedTransaction), wrappedTx)
-		assert.Nil(t, errU)
-		assert.Equal(t, 3, len(wrappedTx.InputData))
+		clientMock.AssertExpectations(t)
+	})
 
-		assert.Equal(
-			t,
-			"0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000ecc2021c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d50000000281b8ea7b7282685c79494712a633f9862d342c8dcb0431f88550b39ce4c46a40000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000773130f40000000100000000952e0397dafcf7332370878c007ac07f3005b7faf6731d8523d6a124297dbc05000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000050000000075a01368000000010000000000000000743d6654",
-			wrappedTx.Tx,
-		)
-		parseResp, err := service.ConstructionParse(
+	t.Run("parse endpoint (unsigned)", func(t *testing.T) {
+		resp, err := backend.ConstructionParse(
 			ctx,
 			&types.ConstructionParseRequest{
 				NetworkIdentifier: pChainNetworkIdentifier,
-				Transaction:       payloadResp.UnsignedTransaction,
+				Transaction:       wrappedUnsignedImportTx,
 				Signed:            false,
 			},
 		)
 		assert.Nil(t, err)
-		assert.NotNil(t, parseResp)
-		assert.Equal(t, 3, len(parseResp.Operations))
-		assert.Equal(t, ops[0].Account.Address, parseResp.Operations[0].Account.Address)
+		assert.Nil(t, resp.AccountIdentifierSigners)
+		assert.Equal(t, importOperations, resp.Operations)
 
-		assert.Nil(t, ops[2].CoinChange)
-		assert.EqualValues(t, pchain.OpTypeOutput, ops[2].Metadata["type"])
-
-		assert.EqualValues(t, ops[0].Metadata["sig_indice"], parseResp.Operations[0].Metadata["sign_indice"])
-		assert.EqualValues(t, ops[1].Metadata["sig_indice"], parseResp.Operations[1].Metadata["sig_indice"])
-		assert.EqualValues(t, ops[2].Metadata["treshold"], parseResp.Operations[2].Metadata["treshold"])
+		clientMock.AssertExpectations(t)
 	})
 
-	t.Run("parse p-chain import tx", func(t *testing.T) {
-		transaction := `{"tx":"0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000ecc2021c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d50000000281b8ea7b7282685c79494712a633f9862d342c8dcb0431f88550b39ce4c46a40000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000773130f40000000100000000952e0397dafcf7332370878c007ac07f3005b7faf6731d8523d6a124297dbc05000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000050000000075a01368000000010000000000000000743d6654","input_data":[{"operation_identifier":{"index":2},"account_identifier":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}},{"operation_identifier":{"index":1},"account_identifier":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}},{"operation_identifier":{"index":0},"account_identifier":{"address":"C-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"}}]}`
+	t.Run("combine endpoint", func(t *testing.T) {
+		resp, err := backend.ConstructionCombine(
+			ctx,
+			&types.ConstructionCombineRequest{
+				NetworkIdentifier:   pChainNetworkIdentifier,
+				UnsignedTransaction: wrappedUnsignedImportTx,
+				Signatures:          signatures,
+			},
+		)
 
-		preprocessResp, err := service.ConstructionParse(
+		assert.Nil(t, err)
+		assert.Equal(t, wrappedSignedImportTx, resp.SignedTransaction)
+	})
+
+	t.Run("parse endpoint (signed)", func(t *testing.T) {
+		resp, err := backend.ConstructionParse(
 			ctx,
 			&types.ConstructionParseRequest{
 				NetworkIdentifier: pChainNetworkIdentifier,
-				Transaction:       transaction,
-				Signed:            false,
+				Transaction:       wrappedSignedImportTx,
+				Signed:            true,
 			},
 		)
 		assert.Nil(t, err)
-		assert.NotNil(t, preprocessResp)
+		assert.Equal(t, signers, resp.AccountIdentifierSigners)
+		assert.Equal(t, importOperations, resp.Operations)
+
+		clientMock.AssertExpectations(t)
 	})
 
-	t.Run("construct p-chain export tx", func(t *testing.T) {
-		intent := `[{"operation_identifier":{"index":0},"type":"EXPORT_AVAX","account":{"address":"P-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"-1998712500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"9EFAzbVcab16wRdf48pWXExqTwgPWfu36x3AoqJp2VD3ahrGU:0"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":1},"type":"EXPORT_AVAX","account":{"address":"P-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"-998712500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2boVqhWaZ7M1YmnCe6JscWJESK1LVpcGq5quGpoX4HtLdr1RHN:0"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":2},"type":"EXPORT_AVAX","account":{"address":"P-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"-1000000000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2boVqhWaZ7M1YmnCe6JscWJESK1LVpcGq5quGpoX4HtLdr1RHN:1"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":3},"type":"EXPORT_AVAX","account":{"address":"P-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"-391492","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2boVqhWaZ7M1YmnCe6JscWJESK1LVpcGq5quGpoX4HtLdr1RHN:2"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":4},"type":"EXPORT_AVAX","account":{"address":"C-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"996816492","currency":{"symbol":"AVAX","decimals":18}},"metadata":{"type":"OUTPUT","threshold":1}},{"operation_identifier":{"index":5},"type":"EXPORT_AVAX","account":{"address":"C-fuji1s8sg8392yl9sgcezhetkx0257k37pnd03662yv"},"amount":{"value":"3000000000","currency":{"symbol":"AVAX","decimals":18}},"metadata":{"type":"EXPORT","threshold":1}}]`
-
-		var ops []*types.Operation
-		assert.NoError(t, json.Unmarshal([]byte(intent), &ops))
-
-		preprocessResp, err := service.ConstructionPreprocess(
-			ctx,
-			&types.ConstructionPreprocessRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Operations:        ops,
-				Metadata: map[string]interface{}{
-					"destination_chain": mapper.CChainNetworkIdentifier,
-				},
-			},
-		)
+	t.Run("hash endpoint", func(t *testing.T) {
+		resp, err := backend.ConstructionHash(ctx, &types.ConstructionHashRequest{
+			NetworkIdentifier: pChainNetworkIdentifier,
+			SignedTransaction: wrappedSignedImportTx,
+		})
 		assert.Nil(t, err)
-		assert.NotNil(t, preprocessResp)
+		assert.Equal(t, signedImportTxHash, resp.TransactionIdentifier.Hash)
 
-		assert.Equal(t, "EXPORT_AVAX", preprocessResp.Options["type"])
-
-		metadataResp, err := service.ConstructionMetadata(
-			ctx,
-			&types.ConstructionMetadataRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Options:           preprocessResp.Options,
-			},
-		)
-		assert.Nil(t, err)
-		assert.NotNil(t, metadataResp)
-
-		payloadResp, err := service.ConstructionPayloads(
-			ctx,
-			&types.ConstructionPayloadsRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Operations:        ops,
-				Metadata:          metadataResp.Metadata,
-			},
-		)
-		assert.Nil(t, err)
-		assert.NotNil(t, payloadResp)
-		wrappedTx := &transactionWire{}
-		errU := json.Unmarshal([]byte(payloadResp.UnsignedTransaction), wrappedTx)
-		assert.Nil(t, errU)
-		assert.Equal(
-			t,
-			"0x000000000012000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b6a366c0000000000000000000000010000000181e083c4aa27cb046322be57633d54f5a3e0cdaf0000000412aef85d117564ab3410b1587a24afd497d93e7bf4e72dba094b7858f1b2ff67000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000007721eeb40000000100000000d2b7b1f46edf25528962c7d4115bb47972bccb674b51b16d3c058f5e7a0f938a000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b8724b40000000100000000d2b7b1f46edf25528962c7d4115bb47972bccb674b51b16d3c058f5e7a0f938a000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000d2b7b1f46edf25528962c7d4115bb47972bccb674b51b16d3c058f5e7a0f938a000000023d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000000005f9440000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000b2d05e000000000000000000000000010000000181e083c4aa27cb046322be57633d54f5a3e0cdaf000000005ca96ea1",
-			wrappedTx.Tx,
-		)
+		clientMock.AssertExpectations(t)
 	})
 
-	t.Run("construct p-chain add validator tx", func(t *testing.T) {
-		intent := `[{"operation_identifier":{"index":0},"type":"ADD_VALIDATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"-3972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2MmPTid7Errf6MdDqgUPxhuhtoc9yhkn5uC4vwsqRXCJhVYt1h:0"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":1},"type":"ADD_VALIDATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"2972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_create"},"metadata":{"type":"OUTPUT","threshold":1}},{"operation_identifier":{"index":2},"type":"ADD_VALIDATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"1000000000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_create"},"metadata":{"type":"STAKE","threshold":1}}]`
-		var ops []*types.Operation
-		assert.NoError(t, json.Unmarshal([]byte(intent), &ops))
+	t.Run("submit endpoint", func(t *testing.T) {
+		signedTxBytes, _ := formatting.Decode(formatting.Hex, signedImportTx)
+		txId, _ := ids.FromString(signedImportTxHash)
 
-		preprocessResp, err := service.ConstructionPreprocess(
-			ctx,
-			&types.ConstructionPreprocessRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Operations:        ops,
-				Metadata: map[string]interface{}{
-					"node_id":          "NodeID-Bvsx89JttQqhqdgwtizAPoVSNW74Xcr2S",
-					"start":            1656460045,
-					"end":              1656589645,
-					"weight":           1000000000,
-					"shares":           1000000,
-					"locktime":         0,
-					"threshold":        1,
-					"reward_addresses": []string{"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},
-				},
-			},
-		)
-		assert.Nil(t, err)
-		assert.NotNil(t, preprocessResp)
+		clientMock.On("IssueTx", ctx, signedTxBytes).Return(txId, nil)
 
-		assert.Equal(t, "ADD_VALIDATOR", preprocessResp.Options["type"])
+		resp, apiErr := backend.ConstructionSubmit(ctx, &types.ConstructionSubmitRequest{
+			NetworkIdentifier: pChainNetworkIdentifier,
+			SignedTransaction: wrappedSignedImportTx,
+		})
 
-		metadataResp, err := service.ConstructionMetadata(
-			ctx,
-			&types.ConstructionMetadataRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Options:           preprocessResp.Options,
-			},
-		)
-		assert.Nil(t, err)
-		assert.NotNil(t, metadataResp)
+		assert.Nil(t, apiErr)
+		assert.Equal(t, signedImportTxHash, resp.TransactionIdentifier.Hash)
 
-		payloadResp, err := service.ConstructionPayloads(
-			ctx,
-			&types.ConstructionPayloadsRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Operations:        ops,
-				Metadata:          metadataResp.Metadata,
-			},
-		)
-		assert.Nil(t, err)
-		assert.NotNil(t, payloadResp)
-		wrappedTx := &transactionWire{}
-		errU := json.Unmarshal([]byte(payloadResp.UnsignedTransaction), wrappedTx)
-		assert.Nil(t, errU)
-		assert.Equal(
-			t,
-			"0x00000000000c000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000b127381c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000001b2d8a36998be5b19f468fbf573501cd0c93e9a7b5fb8edb2da54a473fa70ea64000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000ecc2021c00000001000000000000000077e1d5c6c289c49976f744749d54369d2129d7500000000062bb930d0000000062bd8d4d000000003b9aca00000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b9aca0000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb8180000000b00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb818000f424000000000104d3bc5",
-			wrappedTx.Tx,
-		)
-	})
-
-	t.Run("construct p-chain add delegator tx", func(t *testing.T) {
-		intent := `[{"operation_identifier":{"index":0},"type":"ADD_DELEGATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"-3972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_identifier":{"identifier":"2MmPTid7Errf6MdDqgUPxhuhtoc9yhkn5uC4vwsqRXCJhVYt1h:0"},"coin_action":"coin_spent"},"metadata":{"type":"INPUT","sig_indices":[0]}},{"operation_identifier":{"index":1},"type":"ADD_DELEGATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"2972137500","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_create"},"metadata":{"type":"OUTPUT","threshold":1}},{"operation_identifier":{"index":2},"type":"ADD_DELEGATOR","account":{"address":"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},"amount":{"value":"1000000000","currency":{"symbol":"AVAX","decimals":18}},"coin_change":{"coin_action":"coin_create"},"metadata":{"type":"STAKE","threshold":1}}]`
-		var ops []*types.Operation
-		assert.NoError(t, json.Unmarshal([]byte(intent), &ops))
-
-		preprocessResp, err := service.ConstructionPreprocess(
-			ctx,
-			&types.ConstructionPreprocessRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Operations:        ops,
-				Metadata: map[string]interface{}{
-					"node_id":          "NodeID-Bvsx89JttQqhqdgwtizAPoVSNW74Xcr2S",
-					"start":            1656460654,
-					"end":              1656547054,
-					"weight":           1000000000,
-					"locktime":         0,
-					"threshold":        1,
-					"reward_addresses": []string{"P-fuji1qy8nsuzr9ee6fuuzsmmdwv67hrsuawqcz4cz89"},
-				},
-			},
-		)
-		assert.Nil(t, err)
-		assert.NotNil(t, preprocessResp)
-
-		assert.Equal(t, "ADD_DELEGATOR", preprocessResp.Options["type"])
-
-		metadataResp, err := service.ConstructionMetadata(
-			ctx,
-			&types.ConstructionMetadataRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Options:           preprocessResp.Options,
-			},
-		)
-		assert.Nil(t, err)
-		assert.NotNil(t, metadataResp)
-
-		payloadResp, err := service.ConstructionPayloads(
-			ctx,
-			&types.ConstructionPayloadsRequest{
-				NetworkIdentifier: pChainNetworkIdentifier,
-				Operations:        ops,
-				Metadata:          metadataResp.Metadata,
-			},
-		)
-		assert.Nil(t, err)
-		assert.NotNil(t, payloadResp)
-		wrappedTx := &transactionWire{}
-		errU := json.Unmarshal([]byte(payloadResp.UnsignedTransaction), wrappedTx)
-		assert.Nil(t, errU)
-		assert.Equal(
-			t,
-			"0x00000000000e000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000700000000b127381c00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000001b2d8a36998be5b19f468fbf573501cd0c93e9a7b5fb8edb2da54a473fa70ea64000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000500000000ecc2021c00000001000000000000000077e1d5c6c289c49976f744749d54369d2129d7500000000062bb956e0000000062bce6ee000000003b9aca00000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b9aca0000000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb8180000000b00000000000000000000000100000001010f3870432e73a4f38286f6d7335eb8e1ceb81800000000e8a63348",
-			wrappedTx.Tx,
-		)
+		clientMock.AssertExpectations(t)
 	})
 }

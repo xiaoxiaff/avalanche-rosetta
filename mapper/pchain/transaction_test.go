@@ -65,18 +65,18 @@ func TestMapAddValidatorTx(t *testing.T) {
 	assert.Equal(t, 1, len(addvalidatorTx.Ins))
 	assert.Equal(t, 0, len(addvalidatorTx.Outs))
 
-	rosettaTransaction, err := Transaction(addvalidatorTx, true)
+	rosettaTransaction, err := ParseTx(addvalidatorTx, true)
 	assert.Nil(t, err)
 
 	total := len(addvalidatorTx.Ins) + len(addvalidatorTx.Outs) + len(addvalidatorTx.Stake)
 	assert.Equal(t, total, len(rosettaTransaction.Operations))
 
-	nbTxType, nbInputMeta, nbOutputMeta, nbMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpAddValidator, OpTypeStakeOutput)
+	cntTxType, cntInputMeta, cntOutputMeta, cntMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpAddValidator, OpTypeStakeOutput)
 
-	assert.Equal(t, 2, nbTxType)
-	assert.Equal(t, 1, nbInputMeta)
-	assert.Equal(t, 0, nbOutputMeta)
-	assert.Equal(t, 1, nbMetaType)
+	assert.Equal(t, 2, cntTxType)
+	assert.Equal(t, 1, cntInputMeta)
+	assert.Equal(t, 0, cntOutputMeta)
+	assert.Equal(t, 1, cntMetaType)
 
 }
 
@@ -88,26 +88,24 @@ func TestMapAddDelegatorTx(t *testing.T) {
 	assert.Equal(t, 1, len(addDelegatorTx.Outs))
 	assert.Equal(t, 1, len(addDelegatorTx.Stake))
 
-	rosettaTransaction, err := Transaction(addDelegatorTx, true)
+	rosettaTransaction, err := ParseTx(addDelegatorTx, true)
 	assert.Nil(t, err)
 
 	total := len(addDelegatorTx.Ins) + len(addDelegatorTx.Outs) + len(addDelegatorTx.Stake)
 	assert.Equal(t, total, len(rosettaTransaction.Operations))
 
-	nbTxType, nbInputMeta, nbOutputMeta, nbMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpAddDelegator, OpTypeStakeOutput)
+	cntTxType, cntInputMeta, cntOutputMeta, cntMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpAddDelegator, OpTypeStakeOutput)
 
-	assert.Equal(t, 3, nbTxType)
-	assert.Equal(t, 1, nbInputMeta)
-	assert.Equal(t, 1, nbOutputMeta)
-	assert.Equal(t, 1, nbMetaType)
+	assert.Equal(t, 3, cntTxType)
+	assert.Equal(t, 1, cntInputMeta)
+	assert.Equal(t, 1, cntOutputMeta)
+	assert.Equal(t, 1, cntMetaType)
 
 	assert.Equal(t, types.CoinSpent, rosettaTransaction.Operations[0].CoinChange.CoinAction)
-	assert.Equal(t, types.CoinCreated, rosettaTransaction.Operations[1].CoinChange.CoinAction)
-	assert.Equal(t, types.CoinCreated, rosettaTransaction.Operations[2].CoinChange.CoinAction)
+	assert.Nil(t, rosettaTransaction.Operations[1].CoinChange)
+	assert.Nil(t, rosettaTransaction.Operations[2].CoinChange)
 
 	assert.Equal(t, addDelegatorTx.Ins[0].UTXOID.String(), rosettaTransaction.Operations[0].CoinChange.CoinIdentifier.Identifier)
-	assert.Equal(t, (*types.CoinIdentifier)(nil), rosettaTransaction.Operations[1].CoinChange.CoinIdentifier)
-	assert.Equal(t, (*types.CoinIdentifier)(nil), rosettaTransaction.Operations[2].CoinChange.CoinIdentifier)
 
 	assert.Equal(t, int64(0), rosettaTransaction.Operations[0].OperationIdentifier.Index)
 	assert.Equal(t, int64(1), rosettaTransaction.Operations[1].OperationIdentifier.Index)
@@ -129,72 +127,71 @@ func TestMapImportTx(t *testing.T) {
 	assert.Equal(t, 1, len(importTx.Outs))
 	assert.Equal(t, 1, len(importTx.ImportedInputs))
 
-	rosettaTransaction, err := Transaction(importTx, true)
+	rosettaTransaction, err := ParseTx(importTx, true)
 	assert.Nil(t, err)
 
 	total := len(importTx.Ins) + len(importTx.Outs) + len(importTx.ImportedInputs)
 	assert.Equal(t, total, len(rosettaTransaction.Operations))
 
-	nbTxType, nbInputMeta, nbOutputMeta, nbMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpImportAvax, OpTypeImport)
+	cntTxType, cntInputMeta, cntOutputMeta, cntMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpImportAvax, OpTypeImport)
 
-	assert.Equal(t, 2, nbTxType)
-	assert.Equal(t, 0, nbInputMeta)
-	assert.Equal(t, 1, nbOutputMeta)
-	assert.Equal(t, 1, nbMetaType)
+	assert.Equal(t, 2, cntTxType)
+	assert.Equal(t, 0, cntInputMeta)
+	assert.Equal(t, 1, cntOutputMeta)
+	assert.Equal(t, 1, cntMetaType)
 
 	assert.Equal(t, types.CoinSpent, rosettaTransaction.Operations[0].CoinChange.CoinAction)
-	assert.Equal(t, types.CoinCreated, rosettaTransaction.Operations[1].CoinChange.CoinAction)
+	assert.Nil(t, rosettaTransaction.Operations[1].CoinChange)
 }
 
 func TestMapExportTx(t *testing.T) {
-
 	exportTx := buildExport()
 
 	assert.Equal(t, 1, len(exportTx.Ins))
 	assert.Equal(t, 1, len(exportTx.Outs))
 	assert.Equal(t, 1, len(exportTx.ExportedOutputs))
 
-	rosettaTransaction, err := Transaction(exportTx, true)
+	rosettaTransaction, err := ParseTx(exportTx, true)
 	assert.Nil(t, err)
 
 	total := len(exportTx.Ins) + len(exportTx.Outs) + len(exportTx.ExportedOutputs)
 	assert.Equal(t, total, len(rosettaTransaction.Operations))
 
-	nbTxType, nbInputMeta, nbOutputMeta, _ := verifyRosettaTransaction(rosettaTransaction.Operations, mapper.OpExport, "")
+	cntTxType, cntInputMeta, cntOutputMeta, cntMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpExportAvax, OpTypeExport)
 
-	assert.Equal(t, 3, nbTxType)
-	assert.Equal(t, 1, nbInputMeta)
-	assert.Equal(t, 2, nbOutputMeta)
+	assert.Equal(t, 3, cntTxType)
+	assert.Equal(t, 1, cntInputMeta)
+	assert.Equal(t, 1, cntOutputMeta)
+	assert.Equal(t, 1, cntMetaType)
 }
 
 func verifyRosettaTransaction(operations []*types.Operation, txType string, metaType string) (int, int, int, int) {
-
-	nbOpInputMeta := 0
-	nbOpOutputMeta := 0
-	nbMetaType := 0
-	nbTxType := 0
+	cntOpInputMeta := 0
+	cntOpOutputMeta := 0
+	cntTxType := 0
+	cntMetaType := 0
 
 	for _, v := range operations {
 		if v.Type == txType {
-			nbTxType++
+			cntTxType++
 		}
 
 		meta := &OperationMetadata{}
 		_ = mapper.UnmarshalJSONMap(v.Metadata, meta)
 
 		if meta.Type == OpTypeInput {
-			nbOpInputMeta++
+			cntOpInputMeta++
 			continue
 		}
 		if meta.Type == OpTypeOutput {
-			nbOpOutputMeta++
+			cntOpOutputMeta++
 			continue
 		}
 		if meta.Type == metaType {
-			nbMetaType++
+			cntMetaType++
 			continue
 		}
 	}
 
-	return nbTxType, nbOpInputMeta, nbOpOutputMeta, nbMetaType
+	return cntTxType, cntOpInputMeta, cntOpOutputMeta, cntMetaType
 }

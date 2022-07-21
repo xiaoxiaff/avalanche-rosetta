@@ -1,0 +1,103 @@
+package common
+
+import (
+	"encoding/json"
+	"errors"
+
+	"github.com/coinbase/rosetta-sdk-go/types"
+
+	"github.com/ava-labs/avalanche-rosetta/mapper"
+)
+
+type AvaxTx interface {
+	Marshal() ([]byte, error)
+	Unmarshal([]byte) error
+	SigningPayload() ([]byte, error)
+	Hash() ([]byte, error)
+}
+
+type RosettaTx struct {
+	// The body of this transaction
+	Tx AvaxTx
+
+	// AccountIdentifierSigners used by /construction/parse
+	//to generate the response field with the same name for signed transactions
+	AccountIdentifierSigners []Signer
+}
+
+type Signer struct {
+	OperationIdentifier *types.OperationIdentifier `json:"operation_identifier"`
+	AccountIdentifier   *types.AccountIdentifier   `json:"account_identifier"`
+}
+
+type rosettaTxWire struct {
+	Tx      string   `json:"tx"`
+	Signers []Signer `json:"signers"`
+}
+
+func (t *RosettaTx) MarshalJSON() ([]byte, error) {
+	bytes, err := t.Tx.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	str, err := mapper.EncodeBytes(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	txWire := &rosettaTxWire{
+		Tx:      str,
+		Signers: t.AccountIdentifierSigners,
+	}
+	return json.Marshal(txWire)
+}
+
+func (t *RosettaTx) UnmarshalJSON(data []byte) error {
+	if t.Tx == nil {
+		return errors.New("tx must be initialized before unmarshalling")
+	}
+	txWire := &rosettaTxWire{}
+	err := json.Unmarshal(data, txWire)
+	if err != nil {
+		return err
+	}
+
+	bytes, err := mapper.DecodeToBytes(txWire.Tx)
+	if err != nil {
+		return err
+	}
+
+	err = t.Tx.Unmarshal(bytes)
+	if err != nil {
+		return err
+	}
+
+	t.AccountIdentifierSigners = txWire.Signers
+
+	return nil
+}
+
+func (t *RosettaTx) GetSigners(operations []*types.Operation) ([]*types.AccountIdentifier, error) {
+	var signers []*types.AccountIdentifier
+
+	operationToAccountMap := make(map[int64]*types.AccountIdentifier)
+	for _, data := range t.AccountIdentifierSigners {
+		operationToAccountMap[data.OperationIdentifier.Index] = data.AccountIdentifier
+	}
+
+	for i, op := range operations {
+		// Skip positive amounts
+		if op.Amount.Value[0] != '-' {
+			continue
+		}
+		signer := operationToAccountMap[op.OperationIdentifier.Index]
+		if signer == nil {
+			return nil, errors.New("not all operations have signers")
+		}
+		operations[i].Account = signer
+		signers = append(signers, signer)
+	}
+
+	return signers, nil
+}

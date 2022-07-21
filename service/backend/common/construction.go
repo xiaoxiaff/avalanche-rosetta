@@ -2,19 +2,15 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
 
-	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto"
 	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
-	"github.com/ava-labs/avalanchego/utils/hashing"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/components/verify"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/parser"
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -23,7 +19,19 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/service"
 )
 
-func DeriveBech32Address(fac *crypto.FactorySECP256K1R, chainIdAlias string, req *types.ConstructionDeriveRequest) (*types.ConstructionDeriveResponse, *types.Error) {
+var (
+	errNoOperationsToMatch      = errors.New("no operations were passed to match")
+	errInvalidInput             = errors.New("invalid input")
+	errInvalidInputSignatureLen = errors.New("input signature length doesn't match credentials needed")
+	errInsufficientSignatures   = errors.New("insufficient signatures")
+	errInvalidSignatureLen      = errors.New("invalid signature length")
+)
+
+func DeriveBech32Address(
+	fac *crypto.FactorySECP256K1R,
+	chainIdAlias string,
+	req *types.ConstructionDeriveRequest,
+) (*types.ConstructionDeriveResponse, *types.Error) {
 	pub, err := fac.ToPublicKey(req.PublicKey.Bytes)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
@@ -46,18 +54,17 @@ func DeriveBech32Address(fac *crypto.FactorySECP256K1R, chainIdAlias string, req
 	}, nil
 }
 
-func HashTx(req *types.ConstructionHashRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	txByte, err := mapper.DecodeToBytes(req.SignedTransaction)
+func HashTx(rosettaTx *RosettaTx) (*types.TransactionIdentifierResponse, *types.Error) {
+	txHashBytes, err := rosettaTx.Tx.Hash()
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	txHash256 := hashing.ComputeHash256(txByte)
-	hash, err := formatting.EncodeWithChecksum(formatting.CB58, txHash256)
-
+	hash, err := formatting.EncodeWithChecksum(formatting.CB58, txHashBytes)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
+
 	return &types.TransactionIdentifierResponse{
 		TransactionIdentifier: &types.TransactionIdentifier{
 			Hash: hash,
@@ -69,13 +76,17 @@ type TransactionIssuer interface {
 	IssueTx(ctx context.Context, txByte []byte) (ids.ID, error)
 }
 
-func SubmitTx(issuer TransactionIssuer, ctx context.Context, req *types.ConstructionSubmitRequest) (*types.TransactionIdentifierResponse, *types.Error) {
-	txByte, err := mapper.DecodeToBytes(req.SignedTransaction)
+func SubmitTx(
+	ctx context.Context,
+	issuer TransactionIssuer,
+	rosettaTx *RosettaTx,
+) (*types.TransactionIdentifierResponse, *types.Error) {
+	bytes, err := rosettaTx.Tx.Marshal()
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	txID, err := issuer.IssueTx(ctx, txByte)
+	txID, err := issuer.IssueTx(ctx, bytes)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
@@ -87,24 +98,9 @@ func SubmitTx(issuer TransactionIssuer, ctx context.Context, req *types.Construc
 	}, nil
 }
 
-func ParseOpType(operations []*types.Operation) (string, error) {
-	if len(operations) == 0 {
-		return "", fmt.Errorf("operation is empty")
-	}
-
-	opType := operations[0].Type
-	for _, op := range operations {
-		if op.Type != opType {
-			return "", fmt.Errorf("multiple operation types found")
-		}
-	}
-
-	return opType, nil
-}
-
 func MatchOperations(operations []*types.Operation) ([]*parser.Match, error) {
 	if len(operations) == 0 {
-		return nil, errors.New("no operations were passed to match")
+		return nil, errNoOperationsToMatch
 	}
 	opType := operations[0].Type
 
@@ -166,7 +162,7 @@ func BuildCredentialList(ins []*avax.TransferableInput, signatures []*types.Sign
 	for i, transferInput := range ins {
 		input, ok := transferInput.In.(*secp256k1fx.TransferInput)
 		if !ok {
-			return nil, errors.New("invalid input")
+			return nil, errInvalidInput
 		}
 
 		cred, err := buildCredential(len(input.SigIndices), &sigOffset, signatures)
@@ -178,7 +174,7 @@ func BuildCredentialList(ins []*avax.TransferableInput, signatures []*types.Sign
 	}
 
 	if sigOffset != len(signatures) {
-		return nil, errors.New("input signature length doesn't match credentials needed")
+		return nil, errInvalidInputSignatureLen
 	}
 
 	return creds, nil
@@ -199,11 +195,11 @@ func buildCredential(numSigs int, sigOffset *int, signatures []*types.Signature)
 	cred.Sigs = make([][crypto.SECP256K1RSigLen]byte, numSigs)
 	for j := 0; j < numSigs; j++ {
 		if *sigOffset >= len(signatures) {
-			return nil, errors.New("insufficient signatures")
+			return nil, errInsufficientSignatures
 		}
 
 		if len(signatures[*sigOffset].Bytes) != crypto.SECP256K1RSigLen {
-			return nil, errors.New("invalid signature length")
+			return nil, errInvalidSignatureLen
 		}
 		copy(cred.Sigs[j][:], signatures[*sigOffset].Bytes)
 		*sigOffset++
@@ -211,16 +207,111 @@ func buildCredential(numSigs int, sigOffset *int, signatures []*types.Signature)
 	return cred, nil
 }
 
-func InitializeTx(version uint16, c codec.Manager, tx platformvm.Tx) error {
-	errs := wrappers.Errs{}
+type TxBuilder interface {
+	BuildTx(matches []*types.Operation, rawMetadata map[string]interface{}) (AvaxTx, []*types.AccountIdentifier, *types.Error)
+}
 
-	unsignedBytes, err := c.Marshal(version, &tx.UnsignedTx)
-	errs.Add(err)
+func BuildPayloads(
+	txBuilder TxBuilder,
+	req *types.ConstructionPayloadsRequest,
+) (*types.ConstructionPayloadsResponse, *types.Error) {
+	tx, signers, tErr := txBuilder.BuildTx(req.Operations, req.Metadata)
+	if tErr != nil {
+		return nil, tErr
+	}
 
-	signedBytes, err := c.Marshal(version, &tx)
-	errs.Add(err)
+	hash, err := tx.SigningPayload()
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
 
-	tx.Initialize(unsignedBytes, signedBytes)
+	payloads := make([]*types.SigningPayload, len(signers))
 
-	return errs.Err
+	for i, signer := range signers {
+		payloads[i] = &types.SigningPayload{
+			AccountIdentifier: signer,
+			Bytes:             hash,
+			SignatureType:     types.EcdsaRecovery,
+		}
+	}
+
+	accountIdentifierSigners := make([]Signer, 0, len(req.Operations))
+	for _, o := range req.Operations {
+		// Skip positive amounts
+		if o.Amount.Value[0] != '-' {
+			continue
+		}
+		accountIdentifierSigners = append(accountIdentifierSigners, Signer{
+			OperationIdentifier: o.OperationIdentifier,
+			AccountIdentifier:   o.Account,
+		})
+	}
+
+	txJson, err := json.Marshal(&RosettaTx{
+		Tx:                       tx,
+		AccountIdentifierSigners: accountIdentifierSigners,
+	})
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	return &types.ConstructionPayloadsResponse{
+		UnsignedTransaction: string(txJson),
+		Payloads:            payloads,
+	}, nil
+}
+
+type TxParser interface {
+	ParseTx(tx AvaxTx, isConstruction bool) ([]*types.Operation, error)
+}
+
+func Parse(parser TxParser, payloadsTx *RosettaTx, isSigned bool) (*types.ConstructionParseResponse, *types.Error) {
+	// Convert input tx into operations
+	operations, err := parser.ParseTx(payloadsTx.Tx, true)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "incorrect transaction input")
+	}
+
+	payloadSigners, err := payloadsTx.GetSigners(operations)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	// Generate AccountIdentifierSigners if request is signed
+	var signers []*types.AccountIdentifier
+	if isSigned {
+		signers = payloadSigners
+	}
+
+	return &types.ConstructionParseResponse{
+		Operations:               operations,
+		AccountIdentifierSigners: signers,
+	}, nil
+}
+
+type TxCombiner interface {
+	CombineTx(tx AvaxTx, signatures []*types.Signature) (AvaxTx, *types.Error)
+}
+
+func Combine(
+	combiner TxCombiner,
+	rosettaTx *RosettaTx,
+	signatures []*types.Signature,
+) (*types.ConstructionCombineResponse, *types.Error) {
+	combinedTx, tErr := combiner.CombineTx(rosettaTx.Tx, signatures)
+	if tErr != nil {
+		return nil, tErr
+	}
+
+	signedTransaction, err := json.Marshal(&RosettaTx{
+		Tx:                       combinedTx,
+		AccountIdentifierSigners: rosettaTx.AccountIdentifierSigners,
+	})
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, "unable to encode signed transaction")
+	}
+
+	return &types.ConstructionCombineResponse{
+		SignedTransaction: string(signedTransaction),
+	}, nil
 }

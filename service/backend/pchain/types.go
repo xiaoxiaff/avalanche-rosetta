@@ -1,68 +1,98 @@
 package pchain
 
 import (
-	"encoding/json"
+	"errors"
 
+	"github.com/ava-labs/avalanchego/codec"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
-	"github.com/ava-labs/avalanche-rosetta/mapper"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
+	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
-func (t *Transaction) MarshalJSON() ([]byte, error) {
-	bytes, err := platformvm.Codec.Marshal(platformvm.CodecVersion, t.Tx)
-	if err != nil {
-		return nil, err
-	}
-
-	str, err := mapper.EncodeBytes(bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	txWire := &transactionWire{
-		Tx:        str,
-		InputData: t.AccountIdentifierSigners,
-	}
-	return json.Marshal(txWire)
+type pTx struct {
+	Tx           *platformvm.Tx
+	Codec        codec.Manager
+	CodecVersion uint16
 }
 
-func (t *Transaction) UnmarshalJSON(data []byte) error {
-	txWire := &transactionWire{}
-	err := json.Unmarshal(data, txWire)
+func (p *pTx) Marshal() ([]byte, error) {
+	return p.Codec.Marshal(p.CodecVersion, p.Tx)
+}
+
+func (p *pTx) Unmarshal(bytes []byte) error {
+	tx := platformvm.Tx{}
+	_, err := p.Codec.Unmarshal(bytes, &tx)
 	if err != nil {
 		return err
 	}
-
-	bytes, err := mapper.DecodeToBytes(txWire.Tx)
-	if err != nil {
-		return err
-	}
-
-	tx := &platformvm.Tx{}
-	_, err = platformvm.Codec.Unmarshal(bytes, tx)
-	if err != nil {
-		return err
-	}
-
-	t.Tx = tx
-	t.AccountIdentifierSigners = txWire.InputData
-
+	p.Tx = &tx
 	return nil
 }
 
-type AccountIdentifierSigners struct {
-	OperationIdentifier *types.OperationIdentifier `json:"operation_identifier"`
-	AccountIdentifier   *types.AccountIdentifier   `json:"account_identifier"`
+func (p *pTx) SigningPayload() ([]byte, error) {
+	unsignedAtomicBytes, err := p.Codec.Marshal(p.CodecVersion, &p.Tx.UnsignedTx)
+	if err != nil {
+		return nil, err
+	}
+
+	hash := hashing.ComputeHash256(unsignedAtomicBytes)
+	return hash, nil
 }
 
-type Transaction struct {
-	// The body of this transaction
-	Tx                       *platformvm.Tx
-	AccountIdentifierSigners []AccountIdentifierSigners
+func (p *pTx) Hash() ([]byte, error) {
+	bytes, err := p.Codec.Marshal(p.CodecVersion, &p.Tx)
+	if err != nil {
+		return nil, err
+	}
+
+	hash := hashing.ComputeHash256(bytes)
+	return hash, nil
 }
 
-type transactionWire struct {
-	Tx        string                     `json:"tx"`
-	InputData []AccountIdentifierSigners `json:"input_data"`
+type pTxParser struct {
+	hrp string
+}
+
+func (p pTxParser) ParseTx(tx common.AvaxTx, isConstruction bool) ([]*types.Operation, error) {
+	pTx, ok := tx.(*pTx)
+	if !ok {
+		return nil, errors.New("invalid transaction")
+	}
+	transactions, err := pmapper.ParseTx(pTx.Tx.UnsignedTx, isConstruction)
+	if err != nil {
+		return nil, err
+	}
+
+	return transactions.Operations, nil
+}
+
+type pTxBuilder struct {
+	avaxAssetID  ids.ID
+	codec        codec.Manager
+	codecVersion uint16
+}
+
+func (p pTxBuilder) BuildTx(operations []*types.Operation, metadata map[string]interface{}) (common.AvaxTx, []*types.AccountIdentifier, *types.Error) {
+	matches, err := common.MatchOperations(operations)
+	if err != nil {
+		return nil, nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	opType := matches[0].Operations[0].Type
+
+	tx, signers, err := pmapper.BuildTx(opType, matches, metadata, p.codec, p.avaxAssetID)
+	if err != nil {
+		return nil, nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	return &pTx{
+		Tx:           tx,
+		Codec:        p.codec,
+		CodecVersion: p.codecVersion,
+	}, signers, nil
 }

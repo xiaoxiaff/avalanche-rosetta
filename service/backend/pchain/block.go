@@ -66,7 +66,7 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 			return nil, service.WrapError(service.ErrInternalError, "tx initalize error")
 		}
 
-		t, err := pmapper.Transaction(tx.UnsignedTx, false)
+		t, err := pmapper.ParseTx(tx.UnsignedTx, false)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
@@ -139,7 +139,7 @@ func (b *Backend) BlockTransaction(ctx context.Context, request *types.BlockTran
 			continue
 		}
 
-		t, err := pmapper.Transaction(tx.UnsignedTx, false)
+		t, err := pmapper.ParseTx(tx.UnsignedTx, false)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}

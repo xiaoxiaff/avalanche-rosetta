@@ -26,7 +26,7 @@ type Backend struct {
 	getUTXOsPageSize       uint32
 	codec                  codec.Manager
 	codecVersion           uint16
-	assetID                ids.ID
+	avaxAssetID            ids.ID
 	genesisBlock           *indexer.ParsedGenesisBlock
 	genesisBlockIdentifier *types.BlockIdentifier
 }
@@ -56,7 +56,7 @@ func NewBackend(
 		getUTXOsPageSize:  1024,
 		codec:             platformvm.Codec,
 		codecVersion:      platformvm.CodecVersion,
-		assetID:           assetID,
+		avaxAssetID:       assetID,
 		indexerParser:     indexerParser,
 	}
 }

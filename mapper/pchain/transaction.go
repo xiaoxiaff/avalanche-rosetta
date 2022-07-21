@@ -1,7 +1,6 @@
 package pchain
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -20,124 +19,7 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
-func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType string, metaType string, isConstruction bool) ([]*types.Operation, error) {
-	status := types.String(mapper.StatusSuccess)
-	if isConstruction {
-		status = nil
-	}
-
-	outs := make([]*types.Operation, 0)
-	for _, out := range txOut {
-		outAddrID := out.Out.(*secp256k1fx.TransferOutput).Addrs[0]
-		//TODO: [NM] use variables form somewhere
-		outAddrFormat, err := address.Format("P", "fuji", outAddrID[:])
-		if err != nil {
-			return nil, err
-		}
-
-		metadata := &OperationMetadata{
-			Type: metaType,
-		}
-
-		if transferOutput, ok := out.Out.(*secp256k1fx.TransferOutput); ok {
-			metadata.Threshold = transferOutput.OutputOwners.Threshold
-			metadata.Locktime = transferOutput.OutputOwners.Locktime
-		}
-
-		opMetadata, err := mapper.MarshalJSONMap(metadata)
-		if err != nil {
-			return nil, err
-		}
-
-		outOp := &types.Operation{
-			Type: opType,
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: int64(startIndex),
-			},
-			Status:   status,
-			Account:  &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
-			Amount:   mapper.AvaxAmount(big.NewInt(int64(out.Out.Amount()))),
-			Metadata: opMetadata,
-		}
-		outs = append(outs, outOp)
-		startIndex++
-	}
-
-	return outs, nil
-}
-
-func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType string, metaType string, isConstruction bool) ([]*types.Operation, error) {
-	status := types.String(mapper.StatusSuccess)
-	if isConstruction {
-		status = nil
-	}
-
-	ins := make([]*types.Operation, 0)
-	for _, in := range txIns {
-		metadata := &OperationMetadata{
-			Type: metaType,
-		}
-
-		if transferInput, ok := in.In.(*secp256k1fx.TransferInput); ok {
-			metadata.SigIndices = transferInput.SigIndices
-		}
-
-		opMetadata, err := mapper.MarshalJSONMap(metadata)
-		if err != nil {
-			return nil, err
-		}
-
-		inOp := &types.Operation{
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: int64(startIndex),
-			},
-			Type:   opType,
-			Status: status,
-			Amount: mapper.AvaxAmount(new(big.Int).Neg(big.NewInt(int64(in.In.Amount())))),
-			CoinChange: &types.CoinChange{
-				CoinIdentifier: &types.CoinIdentifier{
-					Identifier: in.UTXOID.String(),
-				},
-				CoinAction: types.CoinSpent,
-			},
-			Metadata: opMetadata,
-		}
-
-		ins = append(ins, inOp)
-		startIndex++
-	}
-	return ins, nil
-}
-
-func baseTxToOperations(tx *platformvm.BaseTx, txType string, isConstruction bool) ([]*types.Operation, []*types.Operation, error) {
-
-	ins, err := inToOperation(tx.Ins, 0, txType, OpTypeInput, isConstruction)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	outs, err := outToOperation(tx.Outs, len(ins), txType, OpTypeOutput, isConstruction)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return ins, outs, nil
-}
-
-func rewardValidatorToOperation(v *platformvm.UnsignedRewardValidatorTx) []*types.Operation {
-	return []*types.Operation{
-		{
-			OperationIdentifier: &types.OperationIdentifier{Index: 0},
-			Type:                OpRewardValidator,
-			Status:              types.String(mapper.StatusSuccess),
-			Metadata: map[string]interface{}{
-				MetadataStakingTxId: v.TxID.String(),
-			},
-		},
-	}
-}
-
-func Transaction(tx interface{}, isConstruction bool) (*types.Transaction, error) {
+func ParseTx(tx platformvm.UnsignedTx, isConstruction bool) (*types.Transaction, error) {
 	var (
 		ops []*types.Operation
 		err error
@@ -145,8 +27,6 @@ func Transaction(tx interface{}, isConstruction bool) (*types.Transaction, error
 	)
 
 	switch v := tx.(type) {
-	case nil:
-		return nil, errors.New("tx unknown")
 	case *platformvm.UnsignedExportTx:
 		id = v.ID()
 		ins, outs, err := baseTxToOperations(&v.BaseTx, OpExportAvax, isConstruction)
@@ -156,7 +36,7 @@ func Transaction(tx interface{}, isConstruction bool) (*types.Transaction, error
 		ops = append(ops, ins...)
 		ops = append(ops, outs...)
 
-		exportedOuts, err := outToOperation(v.ExportedOutputs, len(ops), OpExportAvax, OpTypeOutput, isConstruction)
+		exportedOuts, err := outToOperation(v.ExportedOutputs, len(ops), OpExportAvax, OpTypeExport, isConstruction)
 		if err != nil {
 			return nil, err
 		}
@@ -249,13 +129,133 @@ func Transaction(tx interface{}, isConstruction bool) (*types.Transaction, error
 	return t, nil
 }
 
-func BuildTransaction(
+func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType string, metaType string, isConstruction bool) ([]*types.Operation, error) {
+	status := types.String(mapper.StatusSuccess)
+	if isConstruction {
+		status = nil
+	}
+
+	outs := make([]*types.Operation, 0)
+	for _, out := range txOut {
+		outAddrID := out.Out.(*secp256k1fx.TransferOutput).Addrs[0]
+		//TODO: [NM] use variables form somewhere
+		outAddrFormat, err := address.Format("P", "fuji", outAddrID[:])
+		if err != nil {
+			return nil, err
+		}
+
+		metadata := &OperationMetadata{
+			Type: metaType,
+		}
+
+		if transferOutput, ok := out.Out.(*secp256k1fx.TransferOutput); ok {
+			metadata.Threshold = transferOutput.OutputOwners.Threshold
+			metadata.Locktime = transferOutput.OutputOwners.Locktime
+		}
+
+		opMetadata, err := mapper.MarshalJSONMap(metadata)
+		if err != nil {
+			return nil, err
+		}
+
+		outAmount := new(big.Int).SetUint64(out.Out.Amount())
+		outOp := &types.Operation{
+			Type: opType,
+			OperationIdentifier: &types.OperationIdentifier{
+				Index: int64(startIndex),
+			},
+			Status:   status,
+			Account:  &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
+			Amount:   mapper.AvaxAmount(outAmount),
+			Metadata: opMetadata,
+		}
+		outs = append(outs, outOp)
+		startIndex++
+	}
+
+	return outs, nil
+}
+
+func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType string, metaType string, isConstruction bool) ([]*types.Operation, error) {
+	status := types.String(mapper.StatusSuccess)
+	if isConstruction {
+		status = nil
+	}
+
+	ins := make([]*types.Operation, 0)
+	for _, in := range txIns {
+		metadata := &OperationMetadata{
+			Type: metaType,
+		}
+
+		if transferInput, ok := in.In.(*secp256k1fx.TransferInput); ok {
+			metadata.SigIndices = transferInput.SigIndices
+		}
+
+		opMetadata, err := mapper.MarshalJSONMap(metadata)
+		if err != nil {
+			return nil, err
+		}
+
+		inputAmount := new(big.Int).SetUint64(in.In.Amount())
+		inOp := &types.Operation{
+			OperationIdentifier: &types.OperationIdentifier{
+				Index: int64(startIndex),
+			},
+			Type:   opType,
+			Status: status,
+			// Negating input amount
+			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
+			CoinChange: &types.CoinChange{
+				CoinIdentifier: &types.CoinIdentifier{
+					Identifier: in.UTXOID.String(),
+				},
+				CoinAction: types.CoinSpent,
+			},
+			Metadata: opMetadata,
+		}
+
+		ins = append(ins, inOp)
+		startIndex++
+	}
+	return ins, nil
+}
+
+func baseTxToOperations(tx *platformvm.BaseTx, txType string, isConstruction bool) ([]*types.Operation, []*types.Operation, error) {
+
+	ins, err := inToOperation(tx.Ins, 0, txType, OpTypeInput, isConstruction)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	outs, err := outToOperation(tx.Outs, len(ins), txType, OpTypeOutput, isConstruction)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ins, outs, nil
+}
+
+func rewardValidatorToOperation(v *platformvm.UnsignedRewardValidatorTx) []*types.Operation {
+	return []*types.Operation{
+		{
+			OperationIdentifier: &types.OperationIdentifier{Index: 0},
+			Type:                OpRewardValidator,
+			Status:              types.String(mapper.StatusSuccess),
+			Metadata: map[string]interface{}{
+				MetadataStakingTxId: v.TxID.String(),
+			},
+		},
+	}
+}
+
+func BuildTx(
 	opType string,
 	matches []*parser.Match,
 	payloadMetadata map[string]interface{},
 	codec codec.Manager,
 	avaxAssetId ids.ID,
-) (*platformvm.Tx, []string, error) {
+) (*platformvm.Tx, []*types.AccountIdentifier, error) {
 	switch opType {
 	case OpImportAvax:
 		return buildImportTx(matches, payloadMetadata, codec, avaxAssetId)
@@ -275,7 +275,7 @@ func buildImportTx(
 	metadata map[string]interface{},
 	codec codec.Manager,
 	avaxAssetId ids.ID,
-) (*platformvm.Tx, []string, error) {
+) (*platformvm.Tx, []*types.AccountIdentifier, error) {
 	var txMetadata ImportExportMetadata
 	if err := mapper.UnmarshalJSONMap(metadata, &txMetadata); err != nil {
 		return nil, nil, err
@@ -319,7 +319,7 @@ func buildExportTx(
 	metadata map[string]interface{},
 	codec codec.Manager,
 	avaxAssetId ids.ID,
-) (*platformvm.Tx, []string, error) {
+) (*platformvm.Tx, []*types.AccountIdentifier, error) {
 	var txMetadata ImportExportMetadata
 	if err := mapper.UnmarshalJSONMap(metadata, &txMetadata); err != nil {
 		return nil, nil, err
@@ -363,7 +363,7 @@ func buildAddValidatorTx(
 	metadata map[string]interface{},
 	codec codec.Manager,
 	avaxAssetId ids.ID,
-) (*platformvm.Tx, []string, error) {
+) (*platformvm.Tx, []*types.AccountIdentifier, error) {
 	var sMetadata StakingMetadata
 	if err := mapper.UnmarshalJSONMap(metadata, &sMetadata); err != nil {
 		return nil, nil, err
@@ -429,7 +429,7 @@ func buildAddDelegatorTx(
 	metadata map[string]interface{},
 	codec codec.Manager,
 	avaxAssetId ids.ID,
-) (*platformvm.Tx, []string, error) {
+) (*platformvm.Tx, []*types.AccountIdentifier, error) {
 	var sMetadata StakingMetadata
 	if err := mapper.UnmarshalJSONMap(metadata, &sMetadata); err != nil {
 		return nil, nil, err
@@ -515,7 +515,7 @@ func buildInputs(
 ) (
 	ins []*avax.TransferableInput,
 	imported []*avax.TransferableInput,
-	signers []string,
+	signers []*types.AccountIdentifier,
 	err error,
 ) {
 	for _, op := range operations {
@@ -559,7 +559,7 @@ func buildInputs(
 		default:
 			return nil, nil, nil, fmt.Errorf("invalid option type: %s", op.Type)
 		}
-		signers = append(signers, op.Account.Address)
+		signers = append(signers, op.Account)
 	}
 
 	avax.SortTransferableInputs(ins)
@@ -577,6 +577,11 @@ func ParseOpMetadata(metadata map[string]interface{}) (*OperationMetadata, error
 	// set threshold default to 1
 	if operationMetadata.Threshold == 0 {
 		operationMetadata.Threshold = 1
+	}
+
+	// set sig indices to a single signer if not provided
+	if operationMetadata.SigIndices == nil {
+		operationMetadata.SigIndices = []uint32{0}
 	}
 
 	return &operationMetadata, nil

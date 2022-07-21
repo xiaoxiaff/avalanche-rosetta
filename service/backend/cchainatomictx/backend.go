@@ -22,14 +22,14 @@ type Backend struct {
 	getUTXOsPageSize uint32
 	codec            codec.Manager
 	codecVersion     uint16
-	avaxAssetId      ids.ID
+	avaxAssetID      ids.ID
 }
 
 func NewBackend(cClient client.Client, avaxAssetId ids.ID) *Backend {
 	return &Backend{
 		fac:              &crypto.FactorySECP256K1R{},
 		cClient:          cClient,
-		avaxAssetId:      avaxAssetId,
+		avaxAssetID:      avaxAssetId,
 		getUTXOsPageSize: 1024,
 		codec:            evm.Codec,
 		codecVersion:     0,

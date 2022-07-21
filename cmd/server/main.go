@@ -16,6 +16,7 @@ import (
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 	c "github.com/ava-labs/avalanche-rosetta/service/backend/cchainatomictx"
 	p "github.com/ava-labs/avalanche-rosetta/service/backend/pchain"
@@ -127,9 +128,13 @@ func main() {
 		Network:    cfg.NetworkName,
 	}
 
+	var operationTypes []string
+	operationTypes = append(operationTypes, mapper.OperationTypes...)
+	operationTypes = append(operationTypes, pmapper.OperationTypes...)
+
 	asserter, err := asserter.NewServer(
-		mapper.OperationTypes, // supported operation types
-		true,                  // historical balance lookup
+		operationTypes, // supported operation types
+		true,           // historical balance lookup
 		[]*types.NetworkIdentifier{ // supported networks
 			networkP,
 			networkC,
