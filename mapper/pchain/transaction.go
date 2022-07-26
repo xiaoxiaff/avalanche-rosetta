@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
+	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/parser"
@@ -106,6 +107,8 @@ func ParseTx(tx platformvm.UnsignedTx, isConstruction bool) (*types.Transaction,
 		id = v.ID()
 	case *platformvm.UnsignedCreateChainTx:
 		id = v.ID()
+		ops = createChainToOperation(v)
+
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		id = v.ID()
 	default:
@@ -137,20 +140,34 @@ func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType str
 
 	outs := make([]*types.Operation, 0)
 	for _, out := range txOut {
-		outAddrID := out.Out.(*secp256k1fx.TransferOutput).Addrs[0]
-		//TODO: [NM] use variables form somewhere
-		outAddrFormat, err := address.Format("P", "fuji", outAddrID[:])
-		if err != nil {
-			return nil, err
-		}
-
 		metadata := &OperationMetadata{
 			Type: metaType,
 		}
 
+		var outAddrFormat string
+		var transferOut avax.TransferableOut
 		if transferOutput, ok := out.Out.(*secp256k1fx.TransferOutput); ok {
 			metadata.Threshold = transferOutput.OutputOwners.Threshold
 			metadata.Locktime = transferOutput.OutputOwners.Locktime
+			transferOut = out.Out
+			tfOut, ok := out.Out.(*secp256k1fx.TransferOutput)
+			if ok {
+				transferOut = tfOut
+			}
+		} else if lockOut, ok := out.Out.(*stakeable.LockOut); ok {
+			metadata.Locktime = lockOut.Locktime
+			transferOut = lockOut.TransferableOut
+		}
+		transferOutput, ok := transferOut.(*secp256k1fx.TransferOutput)
+		if ok && transferOutput.Addrs != nil {
+			outAddrID := transferOutput.Addrs[0]
+
+			var err error
+			//TODO: [NM] use variables form somewhere
+			outAddrFormat, err = address.Format("P", "fuji", outAddrID[:])
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		opMetadata, err := mapper.MarshalJSONMap(metadata)
@@ -234,6 +251,22 @@ func baseTxToOperations(tx *platformvm.BaseTx, txType string, isConstruction boo
 	}
 
 	return ins, outs, nil
+}
+
+func createChainToOperation(v *platformvm.UnsignedCreateChainTx) []*types.Operation {
+	return []*types.Operation{
+		{
+			OperationIdentifier: &types.OperationIdentifier{Index: 0},
+			Type:                OpCreateChain,
+			Status:              types.String(mapper.StatusSuccess),
+			Metadata: map[string]interface{}{
+				MetadataSubnetID:  v.SubnetID.String(),
+				MetadataChainName: v.ChainName,
+				MetadataVMID:      v.VMID,
+				MetadataMemo:      v.Memo,
+			},
+		},
+	}
 }
 
 func rewardValidatorToOperation(v *platformvm.UnsignedRewardValidatorTx) []*types.Operation {

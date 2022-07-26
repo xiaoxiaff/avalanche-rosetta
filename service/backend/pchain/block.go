@@ -98,13 +98,21 @@ func (b *Backend) buildGenesisBlockResponse(ctx context.Context) (*types.BlockRe
 		return nil, err
 	}
 
+	transactions, err := b.indexerParser.GenesisToTransactions(genesisBlock)
+	if err != nil {
+		return nil, err
+	}
+
 	genesisBlockIdentifier := b.buildGenesisBlockIdentifier(genesisBlock)
 	return &types.BlockResponse{
 		Block: &types.Block{
 			BlockIdentifier:       genesisBlockIdentifier,
 			ParentBlockIdentifier: genesisBlockIdentifier,
-			Transactions:          []*types.Transaction{},
+			Transactions:          transactions,
 			Timestamp:             mapper.UnixToUnixMilli(genesisBlock.Timestamp),
+			Metadata: map[string]interface{}{
+				pmapper.MetadataMessage: genesisBlock.Message,
+			},
 		},
 	}, err
 }

@@ -6,6 +6,7 @@ const (
 	OpAddValidator    = "ADD_VALIDATOR"
 	OpAddDelegator    = "ADD_DELEGATOR"
 	OpRewardValidator = "REWARD_VALIDATOR"
+	OpCreateChain     = "CREATE_CHAIN"
 
 	OpTypeImport      = "IMPORT"
 	OpTypeExport      = "EXPORT"
@@ -15,6 +16,11 @@ const (
 
 	MetadataOpType      = "type"
 	MetadataStakingTxId = "staking_tx"
+	MetadataSubnetID    = "subnet_id"
+	MetadataChainName   = "chain_name"
+	MetadataVMID        = "vmid"
+	MetadataMemo        = "memo"
+	MetadataMessage     = "message"
 )
 
 var (

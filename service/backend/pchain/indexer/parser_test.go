@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/constants"
+
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
 
 	"github.com/ava-labs/avalanchego/api"
@@ -44,7 +46,7 @@ func TestMain(m *testing.M) {
 
 	pchainClient := &mocks.PChainClient{}
 
-	pchainClient.On("GetNetworkID", mock.Anything).Return(uint32(1), nil).Once()
+	pchainClient.On("GetNetworkID", mock.Anything).Return(constants.MainnetID, nil).Once()
 
 	for _, idx := range idxs {
 		ret := readFixture("ins/%v.json", idx)
@@ -109,6 +111,32 @@ func TestGenesisBlockCreateChainTxs(t *testing.T) {
 	}
 
 	ret := readFixture("outs/genesis.json")
+	a.JSONEq(string(ret), string(j))
+}
+
+func TestGenesisBlockParseTxs(t *testing.T) {
+	a := assert.New(t)
+
+	pchainClient := &mocks.PChainClient{}
+	pchainClient.On("GetNetworkID", mock.Anything).Return(constants.FujiID, nil).Once()
+	p, err := NewParser(pchainClient)
+	if err != nil {
+		panic(err)
+	}
+
+	ctx := context.Background()
+	g, err := p.Initialize(ctx)
+	p.writeTime(time.Unix(0, 0))
+
+	rosettaTransactions, err := p.GenesisToTransactions(g)
+	assert.Nil(t, err)
+
+	j, err := stdjson.Marshal(rosettaTransactions)
+	if err != nil {
+		panic(err)
+	}
+
+	ret := readFixture("outs/genesis_fuji_rosetta.json")
 	a.JSONEq(string(ret), string(j))
 }
 

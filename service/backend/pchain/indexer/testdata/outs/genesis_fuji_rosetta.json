@@ -1,0 +1,603 @@
+[
+  {
+    "transaction_identifier": {
+      "hash": "TdoZgvfDCs42jxihsb1coBY7rrhibDj56RH3UDFzkzFFQyGQo"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "2L1UKtRr61kpYUvGymnvjRhHdiASityfc3S1jtoG5n7Uc4sgm4"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "2RcmJyJFYNPSKPEoGMLzKJkeJrWxbQwgseU57fWWz2deRGA5nc"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "2eGGdfQNMa74nAfL2oP595suTuotfnbn76q9gCiysZMu2MvMfA"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "xTNV2MGT6UwRdE9e55jEjk1QNVCaujNA3ftyptvcGgDrs3bQa"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "2efFvnZQPNJcvFaor6JSawVX7679xgXFHRFTsruGY3rDPXazW7"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "NR8h3zYezKrfCW6ykYkYo9bHk6X6NtcUtaE8ZKVayDfUCCXFZ"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "gMf2xGJqueY5seAGHNs8sWFCDDe2oS4GGDEczEBPY27HYDMYF"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "xv3yCa3nkRcSk253mtEonhDkgxQqQ5CeevCJXGt9cNY9bL5yV"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "2Hsyxia2a1QrMjpVhFort3hWNzCjZwXkRu14PbmkfCzJjj1NWP"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "KfBfLm8DaErS7rJgdnobgSeeQM9CQnRj5YwbtP6rpMs4pvUJp"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "Uumyppd474jxw2KBt8RyXdQUGw1MKESJa19C2Aiir3ihYge5S"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "uSZ55F395FDepT7aY7pwUx9ePD8hjLdhUnC6frmsdPAmMqK1N"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "w6HpCJk38zwZvq5khyU2QmF83qL9gBTB3ggumVqfBJsWUa4jm"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "4qzP7ByUFWsjVAeVFzbBioLLuFyAAWCToGRfj5uomAbqpYGF7"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "QPaQMmD4xxCDDWBs9CjNMc1XvtfPwTMiKfKCNv2AP5xddbA3z"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "2hr6QaBeVqQfPYKYZvgb7Y2fzsUKUnkJNZ4UKYsa753jeuLVbG"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "2qzRvGxRSMpxWozdhgtpSQu9EBUG5jWqCULx9oh6EiQ6WaoPyd"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "27G2D9fvAMMvRAytKyWNgfXh77r4oySK9Hp3R9NFrintntdQF9"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "25yDypVdxt6qHs95TWpSLQLC7B4XKLgt8JCpx9d4FeVSfMW5fp"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "ADD_VALIDATOR",
+        "status": "SUCCESS",
+        "account": {
+          "address": "P-fuji1wycv8n7d2fg9aq6unp23pnj4q0arv03ysya8jw"
+        },
+        "amount": {
+          "value": "2000000000000000",
+          "currency": {
+            "symbol": "AVAX",
+            "decimals": 18
+          }
+        },
+        "metadata": {
+          "locktime": 0,
+          "type": "STAKE"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "CREATE_CHAIN",
+        "status": "SUCCESS",
+        "metadata": {
+          "chain_name": "X-Chain",
+          "memo": "0x",
+          "subnet_id": "11111111111111111111111111111111LpoYY",
+          "vmid": "jvYyfQTxGMJLuGWa55kdP2p2zSUYsQ5Raupu4TW34ZAUBAbtq"
+        }
+      }
+    ]
+  },
+  {
+    "transaction_identifier": {
+      "hash": "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp"
+    },
+    "operations": [
+      {
+        "operation_identifier": {
+          "index": 0
+        },
+        "type": "CREATE_CHAIN",
+        "status": "SUCCESS",
+        "metadata": {
+          "chain_name": "C-Chain",
+          "memo": "0x",
+          "subnet_id": "11111111111111111111111111111111LpoYY",
+          "vmid": "mgj786NP7uDwBCcq6YwThhaN8FLyybkCa4zBWTQbNgmK6k9A6"
+        }
+      }
+    ]
+  }
+]
+

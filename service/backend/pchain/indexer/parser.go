@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,10 +24,16 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/proposervm/block"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
+)
+
+var (
+	errUnexpectedGenesisTx = errors.New("unexpected genesis tx")
 )
 
 type Parser struct {
@@ -155,11 +162,18 @@ func (p *Parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
 		utxo.UTXO.Out.InitCtx(p.ctx)
 	}
 
+	// Genesis commit block's parent ID is the hash of genesis state
+	var genesisParentID ids.ID = hashing.ComputeHash256Array(bytes)
+
+	// Genesis Block is not indexed by the indexer, but its block ID can be accessed from block 0's parent id
+	genesisChildBlock, _ := p.ParseBlockAtIndex(ctx, 1)
+	genesisBlockID := genesisChildBlock.ParentID
+
 	return &ParsedGenesisBlock{
 		ParsedBlock: ParsedBlock{
-			ParentID:  ids.Empty,
+			ParentID:  genesisParentID,
 			Height:    0,
-			BlockID:   ids.Empty,
+			BlockID:   genesisBlockID,
 			BlockType: "GenesisBlock",
 			Timestamp: p.readTime(),
 			Txs:       txs,
@@ -561,4 +575,77 @@ func (p *Parser) parseTx(ctx context.Context, blkID ids.ID, tx platformvm.Tx, ge
 	}
 
 	return nil, errs.Err
+}
+
+func (p *Parser) GenesisToTransactions(genesisBlock *ParsedGenesisBlock) ([]*types.Transaction, error) {
+	var unsignedTx platformvm.UnsignedTx
+	var transactionHash string
+
+	transactions := make([]*types.Transaction, 0)
+	for i := range genesisBlock.Txs {
+		switch avTx := genesisBlock.Txs[i].(type) {
+		case *ParsedAddValidatorTx:
+			unsignedTx = &platformvm.UnsignedAddValidatorTx{
+				BaseTx: platformvm.BaseTx{
+					BaseTx: avax.BaseTx{
+						NetworkID:    avTx.NetworkID,
+						BlockchainID: avTx.BlockchainID,
+						Outs:         utxoToTransferableOutput(avTx.Outs),
+						Ins:          avTx.Ins,
+						Memo:         avTx.Memo,
+					},
+				},
+				Validator:    avTx.Validator,
+				Stake:        avTx.Stake,
+				RewardsOwner: avTx.RewardsOwner,
+				Shares:       avTx.Shares,
+			}
+			transactionHash = avTx.TxID.String()
+
+		case *ParsedCreateChainTx:
+			unsignedTx = &platformvm.UnsignedCreateChainTx{
+				BaseTx: platformvm.BaseTx{
+					BaseTx: avax.BaseTx{
+						NetworkID:    avTx.NetworkID,
+						BlockchainID: avTx.BlockchainID,
+						Outs:         utxoToTransferableOutput(avTx.Outs),
+						Ins:          avTx.Ins,
+						Memo:         avTx.Memo,
+					},
+				},
+				SubnetID:    avTx.SubnetID,
+				ChainName:   avTx.ChainName,
+				VMID:        avTx.VMID,
+				FxIDs:       avTx.FxIDs,
+				GenesisData: avTx.GenesisData,
+				SubnetAuth:  avTx.SubnetAuth,
+			}
+			transactionHash = avTx.TxID.String()
+		default:
+			return nil, errUnexpectedGenesisTx
+		}
+
+		transaction, err := pmapper.ParseTx(unsignedTx, false)
+		if err != nil {
+			return nil, err
+		}
+
+		transaction.TransactionIdentifier = &types.TransactionIdentifier{
+			Hash: transactionHash,
+		}
+		transactions = append(transactions, transaction)
+	}
+	return transactions, nil
+}
+
+func utxoToTransferableOutput(utxos []*avax.UTXO) []*avax.TransferableOutput {
+	var outputs []*avax.TransferableOutput
+	for _, utxo := range utxos {
+		output := &avax.TransferableOutput{
+			Asset: avax.Asset{ID: utxo.AssetID()},
+			Out:   utxo.Out.(avax.TransferableOut),
+		}
+		outputs = append(outputs, output)
+	}
+	return outputs
 }
