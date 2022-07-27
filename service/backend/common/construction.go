@@ -16,6 +16,7 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 )
 
@@ -220,6 +221,23 @@ func BuildPayloads(
 		return nil, tErr
 	}
 
+	accountIdentifierSigners := make([]Signer, 0, len(req.Operations))
+	for _, o := range req.Operations {
+		// Skip positive amounts
+		if o.Amount.Value[0] != '-' {
+			continue
+		}
+		accountIdentifierSigners = append(accountIdentifierSigners, Signer{
+			OperationIdentifier: o.OperationIdentifier,
+			AccountIdentifier:   o.Account,
+		})
+	}
+
+	rosettaTx := &RosettaTx{
+		Tx:                       tx,
+		AccountIdentifierSigners: accountIdentifierSigners,
+	}
+
 	hash, err := tx.SigningPayload()
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
@@ -235,22 +253,15 @@ func BuildPayloads(
 		}
 	}
 
-	accountIdentifierSigners := make([]Signer, 0, len(req.Operations))
-	for _, o := range req.Operations {
-		// Skip positive amounts
-		if o.Amount.Value[0] != '-' {
-			continue
-		}
-		accountIdentifierSigners = append(accountIdentifierSigners, Signer{
-			OperationIdentifier: o.OperationIdentifier,
-			AccountIdentifier:   o.Account,
-		})
+	var metadata pmapper.Metadata
+	err = mapper.UnmarshalJSONMap(req.Metadata, &metadata)
+
+	if metadata.ExportMetadata != nil {
+		rosettaTx.DestinationChain = metadata.DestinationChain
+		rosettaTx.DestinationChainID = &metadata.DestinationChainID
 	}
 
-	txJson, err := json.Marshal(&RosettaTx{
-		Tx:                       tx,
-		AccountIdentifierSigners: accountIdentifierSigners,
-	})
+	txJson, err := json.Marshal(rosettaTx)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, err)
 	}
@@ -272,7 +283,7 @@ func Parse(parser TxParser, payloadsTx *RosettaTx, isSigned bool) (*types.Constr
 		return nil, service.WrapError(service.ErrInvalidInput, "incorrect transaction input")
 	}
 
-	payloadSigners, err := payloadsTx.GetSigners(operations)
+	payloadSigners, err := payloadsTx.GetAccountIdentifiers(operations)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
@@ -306,6 +317,8 @@ func Combine(
 	signedTransaction, err := json.Marshal(&RosettaTx{
 		Tx:                       combinedTx,
 		AccountIdentifierSigners: rosettaTx.AccountIdentifierSigners,
+		DestinationChain:         rosettaTx.DestinationChain,
+		DestinationChainID:       rosettaTx.DestinationChainID,
 	})
 	if err != nil {
 		return nil, service.WrapError(service.ErrInternalError, "unable to encode signed transaction")

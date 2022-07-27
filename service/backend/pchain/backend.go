@@ -29,6 +29,7 @@ type Backend struct {
 	avaxAssetID            ids.ID
 	genesisBlock           *indexer.ParsedGenesisBlock
 	genesisBlockIdentifier *types.BlockIdentifier
+	chainIDs               map[string]string
 }
 
 func (b *Backend) getGenesisBlock(ctx context.Context) (*indexer.ParsedGenesisBlock, error) {
@@ -58,6 +59,7 @@ func NewBackend(
 		codecVersion:      platformvm.CodecVersion,
 		avaxAssetID:       assetID,
 		indexerParser:     indexerParser,
+		chainIDs:          nil,
 	}
 }
 

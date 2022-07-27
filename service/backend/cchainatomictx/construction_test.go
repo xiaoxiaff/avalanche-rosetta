@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -109,6 +110,7 @@ func TestExportTxConstruction(t *testing.T) {
 	payloadsMetadata := map[string]interface{}{
 		"network_id":           float64(networkID),
 		"c_chain_id":           cChainId.String(),
+		"destination_chain":    "P",
 		"destination_chain_id": pChainId.String(),
 		"nonce":                float64(nonce),
 	}
@@ -145,8 +147,9 @@ func TestExportTxConstruction(t *testing.T) {
 		},
 	}
 
-	wrappedUnsignedExportTx := `{"tx":"` + unsignedExportTx + `","signers":` + exportSigners + `}`
-	wrappedSignedExportTx := `{"tx":"` + signedExportTx + `","signers":` + exportSigners + `}`
+	wrappedTxFormat := `{"tx":"%s","signers":%s,"destination_chain":"%s","destination_chain_id":"%s"}`
+	wrappedUnsignedExportTx := fmt.Sprintf(wrappedTxFormat, unsignedExportTx, exportSigners, "P", pChainId.String())
+	wrappedSignedExportTx := fmt.Sprintf(wrappedTxFormat, signedExportTx, exportSigners, "P", pChainId.String())
 
 	ctx := context.Background()
 	clientMock := &mocks.Client{}

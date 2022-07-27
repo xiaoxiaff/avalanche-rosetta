@@ -9,9 +9,14 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
+	"github.com/ava-labs/avalanche-rosetta/mapper"
 	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
+)
+
+var (
+	errInvalidTransaction = errors.New("invalid transaction")
 )
 
 type pTx struct {
@@ -55,15 +60,18 @@ func (p *pTx) Hash() ([]byte, error) {
 }
 
 type pTxParser struct {
-	hrp string
+	hrp      string
+	chainIDs map[string]string
 }
 
 func (p pTxParser) ParseTx(tx common.AvaxTx, isConstruction bool) ([]*types.Operation, error) {
 	pTx, ok := tx.(*pTx)
 	if !ok {
-		return nil, errors.New("invalid transaction")
+		return nil, errInvalidTransaction
 	}
-	transactions, err := pmapper.ParseTx(pTx.Tx.UnsignedTx, isConstruction)
+
+	parser := pmapper.NewTxParser(isConstruction, p.hrp, p.chainIDs)
+	transactions, err := parser.Parse(pTx.Tx.UnsignedTx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,14 +85,19 @@ type pTxBuilder struct {
 	codecVersion uint16
 }
 
-func (p pTxBuilder) BuildTx(operations []*types.Operation, metadata map[string]interface{}) (common.AvaxTx, []*types.AccountIdentifier, *types.Error) {
+func (p pTxBuilder) BuildTx(operations []*types.Operation, metadataMap map[string]interface{}) (common.AvaxTx, []*types.AccountIdentifier, *types.Error) {
+	var metadata pmapper.Metadata
+	err := mapper.UnmarshalJSONMap(metadataMap, &metadata)
+	if err != nil {
+		return nil, nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
 	matches, err := common.MatchOperations(operations)
 	if err != nil {
 		return nil, nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
 	opType := matches[0].Operations[0].Type
-
 	tx, signers, err := pmapper.BuildTx(opType, matches, metadata, p.codec, p.avaxAssetID)
 	if err != nil {
 		return nil, nil, service.WrapError(service.ErrInvalidInput, err)

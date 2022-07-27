@@ -31,6 +31,12 @@ var (
 // idxs of the containers we test against
 var idxs = []uint64{0, 1, 2, 8, 48, 173, 382, 911, 1603, 5981, 131475, 211277, 211333, 806002, 810424, 1000000, 1000001, 1000002, 1000004} // nolint:lll
 
+var (
+	// mainnet block 1 container bytes
+	// parent id is 2FUFPVPxbTpKNn39moGSzsmGroYES4NZRdw3mJgNvMkMiMHJ9e which is the mainnet genesis block id
+	genesisContainerBytes, _ = formatting.Decode(formatting.Hex, "0x000000000000a48d314805d44175be879e110a552187085ceb3611be6a43acd1dba798ae2427000000000000000100000013000000005f695aa000000000a89d88b0")
+)
+
 func readFixture(path string, sprintfArgs ...interface{}) []byte {
 	relpath := fmt.Sprintf(path, sprintfArgs...)
 	ret, err := os.ReadFile(fmt.Sprintf("testdata/%s", relpath))
@@ -47,6 +53,8 @@ func TestMain(m *testing.M) {
 	pchainClient := &mocks.PChainClient{}
 
 	pchainClient.On("GetNetworkID", mock.Anything).Return(constants.MainnetID, nil).Once()
+	pchainClient.On("GetContainerByIndex", mock.Anything, uint64(0)).
+		Return(indexer.Container{Bytes: genesisContainerBytes}, nil).Once()
 
 	for _, idx := range idxs {
 		ret := readFixture("ins/%v.json", idx)
@@ -119,6 +127,9 @@ func TestGenesisBlockParseTxs(t *testing.T) {
 
 	pchainClient := &mocks.PChainClient{}
 	pchainClient.On("GetNetworkID", mock.Anything).Return(constants.FujiID, nil).Once()
+	pchainClient.On("GetContainerByIndex", mock.Anything, uint64(0)).
+		Return(indexer.Container{Bytes: genesisContainerBytes}, nil).Once()
+
 	p, err := NewParser(pchainClient)
 	if err != nil {
 		panic(err)
@@ -128,7 +139,7 @@ func TestGenesisBlockParseTxs(t *testing.T) {
 	g, err := p.Initialize(ctx)
 	p.writeTime(time.Unix(0, 0))
 
-	rosettaTransactions, err := p.GenesisToTransactions(g)
+	rosettaTransactions, err := p.GenesisToTxs(g)
 	assert.Nil(t, err)
 
 	j, err := stdjson.Marshal(rosettaTransactions)
@@ -136,7 +147,7 @@ func TestGenesisBlockParseTxs(t *testing.T) {
 		panic(err)
 	}
 
-	ret := readFixture("outs/genesis_fuji_rosetta.json")
+	ret := readFixture("outs/genesis_fuji_txs.json")
 	a.JSONEq(string(ret), string(j))
 }
 

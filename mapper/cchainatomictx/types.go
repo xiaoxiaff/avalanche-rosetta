@@ -15,6 +15,7 @@ type Metadata struct {
 	NetworkID          uint32  `json:"network_id,omitempty"`
 	CChainID           ids.ID  `json:"c_chain_id,omitempty"`
 	SourceChainID      *ids.ID `json:"source_chain_id,omitempty"`
+	DestinationChain   string  `json:"destination_chain,omitempty"`
 	DestinationChainId *ids.ID `json:"destination_chain_id,omitempty"`
 	Nonce              uint64  `json:"nonce"`
 }

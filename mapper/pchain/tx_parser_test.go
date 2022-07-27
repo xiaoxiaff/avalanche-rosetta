@@ -3,11 +3,21 @@ package pchain
 import (
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/constants"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
+)
+
+var (
+	cChainId = "yH8D7ThNJkxmtkuv2jgBa4P1Rn3Qpr4pPr7QYNfcdoS6k6HWp"
+	chainIDs = map[string]string{
+		ids.Empty.String(): mapper.PChainNetworkIdentifier,
+		cChainId:           mapper.CChainNetworkIdentifier,
+	}
 )
 
 func TestMapInOperation(t *testing.T) {
@@ -18,7 +28,8 @@ func TestMapInOperation(t *testing.T) {
 
 	avaxIn := addValidatorTx.Ins[0]
 
-	rosettaInOp, err := inToOperation([]*avax.TransferableInput{avaxIn}, 9, OpAddValidator, OpTypeInput, false)
+	parser := NewTxParser(false, constants.FujiHRP, chainIDs)
+	rosettaInOp, err := parser.insToOperations(9, OpAddValidator, []*avax.TransferableInput{avaxIn}, OpTypeInput)
 	assert.Nil(t, err)
 
 	assert.Equal(t, int64(9), rosettaInOp[0].OperationIdentifier.Index)
@@ -41,7 +52,8 @@ func TestMapOutOperation(t *testing.T) {
 
 	avaxOut := addDelegatorTx.Outs[0]
 
-	rosettaOutOp, err := outToOperation([]*avax.TransferableOutput{avaxOut}, 0, OpAddDelegator, OpTypeOutput, true)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	rosettaOutOp, err := parser.outsToOperations(0, OpAddDelegator, []*avax.TransferableOutput{avaxOut}, OpTypeOutput, mapper.PChainNetworkIdentifier)
 	assert.Nil(t, err)
 
 	assert.Equal(t, int64(0), rosettaOutOp[0].OperationIdentifier.Index)
@@ -65,7 +77,8 @@ func TestMapAddValidatorTx(t *testing.T) {
 	assert.Equal(t, 1, len(addvalidatorTx.Ins))
 	assert.Equal(t, 0, len(addvalidatorTx.Outs))
 
-	rosettaTransaction, err := ParseTx(addvalidatorTx, true)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	rosettaTransaction, err := parser.Parse(addvalidatorTx)
 	assert.Nil(t, err)
 
 	total := len(addvalidatorTx.Ins) + len(addvalidatorTx.Outs) + len(addvalidatorTx.Stake)
@@ -88,7 +101,8 @@ func TestMapAddDelegatorTx(t *testing.T) {
 	assert.Equal(t, 1, len(addDelegatorTx.Outs))
 	assert.Equal(t, 1, len(addDelegatorTx.Stake))
 
-	rosettaTransaction, err := ParseTx(addDelegatorTx, true)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	rosettaTransaction, err := parser.Parse(addDelegatorTx)
 	assert.Nil(t, err)
 
 	total := len(addDelegatorTx.Ins) + len(addDelegatorTx.Outs) + len(addDelegatorTx.Stake)
@@ -127,7 +141,8 @@ func TestMapImportTx(t *testing.T) {
 	assert.Equal(t, 1, len(importTx.Outs))
 	assert.Equal(t, 1, len(importTx.ImportedInputs))
 
-	rosettaTransaction, err := ParseTx(importTx, true)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	rosettaTransaction, err := parser.Parse(importTx)
 	assert.Nil(t, err)
 
 	total := len(importTx.Ins) + len(importTx.Outs) + len(importTx.ImportedInputs)
@@ -151,7 +166,8 @@ func TestMapExportTx(t *testing.T) {
 	assert.Equal(t, 1, len(exportTx.Outs))
 	assert.Equal(t, 1, len(exportTx.ExportedOutputs))
 
-	rosettaTransaction, err := ParseTx(exportTx, true)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	rosettaTransaction, err := parser.Parse(exportTx)
 	assert.Nil(t, err)
 
 	total := len(exportTx.Ins) + len(exportTx.Outs) + len(exportTx.ExportedOutputs)

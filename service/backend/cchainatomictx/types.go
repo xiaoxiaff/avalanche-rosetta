@@ -56,7 +56,8 @@ func (c *cAtomicTx) Hash() ([]byte, error) {
 }
 
 type cAtomicTxParser struct {
-	hrp string
+	hrp      string
+	chainIDs map[string]string
 }
 
 func (c cAtomicTxParser) ParseTx(tx common.AvaxTx, isConstruction bool) ([]*types.Operation, error) {
@@ -64,7 +65,8 @@ func (c cAtomicTxParser) ParseTx(tx common.AvaxTx, isConstruction bool) ([]*type
 	if !ok {
 		return nil, errors.New("invalid transaction")
 	}
-	return cmapper.ParseTx(*cTx.Tx, c.hrp)
+	parser := cmapper.NewTxParser(c.hrp, c.chainIDs)
+	return parser.Parse(*cTx.Tx)
 }
 
 type cAtomicTxBuilder struct {
@@ -85,7 +87,8 @@ func (c cAtomicTxBuilder) BuildTx(operations []*types.Operation, metadata map[st
 		return nil, nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	tx, signers, err := cmapper.BuildTx(matches[0].Operations[0].Type, matches, cMetadata, c.codec, c.avaxAssetID)
+	opType := matches[0].Operations[0].Type
+	tx, signers, err := cmapper.BuildTx(opType, matches, cMetadata, c.codec, c.avaxAssetID)
 	if err != nil {
 		return nil, nil, service.WrapError(service.ErrInternalError, err)
 	}

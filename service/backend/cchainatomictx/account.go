@@ -18,6 +18,11 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/service"
 )
 
+var (
+	errUnableToParseUTXO  = errors.New("unable to parse UTXO")
+	errUnableToGetUTXOOut = errors.New("unable to get UTXO output")
+)
+
 func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error) {
 	if req.AccountIdentifier == nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "account identifier is not provided")
@@ -126,12 +131,12 @@ func (b *Backend) processUtxos(sourceChain string, utxos [][]byte) ([]*types.Coi
 		utxo := avax.UTXO{}
 		_, err := platformvm.Codec.Unmarshal(utxoBytes, &utxo)
 		if err != nil {
-			return nil, errors.New("unable to parse UTXO")
+			return nil, errUnableToParseUTXO
 		}
 
 		transferableOut, ok := utxo.Out.(avax.TransferableOut)
 		if !ok {
-			return nil, errors.New("unable to get UTXO output")
+			return nil, errUnableToGetUTXOOut
 		}
 
 		coin := &types.Coin{

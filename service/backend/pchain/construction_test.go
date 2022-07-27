@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/api/info"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting"
+	ajson "github.com/ava-labs/avalanchego/utils/json"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
 
@@ -42,6 +45,8 @@ var (
 	opTypeImport = "IMPORT"
 	opTypeExport = "EXPORT"
 	opTypeOutput = "OUTPUT"
+
+	txFee = 1_000_000
 )
 
 func buildRosettaSignerJson(signers []*types.AccountIdentifier) string {
@@ -108,9 +113,8 @@ func TestExportTxConstruction(t *testing.T) {
 		{
 			OperationIdentifier: &types.OperationIdentifier{Index: 1},
 			Type:                opExportAvax,
-			// FIXME: make this cAccountIdentifier after fixing chain id and hrp in pmapper
-			Account: pAccountIdentifier,
-			Amount:  mapper.AvaxAmount(big.NewInt(999_000_000)),
+			Account:             cAccountIdentifier,
+			Amount:              mapper.AvaxAmount(big.NewInt(999_000_000)),
 			Metadata: map[string]interface{}{
 				"type":      opTypeExport,
 				"threshold": 1.0,
@@ -130,7 +134,7 @@ func TestExportTxConstruction(t *testing.T) {
 
 	payloadsMetadata := map[string]interface{}{
 		"network_id":           float64(networkID),
-		"source_chain_id":      "",
+		"destination_chain":    "C",
 		"destination_chain_id": cChainID.String(),
 		"blockchain_id":        pChainID.String(),
 	}
@@ -140,7 +144,6 @@ func TestExportTxConstruction(t *testing.T) {
 
 	unsignedExportTx := "0x0000000000120000000500000000000000000000000000000000000000000000000000000000000000000000000000000001f52a5a6dd8f1b3fe05204bdab4f6bcb5a7059f88d0443c636f6c158f838dd1a8000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8b87c0000000000000000000000001000000015445cd01d75b4a06b6b41939193c0b1c5544490d0000000065e8045f"
 	unsignedExportTxHash, _ := hex.DecodeString("44d579f5cb3c83f4137223a0368721734b622ec392007760eed97f3f1a40c595")
-	wrappedUnsignedExportTx := `{"tx":"` + unsignedExportTx + `","signers":` + exportSigners + `}`
 
 	signingPayloads := []*types.SigningPayload{
 		{
@@ -154,7 +157,9 @@ func TestExportTxConstruction(t *testing.T) {
 	signedExportTxSignature, _ := hex.DecodeString("7403e32bb967e71902a988b7da635b4bca2475eedbfd23176610a88162f3a92f20b61f2185825b04b7f8ee8c76427c8dc80eb6091f9e594ef259a59856e5401b01")
 	signedExportTxHash := "bG7jzw16x495XSFdhEavHWR836Ya5teoB1YxRC1inN3HEtqbs"
 
-	wrappedSignedExportTx := `{"tx":"` + signedExportTx + `","signers":` + exportSigners + `}`
+	wrappedTxFormat := `{"tx":"%s","signers":%s,"destination_chain":"%s","destination_chain_id":"%s"}`
+	wrappedUnsignedExportTx := fmt.Sprintf(wrappedTxFormat, unsignedExportTx, exportSigners, "C", cChainID.String())
+	wrappedSignedExportTx := fmt.Sprintf(wrappedTxFormat, signedExportTx, exportSigners, "C", cChainID.String())
 
 	signatures := []*types.Signature{{
 		SigningPayload: &types.SigningPayload{
@@ -187,6 +192,7 @@ func TestExportTxConstruction(t *testing.T) {
 
 	t.Run("metadata endpoint", func(t *testing.T) {
 		clientMock.On("GetNetworkID", ctx).Return(uint32(networkID), nil)
+		clientMock.On("GetTxFee", ctx).Return(&info.GetTxFeeResponse{TxFee: ajson.Uint64(txFee)}, nil)
 		clientMock.On("GetBlockchainID", ctx, mapper.PChainNetworkIdentifier).Return(pChainID, nil)
 		clientMock.On("GetBlockchainID", ctx, mapper.CChainNetworkIdentifier).Return(cChainID, nil)
 
@@ -302,9 +308,8 @@ func TestImportTxConstruction(t *testing.T) {
 			OperationIdentifier: &types.OperationIdentifier{Index: 0},
 			RelatedOperations:   nil,
 			Type:                opImportAvax,
-			// FIXME: make this cAccountIdentifier after fixing chain id and hrp in pmapper
-			Account: pAccountIdentifier,
-			Amount:  mapper.AvaxAmount(big.NewInt(-1_000_000_000)),
+			Account:             cAccountIdentifier,
+			Amount:              mapper.AvaxAmount(big.NewInt(-1_000_000_000)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: "2ryRVCwNSjEinTViuvDkzX41uQzx3g4babXxZMD46ZV1a9X4Eg:0"},
 				CoinAction:     "coin_spent",
@@ -338,13 +343,12 @@ func TestImportTxConstruction(t *testing.T) {
 	}
 
 	payloadsMetadata := map[string]interface{}{
-		"network_id":           float64(networkID),
-		"source_chain_id":      cChainID.String(),
-		"destination_chain_id": "",
-		"blockchain_id":        pChainID.String(),
+		"network_id":      float64(networkID),
+		"source_chain_id": cChainID.String(),
+		"blockchain_id":   pChainID.String(),
 	}
 
-	signers := []*types.AccountIdentifier{pAccountIdentifier}
+	signers := []*types.AccountIdentifier{cAccountIdentifier}
 	importSigners := buildRosettaSignerJson(signers)
 
 	unsignedImportTx := "0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8b87c0000000000000000000000001000000015445cd01d75b4a06b6b41939193c0b1c5544490d00000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d500000001f52a5a6dd8f1b3fe05204bdab4f6bcb5a7059f88d0443c636f6c158f838dd1a8000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000000000004ce8b27d"
@@ -353,7 +357,7 @@ func TestImportTxConstruction(t *testing.T) {
 
 	signingPayloads := []*types.SigningPayload{
 		{
-			AccountIdentifier: pAccountIdentifier,
+			AccountIdentifier: cAccountIdentifier,
 			Bytes:             unsignedImportTxHash,
 			SignatureType:     types.EcdsaRecovery,
 		},
@@ -367,7 +371,7 @@ func TestImportTxConstruction(t *testing.T) {
 
 	signatures := []*types.Signature{{
 		SigningPayload: &types.SigningPayload{
-			AccountIdentifier: pAccountIdentifier,
+			AccountIdentifier: cAccountIdentifier,
 			Bytes:             unsignedImportTxHash,
 			SignatureType:     types.EcdsaRecovery,
 		},
@@ -396,6 +400,7 @@ func TestImportTxConstruction(t *testing.T) {
 
 	t.Run("metadata endpoint", func(t *testing.T) {
 		clientMock.On("GetNetworkID", ctx).Return(uint32(networkID), nil)
+		clientMock.On("GetTxFee", ctx).Return(&info.GetTxFeeResponse{TxFee: ajson.Uint64(txFee)}, nil)
 		clientMock.On("GetBlockchainID", ctx, mapper.PChainNetworkIdentifier).Return(pChainID, nil)
 		clientMock.On("GetBlockchainID", ctx, mapper.CChainNetworkIdentifier).Return(cChainID, nil)
 

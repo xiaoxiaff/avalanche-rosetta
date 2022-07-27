@@ -17,6 +17,11 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
+var (
+	errMissingBlockIndexHash = errors.New("a positive block index, a block hash or both must be specified")
+	errTxInitialize          = errors.New("tx initalize error")
+)
+
 // Block implements the /block endpoint
 func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*types.BlockResponse, *types.Error) {
 	isGenesisBlockRequest, err := b.isGenesisBlockRequest(ctx, request.BlockIdentifier)
@@ -25,7 +30,7 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 	}
 
 	if isGenesisBlockRequest {
-		block, err := b.buildGenesisBlockResponse(ctx)
+		block, err := b.buildGenesisBlockResponse(ctx, request.NetworkIdentifier)
 		if err != nil {
 			return nil, service.WrapError(service.ErrClientError, err)
 		}
@@ -50,27 +55,21 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 
 	var txs []*platformvm.Tx
 	switch v := block.(type) {
+	// No transactions in the following
 	case *platformvm.AbortBlock, *platformvm.CommitBlock, *platformvm.AtomicBlock:
+	// Single transaction in the proposal blocks
 	case *platformvm.ProposalBlock:
 		txs = append(txs, &v.Tx)
+	// 0..n transactions in standard block
 	case *platformvm.StandardBlock:
 		txs = append(txs, v.Txs...)
 	default:
 		log.Printf("unknown %s", reflect.TypeOf(v))
 	}
 
-	transactions := []*types.Transaction{}
-	for _, tx := range txs {
-		err := common.InitializeTx(b.codecVersion, b.codec, *tx)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, "tx initalize error")
-		}
-
-		t, err := pmapper.ParseTx(tx.UnsignedTx, false)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, err)
-		}
-		transactions = append(transactions, t)
+	transactions, err := b.parseTransactions(ctx, request.NetworkIdentifier, txs)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
 	resp := &types.BlockResponse{
@@ -92,13 +91,18 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 	return resp, nil
 }
 
-func (b *Backend) buildGenesisBlockResponse(ctx context.Context) (*types.BlockResponse, error) {
+func (b *Backend) buildGenesisBlockResponse(ctx context.Context, networkIdentifier *types.NetworkIdentifier) (*types.BlockResponse, error) {
 	genesisBlock, err := b.getGenesisBlock(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	transactions, err := b.indexerParser.GenesisToTransactions(genesisBlock)
+	txs, err := b.indexerParser.GenesisToTxs(genesisBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	transactions, err := b.parseTransactions(ctx, networkIdentifier, txs)
 	if err != nil {
 		return nil, err
 	}
@@ -119,11 +123,6 @@ func (b *Backend) buildGenesisBlockResponse(ctx context.Context) (*types.BlockRe
 
 // BlockTransaction implements the /block/transaction endpoint.
 func (b *Backend) BlockTransaction(ctx context.Context, request *types.BlockTransactionRequest) (*types.BlockTransactionResponse, *types.Error) {
-	id, err := ids.FromString(request.TransactionIdentifier.Hash)
-	if err != nil {
-		return nil, service.WrapError(service.ErrClientError, err)
-	}
-
 	block, _, err := b.getBlock(ctx, request.BlockIdentifier.Index, request.BlockIdentifier.Hash)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
@@ -137,36 +136,92 @@ func (b *Backend) BlockTransaction(ctx context.Context, request *types.BlockTran
 		txs = append(txs, &typedBlock.Tx)
 	}
 
-	for _, tx := range txs {
-		err := common.InitializeTx(b.codecVersion, b.codec, *tx)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, "tx initalize error")
-		}
+	transactions, err := b.parseTransactions(ctx, request.NetworkIdentifier, txs)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
+	}
 
-		if tx.ID() != id {
-			continue
+	for i := range transactions {
+		transaction := transactions[i]
+		if transaction.TransactionIdentifier.Hash == request.TransactionIdentifier.Hash {
+			return &types.BlockTransactionResponse{
+				Transaction: transaction,
+			}, nil
 		}
-
-		t, err := pmapper.ParseTx(tx.UnsignedTx, false)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, err)
-		}
-
-		resp := &types.BlockTransactionResponse{
-			Transaction: t,
-		}
-		return resp, nil
 	}
 
 	return nil, service.ErrTransactionNotFound
+}
+
+func (b *Backend) parseTransactions(
+	ctx context.Context,
+	networkIdentifier *types.NetworkIdentifier,
+	txs []*platformvm.Tx,
+) ([]*types.Transaction, error) {
+	parser, err := b.newTxParser(ctx, networkIdentifier)
+	if err != nil {
+		return nil, err
+	}
+
+	var transactions []*types.Transaction
+	for _, tx := range txs {
+		err := common.InitializeTx(b.codecVersion, b.codec, *tx)
+		if err != nil {
+			return nil, errTxInitialize
+		}
+
+		t, err := parser.Parse(tx.UnsignedTx)
+		if err != nil {
+			return nil, err
+		}
+
+		transactions = append(transactions, t)
+	}
+	return transactions, nil
+}
+
+func (b *Backend) newTxParser(ctx context.Context, networkIdentifier *types.NetworkIdentifier) (*pmapper.TxParser, error) {
+	hrp, err := mapper.GetHRP(networkIdentifier)
+	if err != nil {
+		return nil, err
+	}
+
+	chainIDs, err := b.getChainIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return pmapper.NewTxParser(false, hrp, chainIDs), nil
+}
+
+func (b *Backend) getChainIDs(ctx context.Context) (map[string]string, error) {
+	if b.chainIDs == nil {
+		b.chainIDs = map[string]string{
+			ids.Empty.String(): mapper.PChainNetworkIdentifier,
+		}
+
+		cChainID, err := b.pClient.GetBlockchainID(ctx, mapper.CChainNetworkIdentifier)
+		if err != nil {
+			return nil, err
+		}
+		b.chainIDs[cChainID.String()] = mapper.CChainNetworkIdentifier
+
+		xChainID, err := b.pClient.GetBlockchainID(ctx, mapper.XChainNetworkIdentifier)
+		if err != nil {
+			return nil, err
+		}
+		b.chainIDs[xChainID.String()] = mapper.XChainNetworkIdentifier
+	}
+
+	return b.chainIDs, nil
 }
 
 func (b *Backend) getBlock(ctx context.Context, index int64, hash string) (platformvm.Block, string, error) {
 	var blockId ids.ID
 	var err error
 
-	if index <= 0 || hash == "" {
-		return nil, "", errors.New("a positive block index, a block hash or both must be specified")
+	if index <= 0 && hash == "" {
+		return nil, "", errMissingBlockIndexHash
 	}
 
 	// Extract block id from hash parameter if it is non-empty, or from index if stated

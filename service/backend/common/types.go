@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
@@ -23,6 +24,9 @@ type RosettaTx struct {
 	// AccountIdentifierSigners used by /construction/parse
 	//to generate the response field with the same name for signed transactions
 	AccountIdentifierSigners []Signer
+
+	DestinationChain   string
+	DestinationChainID *ids.ID
 }
 
 type Signer struct {
@@ -31,8 +35,10 @@ type Signer struct {
 }
 
 type rosettaTxWire struct {
-	Tx      string   `json:"tx"`
-	Signers []Signer `json:"signers"`
+	Tx                 string   `json:"tx"`
+	Signers            []Signer `json:"signers"`
+	DestinationChain   string   `json:"destination_chain,omitempty"`
+	DestinationChainID *ids.ID  `json:"destination_chain_id,omitempty"`
 }
 
 func (t *RosettaTx) MarshalJSON() ([]byte, error) {
@@ -47,8 +53,10 @@ func (t *RosettaTx) MarshalJSON() ([]byte, error) {
 	}
 
 	txWire := &rosettaTxWire{
-		Tx:      str,
-		Signers: t.AccountIdentifierSigners,
+		Tx:                 str,
+		Signers:            t.AccountIdentifierSigners,
+		DestinationChain:   t.DestinationChain,
+		DestinationChainID: t.DestinationChainID,
 	}
 	return json.Marshal(txWire)
 }
@@ -74,11 +82,13 @@ func (t *RosettaTx) UnmarshalJSON(data []byte) error {
 	}
 
 	t.AccountIdentifierSigners = txWire.Signers
+	t.DestinationChain = txWire.DestinationChain
+	t.DestinationChainID = txWire.DestinationChainID
 
 	return nil
 }
 
-func (t *RosettaTx) GetSigners(operations []*types.Operation) ([]*types.AccountIdentifier, error) {
+func (t *RosettaTx) GetAccountIdentifiers(operations []*types.Operation) ([]*types.AccountIdentifier, error) {
 	var signers []*types.AccountIdentifier
 
 	operationToAccountMap := make(map[int64]*types.AccountIdentifier)

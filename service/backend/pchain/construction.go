@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
@@ -56,86 +57,111 @@ func (b *Backend) ConstructionMetadata(
 		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
-	networkID, err := b.pClient.GetNetworkID(context.Background())
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-
-	// Getting Chain ID from Info APIs
-	pChainID, err := b.pClient.GetBlockchainID(ctx, mapper.PChainNetworkIdentifier)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
-	}
-
-	var metadataMap map[string]interface{}
+	var suggestedFee *types.Amount
+	var metadata *pmapper.Metadata
 	switch opMetadata.Type {
-	case pmapper.OpImportAvax, pmapper.OpExportAvax:
-		metadataMap, err = b.buildImportExportMetadata(ctx, opMetadata.Type, req.Options, networkID, pChainID)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, err)
-		}
+	case pmapper.OpImportAvax:
+		metadata, suggestedFee, err = b.buildImportMetadata(ctx, req.Options)
+	case pmapper.OpExportAvax:
+		metadata, suggestedFee, err = b.buildExportMetadata(ctx, req.Options)
 	case pmapper.OpAddValidator, pmapper.OpAddDelegator:
-		metadataMap, err = b.buildStakingMetadata(req.Options, networkID, pChainID)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, err)
-		}
+		metadata, suggestedFee, err = b.buildStakingMetadata(req.Options)
 	default:
 		return nil, service.WrapError(
 			service.ErrInternalError,
 			fmt.Errorf("invalid tx type for building metadata: %s", opMetadata.Type),
 		)
 	}
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	networkID, err := b.pClient.GetNetworkID(ctx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+	metadata.NetworkID = networkID
+
+	pChainID, err := b.pClient.GetBlockchainID(ctx, mapper.PChainNetworkIdentifier)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, err)
+	}
+
+	metadata.BlockchainID = pChainID
+
+	metadataMap, err := mapper.MarshalJSONMap(metadata)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
+	}
 
 	return &types.ConstructionMetadataResponse{
 		Metadata:     metadataMap,
-		SuggestedFee: nil, // TODO: return tx fee based on type
+		SuggestedFee: []*types.Amount{suggestedFee},
 	}, nil
 }
 
-func (b *Backend) buildImportExportMetadata(
-	ctx context.Context,
-	txType string,
-	options map[string]interface{},
-	networkID uint32,
-	pChainID ids.ID,
-) (map[string]interface{}, error) {
+func (b *Backend) buildImportMetadata(ctx context.Context, options map[string]interface{}) (*pmapper.Metadata, *types.Amount, error) {
 	var preprocessOptions pmapper.ImportExportOptions
 	if err := mapper.UnmarshalJSONMap(options, &preprocessOptions); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	txMetadata := &pmapper.ImportExportMetadata{
-		NetworkID:    networkID,
-		BlockchainID: pChainID.String(),
+	sourceChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.SourceChain)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	switch txType {
-	case pmapper.OpImportAvax:
-		sourceChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.SourceChain)
-		if err != nil {
-			return nil, err
-		}
-		txMetadata.SourceChainID = sourceChainID.String()
-	case pmapper.OpExportAvax:
-		destinationChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.DestinationChain)
-		if err != nil {
-			return nil, err
-		}
-		txMetadata.DestinationChainID = destinationChainID.String()
-	default:
-		return nil, fmt.Errorf("invalid tx type for building tx metadata: %s", txType)
+	suggestedFee, err := b.getBaseTxFee(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
-	return mapper.MarshalJSONMap(txMetadata)
+
+	importMetadata := &pmapper.ImportMetadata{
+		SourceChainID: sourceChainID,
+	}
+
+	return &pmapper.Metadata{ImportMetadata: importMetadata}, suggestedFee, nil
 }
 
-func (b *Backend) buildStakingMetadata(
-	options map[string]interface{},
-	networkID uint32,
-	pChainID ids.ID,
-) (map[string]interface{}, error) {
+func (b *Backend) buildExportMetadata(ctx context.Context, options map[string]interface{}) (*pmapper.Metadata, *types.Amount, error) {
+	var preprocessOptions pmapper.ImportExportOptions
+	if err := mapper.UnmarshalJSONMap(options, &preprocessOptions); err != nil {
+		return nil, nil, err
+	}
+
+	destinationChainID, err := b.pClient.GetBlockchainID(ctx, preprocessOptions.DestinationChain)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	suggestedFee, err := b.getBaseTxFee(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	exportMetadata := &pmapper.ExportMetadata{
+		DestinationChain:   preprocessOptions.DestinationChain,
+		DestinationChainID: destinationChainID,
+	}
+
+	return &pmapper.Metadata{ExportMetadata: exportMetadata}, suggestedFee, nil
+}
+
+func (b *Backend) getBaseTxFee(ctx context.Context) (*types.Amount, error) {
+	fees, err := b.pClient.GetTxFee(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	feeAmount := new(big.Int).SetUint64(uint64(fees.TxFee))
+	suggestedFee := mapper.AvaxAmount(feeAmount)
+	return suggestedFee, nil
+}
+
+func (b *Backend) buildStakingMetadata(options map[string]interface{}) (*pmapper.Metadata, *types.Amount, error) {
 	var preprocessOptions pmapper.StakingOptions
 	if err := mapper.UnmarshalJSONMap(options, &preprocessOptions); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	stakingMetadata := &pmapper.StakingMetadata{
@@ -144,15 +170,15 @@ func (b *Backend) buildStakingMetadata(
 		End:             preprocessOptions.End,
 		Wght:            preprocessOptions.Wght,
 		Memo:            preprocessOptions.Memo,
-		NetworkID:       networkID,
-		BlockchainID:    pChainID.String(),
 		Locktime:        preprocessOptions.Locktime,
 		Threshold:       preprocessOptions.Threshold,
 		RewardAddresses: preprocessOptions.RewardAddresses,
 		Shares:          preprocessOptions.Shares,
 	}
 
-	return mapper.MarshalJSONMap(stakingMetadata)
+	zeroAvax := mapper.AvaxAmount(big.NewInt(0))
+
+	return &pmapper.Metadata{StakingMetadata: stakingMetadata}, zeroAvax, nil
 }
 
 func (b *Backend) ConstructionPayloads(
@@ -180,7 +206,16 @@ func (b *Backend) ConstructionParse(
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "incorrect network identifier")
 	}
-	txParser := pTxParser{hrp: hrp}
+
+	chainIDs := map[string]string{}
+	if rosettaTx.DestinationChainID != nil {
+		chainIDs[rosettaTx.DestinationChainID.String()] = rosettaTx.DestinationChain
+	}
+
+	txParser := pTxParser{
+		hrp:      hrp,
+		chainIDs: chainIDs,
+	}
 
 	return common.Parse(txParser, rosettaTx, req.Signed)
 }

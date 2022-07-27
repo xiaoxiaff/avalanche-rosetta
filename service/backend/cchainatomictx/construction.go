@@ -157,6 +157,7 @@ func (b *Backend) ConstructionMetadata(
 		if err != nil {
 			return nil, service.WrapError(service.ErrClientError, err)
 		}
+		metadata.DestinationChain = input.DestinationChain
 		metadata.DestinationChainId = &id
 
 	}
@@ -229,7 +230,16 @@ func (b *Backend) ConstructionParse(
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "incorrect network identifier")
 	}
-	txParser := cAtomicTxParser{hrp: hrp}
+
+	chainIDs := map[string]string{}
+	if rosettaTx.DestinationChainID != nil {
+		chainIDs[rosettaTx.DestinationChainID.String()] = rosettaTx.DestinationChain
+	}
+
+	txParser := cAtomicTxParser{
+		hrp:      hrp,
+		chainIDs: chainIDs,
+	}
 
 	return common.Parse(txParser, rosettaTx, req.Signed)
 }

@@ -3,8 +3,6 @@ package cchainatomictx
 import (
 	"errors"
 	"fmt"
-	"math/big"
-	"strconv"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
@@ -19,6 +17,10 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
+var (
+	errMissingCoinIdentifier = errors.New("input operation does not have coin identifier")
+)
+
 func BuildTx(opType string, matches []*parser.Match, metadata Metadata, codec codec.Manager, avaxAssetId ids.ID) (*evm.Tx, []*types.AccountIdentifier, error) {
 	switch opType {
 	case mapper.OpExport:
@@ -27,17 +29,6 @@ func BuildTx(opType string, matches []*parser.Match, metadata Metadata, codec co
 		return buildImportTx(matches, metadata, avaxAssetId)
 	default:
 		return nil, nil, fmt.Errorf("unsupported atomic operation type %s", opType)
-	}
-}
-
-func ParseTx(tx evm.Tx, hrp string) ([]*types.Operation, error) {
-	switch unsignedTx := tx.UnsignedAtomicTx.(type) {
-	case *evm.UnsignedExportTx:
-		return parseExportTx(unsignedTx, hrp)
-	case *evm.UnsignedImportTx:
-		return parseImportTx(unsignedTx), nil
-	default:
-		return nil, fmt.Errorf("unsupported tx type")
 	}
 }
 
@@ -67,19 +58,6 @@ func buildExportTx(
 	return tx, signers, nil
 }
 
-func parseExportTx(exportTx *evm.UnsignedExportTx, hrp string) ([]*types.Operation, error) {
-	var operations []*types.Operation
-	ins := parseIns(0, mapper.OpExport, exportTx.Ins)
-	operations = append(operations, ins...)
-	outs, err := parseExportedOutputs(len(ins), mapper.OpExport, hrp, exportTx.ExportedOutputs)
-	if err != nil {
-		return nil, err
-	}
-	operations = append(operations, outs...)
-
-	return operations, nil
-}
-
 func buildImportTx(matches []*parser.Match, metadata Metadata, avaxAssetId ids.ID) (*evm.Tx, []*types.AccountIdentifier, error) {
 	importedInputs, signers, err := buildImportedInputs(matches, avaxAssetId)
 	if err != nil {
@@ -96,16 +74,6 @@ func buildImportTx(matches []*parser.Match, metadata Metadata, avaxAssetId ids.I
 		Outs:           outs,
 	}}
 	return tx, signers, nil
-}
-
-func parseImportTx(importTx *evm.UnsignedImportTx) []*types.Operation {
-	var operations []*types.Operation
-	ins := parseImportedInputs(0, mapper.OpImport, importTx.ImportedInputs)
-	operations = append(operations, ins...)
-	outs := parseOuts(len(ins), mapper.OpImport, importTx.Outs)
-	operations = append(operations, outs...)
-
-	return operations
 }
 
 func buildIns(matches []*parser.Match, metadata Metadata, avaxAssetId ids.ID) ([]evm.EVMInput, []*types.AccountIdentifier, error) {
@@ -125,25 +93,6 @@ func buildIns(matches []*parser.Match, metadata Metadata, avaxAssetId ids.ID) ([
 	return ins, signers, nil
 }
 
-func parseIns(startIdx int64, opType string, ins []evm.EVMInput) []*types.Operation {
-	idx := startIdx
-	var operations []*types.Operation
-	for _, in := range ins {
-		inputAmount := new(big.Int).SetUint64(in.Amount)
-		operations = append(operations, &types.Operation{
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: idx,
-			},
-			Type:    opType,
-			Account: &types.AccountIdentifier{Address: in.Address.Hex()},
-			// Negating input amount
-			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
-		})
-		idx++
-	}
-	return operations
-}
-
 func buildImportedInputs(matches []*parser.Match, avaxAssetId ids.ID) ([]*avax.TransferableInput, []*types.AccountIdentifier, error) {
 	inputMatch := matches[0]
 
@@ -151,7 +100,7 @@ func buildImportedInputs(matches []*parser.Match, avaxAssetId ids.ID) ([]*avax.T
 	var signers []*types.AccountIdentifier
 	for i, op := range inputMatch.Operations {
 		if op.CoinChange == nil || op.CoinChange.CoinIdentifier == nil {
-			return nil, nil, errors.New("input operation does not have coin identifier")
+			return nil, nil, errMissingCoinIdentifier
 		}
 		utxoId, err := mapper.DecodeUTXOID(op.CoinChange.CoinIdentifier.Identifier)
 		if err != nil {
@@ -175,28 +124,6 @@ func buildImportedInputs(matches []*parser.Match, avaxAssetId ids.ID) ([]*avax.T
 	return importedInputs, signers, nil
 }
 
-func parseImportedInputs(startIdx int64, opType string, ins []*avax.TransferableInput) []*types.Operation {
-	idx := startIdx
-	var operations []*types.Operation
-	for _, in := range ins {
-		inputAmount := new(big.Int).SetUint64(in.In.Amount())
-		operations = append(operations, &types.Operation{
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: idx,
-			},
-			Type: opType,
-			// Negating input amount
-			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
-			CoinChange: &types.CoinChange{
-				CoinIdentifier: &types.CoinIdentifier{Identifier: in.UTXOID.String()},
-				CoinAction:     types.CoinSpent,
-			},
-		})
-		idx++
-	}
-	return operations
-}
-
 func buildOuts(matches []*parser.Match, avaxAssetId ids.ID) []evm.EVMOutput {
 	outputMatch := matches[1]
 
@@ -210,27 +137,6 @@ func buildOuts(matches []*parser.Match, avaxAssetId ids.ID) []evm.EVMOutput {
 	}
 
 	return outs
-}
-
-func parseOuts(startIdx int, opType string, outs []evm.EVMOutput) []*types.Operation {
-	idx := startIdx
-	var operations []*types.Operation
-	for _, out := range outs {
-		operations = append(operations, &types.Operation{
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: int64(idx),
-			},
-			Account:           &types.AccountIdentifier{Address: out.Address.Hex()},
-			RelatedOperations: buildRelatedOperations(startIdx),
-			Type:              opType,
-			Amount: &types.Amount{
-				Value:    strconv.FormatUint(out.Amount, 10),
-				Currency: mapper.AvaxCurrency,
-			},
-		})
-		idx++
-	}
-	return operations
 }
 
 func buildExportedOutputs(matches []*parser.Match, codec codec.Manager, avaxAssetId ids.ID) ([]*avax.TransferableOutput, error) {
@@ -259,38 +165,6 @@ func buildExportedOutputs(matches []*parser.Match, codec codec.Manager, avaxAsse
 	avax.SortTransferableOutputs(outs, codec)
 
 	return outs, nil
-}
-
-func parseExportedOutputs(startIdx int, opType string, hrp string, outs []*avax.TransferableOutput) ([]*types.Operation, error) {
-	idx := startIdx
-	var operations []*types.Operation
-	for _, out := range outs {
-		var addr string
-		transferOutput := out.Output().(*secp256k1fx.TransferOutput)
-		if transferOutput != nil && len(transferOutput.Addrs) > 0 {
-			var err error
-			// TODO: chain alias is hardcoded for now, need to figure out how to fetch it from tx
-			addr, err = address.Format(mapper.PChainNetworkIdentifier, hrp, transferOutput.Addrs[0][:])
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		operations = append(operations, &types.Operation{
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: int64(idx),
-			},
-			Account:           &types.AccountIdentifier{Address: addr},
-			RelatedOperations: buildRelatedOperations(startIdx),
-			Type:              opType,
-			Amount: &types.Amount{
-				Value:    strconv.FormatUint(out.Out.Amount(), 10),
-				Currency: mapper.AvaxCurrency,
-			},
-		})
-		idx++
-	}
-	return operations, nil
 }
 
 func buildRelatedOperations(idx int) []*types.OperationIdentifier {

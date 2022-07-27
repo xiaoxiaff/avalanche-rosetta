@@ -1,17 +1,14 @@
 package pchain
 
 import (
+	"errors"
 	"fmt"
-	"log"
-	"math/big"
 
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
-	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/parser"
@@ -20,272 +17,12 @@ import (
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 )
 
-func ParseTx(tx platformvm.UnsignedTx, isConstruction bool) (*types.Transaction, error) {
-	var (
-		ops []*types.Operation
-		err error
-		id  ids.ID
-	)
-
-	switch v := tx.(type) {
-	case *platformvm.UnsignedExportTx:
-		id = v.ID()
-		ins, outs, err := baseTxToOperations(&v.BaseTx, OpExportAvax, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-		ops = append(ops, ins...)
-		ops = append(ops, outs...)
-
-		exportedOuts, err := outToOperation(v.ExportedOutputs, len(ops), OpExportAvax, OpTypeExport, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-
-		ops = append(ops, exportedOuts...)
-
-	case *platformvm.UnsignedImportTx:
-		id = v.ID()
-		ins, err := inToOperation(v.Ins, 0, OpImportAvax, OpTypeInput, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-
-		ops = append(ops, ins...)
-		importedIns, err := inToOperation(v.ImportedInputs, len(ops), OpImportAvax, OpTypeImport, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-
-		ops = append(ops, importedIns...)
-		outs, err := outToOperation(v.Outs, len(ops), OpImportAvax, OpTypeOutput, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-
-		ops = append(ops, outs...)
-
-	case *platformvm.UnsignedAddValidatorTx:
-		id = v.ID()
-
-		ins, outs, err := baseTxToOperations(&v.BaseTx, OpAddValidator, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-		ops = append(ops, ins...)
-		ops = append(ops, outs...)
-
-		stakeOuts, err := outToOperation(v.Stake, len(ops), OpAddValidator, OpTypeStakeOutput, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-
-		ops = append(ops, stakeOuts...)
-
-	case *platformvm.UnsignedAddDelegatorTx:
-		id = v.ID()
-
-		ins, outs, err := baseTxToOperations(&v.BaseTx, OpAddDelegator, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-		ops = append(ops, ins...)
-		ops = append(ops, outs...)
-
-		stakeOuts, err := outToOperation(v.Stake, len(ops), OpAddDelegator, OpTypeStakeOutput, isConstruction)
-		if err != nil {
-			return nil, err
-		}
-
-		ops = append(ops, stakeOuts...)
-	case *platformvm.UnsignedRewardValidatorTx:
-		id = v.ID()
-		ops = rewardValidatorToOperation(v)
-	case *platformvm.UnsignedAdvanceTimeTx:
-		id = v.ID()
-	case *platformvm.UnsignedCreateSubnetTx:
-		id = v.ID()
-	case *platformvm.UnsignedCreateChainTx:
-		id = v.ID()
-		ops = createChainToOperation(v)
-
-	case *platformvm.UnsignedAddSubnetValidatorTx:
-		id = v.ID()
-	default:
-		// unknown transactions ignore operations
-		ops = nil
-		log.Printf("unknown type %T", v)
-	}
-
-	blockIdHexWithChecksum, err := formatting.EncodeWithChecksum(formatting.Hex, id[:])
-	if err != nil {
-		return nil, err
-	}
-
-	t := &types.Transaction{
-		TransactionIdentifier: &types.TransactionIdentifier{
-			Hash: blockIdHexWithChecksum,
-		},
-		Operations: ops,
-	}
-
-	return t, nil
-}
-
-func outToOperation(txOut []*avax.TransferableOutput, startIndex int, opType string, metaType string, isConstruction bool) ([]*types.Operation, error) {
-	status := types.String(mapper.StatusSuccess)
-	if isConstruction {
-		status = nil
-	}
-
-	outs := make([]*types.Operation, 0)
-	for _, out := range txOut {
-		metadata := &OperationMetadata{
-			Type: metaType,
-		}
-
-		var outAddrFormat string
-		var transferOut avax.TransferableOut
-		if transferOutput, ok := out.Out.(*secp256k1fx.TransferOutput); ok {
-			metadata.Threshold = transferOutput.OutputOwners.Threshold
-			metadata.Locktime = transferOutput.OutputOwners.Locktime
-			transferOut = out.Out
-			tfOut, ok := out.Out.(*secp256k1fx.TransferOutput)
-			if ok {
-				transferOut = tfOut
-			}
-		} else if lockOut, ok := out.Out.(*stakeable.LockOut); ok {
-			metadata.Locktime = lockOut.Locktime
-			transferOut = lockOut.TransferableOut
-		}
-		transferOutput, ok := transferOut.(*secp256k1fx.TransferOutput)
-		if ok && transferOutput.Addrs != nil {
-			outAddrID := transferOutput.Addrs[0]
-
-			var err error
-			//TODO: [NM] use variables form somewhere
-			outAddrFormat, err = address.Format("P", "fuji", outAddrID[:])
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		opMetadata, err := mapper.MarshalJSONMap(metadata)
-		if err != nil {
-			return nil, err
-		}
-
-		outAmount := new(big.Int).SetUint64(out.Out.Amount())
-		outOp := &types.Operation{
-			Type: opType,
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: int64(startIndex),
-			},
-			Status:   status,
-			Account:  &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
-			Amount:   mapper.AvaxAmount(outAmount),
-			Metadata: opMetadata,
-		}
-		outs = append(outs, outOp)
-		startIndex++
-	}
-
-	return outs, nil
-}
-
-func inToOperation(txIns []*avax.TransferableInput, startIndex int, opType string, metaType string, isConstruction bool) ([]*types.Operation, error) {
-	status := types.String(mapper.StatusSuccess)
-	if isConstruction {
-		status = nil
-	}
-
-	ins := make([]*types.Operation, 0)
-	for _, in := range txIns {
-		metadata := &OperationMetadata{
-			Type: metaType,
-		}
-
-		if transferInput, ok := in.In.(*secp256k1fx.TransferInput); ok {
-			metadata.SigIndices = transferInput.SigIndices
-		}
-
-		opMetadata, err := mapper.MarshalJSONMap(metadata)
-		if err != nil {
-			return nil, err
-		}
-
-		inputAmount := new(big.Int).SetUint64(in.In.Amount())
-		inOp := &types.Operation{
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: int64(startIndex),
-			},
-			Type:   opType,
-			Status: status,
-			// Negating input amount
-			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
-			CoinChange: &types.CoinChange{
-				CoinIdentifier: &types.CoinIdentifier{
-					Identifier: in.UTXOID.String(),
-				},
-				CoinAction: types.CoinSpent,
-			},
-			Metadata: opMetadata,
-		}
-
-		ins = append(ins, inOp)
-		startIndex++
-	}
-	return ins, nil
-}
-
-func baseTxToOperations(tx *platformvm.BaseTx, txType string, isConstruction bool) ([]*types.Operation, []*types.Operation, error) {
-
-	ins, err := inToOperation(tx.Ins, 0, txType, OpTypeInput, isConstruction)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	outs, err := outToOperation(tx.Outs, len(ins), txType, OpTypeOutput, isConstruction)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return ins, outs, nil
-}
-
-func createChainToOperation(v *platformvm.UnsignedCreateChainTx) []*types.Operation {
-	return []*types.Operation{
-		{
-			OperationIdentifier: &types.OperationIdentifier{Index: 0},
-			Type:                OpCreateChain,
-			Status:              types.String(mapper.StatusSuccess),
-			Metadata: map[string]interface{}{
-				MetadataSubnetID:  v.SubnetID.String(),
-				MetadataChainName: v.ChainName,
-				MetadataVMID:      v.VMID,
-				MetadataMemo:      v.Memo,
-			},
-		},
-	}
-}
-
-func rewardValidatorToOperation(v *platformvm.UnsignedRewardValidatorTx) []*types.Operation {
-	return []*types.Operation{
-		{
-			OperationIdentifier: &types.OperationIdentifier{Index: 0},
-			Type:                OpRewardValidator,
-			Status:              types.String(mapper.StatusSuccess),
-			Metadata: map[string]interface{}{
-				MetadataStakingTxId: v.TxID.String(),
-			},
-		},
-	}
-}
+var errInvalidMetadata = errors.New("invalid metadata")
 
 func BuildTx(
 	opType string,
 	matches []*parser.Match,
-	payloadMetadata map[string]interface{},
+	payloadMetadata Metadata,
 	codec codec.Manager,
 	avaxAssetId ids.ID,
 ) (*platformvm.Tx, []*types.AccountIdentifier, error) {
@@ -305,23 +42,12 @@ func BuildTx(
 
 func buildImportTx(
 	matches []*parser.Match,
-	metadata map[string]interface{},
+	metadata Metadata,
 	codec codec.Manager,
 	avaxAssetId ids.ID,
 ) (*platformvm.Tx, []*types.AccountIdentifier, error) {
-	var txMetadata ImportExportMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &txMetadata); err != nil {
-		return nil, nil, err
-	}
-	blockchainID, err := ids.FromString(txMetadata.BlockchainID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid blockchain id: %s", txMetadata.BlockchainID)
-	}
-
-	sourceChainID, err := ids.FromString(txMetadata.SourceChainID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid source chain id: %s", txMetadata.SourceChainID)
-	}
+	blockchainID := metadata.BlockchainID
+	sourceChainID := metadata.SourceChainID
 
 	ins, imported, signers, err := buildInputs(matches[0].Operations, avaxAssetId)
 	if err != nil {
@@ -335,7 +61,7 @@ func buildImportTx(
 
 	tx := &platformvm.Tx{UnsignedTx: &platformvm.UnsignedImportTx{
 		BaseTx: platformvm.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    txMetadata.NetworkID,
+			NetworkID:    metadata.NetworkID,
 			BlockchainID: blockchainID,
 			Outs:         outs,
 			Ins:          ins,
@@ -349,23 +75,15 @@ func buildImportTx(
 
 func buildExportTx(
 	matches []*parser.Match,
-	metadata map[string]interface{},
+	metadata Metadata,
 	codec codec.Manager,
 	avaxAssetId ids.ID,
 ) (*platformvm.Tx, []*types.AccountIdentifier, error) {
-	var txMetadata ImportExportMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &txMetadata); err != nil {
-		return nil, nil, err
+	if metadata.ExportMetadata == nil {
+		return nil, nil, errInvalidMetadata
 	}
-	blockchainID, err := ids.FromString(txMetadata.BlockchainID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	destinationChainID, err := ids.FromString(txMetadata.DestinationChainID)
-	if err != nil {
-		return nil, nil, err
-	}
+	blockchainID := metadata.BlockchainID
+	destinationChainID := metadata.DestinationChainID
 
 	ins, _, signers, err := buildInputs(matches[0].Operations, avaxAssetId)
 	if err != nil {
@@ -379,7 +97,7 @@ func buildExportTx(
 
 	tx := &platformvm.Tx{UnsignedTx: &platformvm.UnsignedExportTx{
 		BaseTx: platformvm.BaseTx{BaseTx: avax.BaseTx{
-			NetworkID:    txMetadata.NetworkID,
+			NetworkID:    metadata.NetworkID,
 			BlockchainID: blockchainID,
 			Outs:         outs,
 			Ins:          ins,
@@ -393,19 +111,16 @@ func buildExportTx(
 
 func buildAddValidatorTx(
 	matches []*parser.Match,
-	metadata map[string]interface{},
+	sMetadata Metadata,
 	codec codec.Manager,
 	avaxAssetId ids.ID,
 ) (*platformvm.Tx, []*types.AccountIdentifier, error) {
-	var sMetadata StakingMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &sMetadata); err != nil {
-		return nil, nil, err
+	if sMetadata.StakingMetadata == nil {
+		return nil, nil, errInvalidMetadata
 	}
 
-	blockchainID, err := ids.FromString(sMetadata.BlockchainID)
-	if err != nil {
-		return nil, nil, err
-	}
+	blockchainID := sMetadata.BlockchainID
+
 	nodeID, err := ids.NodeIDFromString(sMetadata.NodeID)
 	if err != nil {
 		return nil, nil, err
@@ -459,19 +174,16 @@ func buildAddValidatorTx(
 
 func buildAddDelegatorTx(
 	matches []*parser.Match,
-	metadata map[string]interface{},
+	sMetadata Metadata,
 	codec codec.Manager,
 	avaxAssetId ids.ID,
 ) (*platformvm.Tx, []*types.AccountIdentifier, error) {
-	var sMetadata StakingMetadata
-	if err := mapper.UnmarshalJSONMap(metadata, &sMetadata); err != nil {
-		return nil, nil, err
+	if sMetadata.StakingMetadata == nil {
+		return nil, nil, errInvalidMetadata
 	}
 
-	blockchainID, err := ids.FromString(sMetadata.BlockchainID)
-	if err != nil {
-		return nil, nil, err
-	}
+	blockchainID := sMetadata.BlockchainID
+
 	nodeID, err := ids.NodeIDFromString(sMetadata.NodeID)
 	if err != nil {
 		return nil, nil, err

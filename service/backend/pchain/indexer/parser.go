@@ -24,11 +24,9 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/proposervm/block"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
-	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
@@ -577,11 +575,10 @@ func (p *Parser) parseTx(ctx context.Context, blkID ids.ID, tx platformvm.Tx, ge
 	return nil, errs.Err
 }
 
-func (p *Parser) GenesisToTransactions(genesisBlock *ParsedGenesisBlock) ([]*types.Transaction, error) {
+func (p *Parser) GenesisToTxs(genesisBlock *ParsedGenesisBlock) ([]*platformvm.Tx, error) {
 	var unsignedTx platformvm.UnsignedTx
-	var transactionHash string
 
-	transactions := make([]*types.Transaction, 0)
+	txs := make([]*platformvm.Tx, 0)
 	for i := range genesisBlock.Txs {
 		switch avTx := genesisBlock.Txs[i].(type) {
 		case *ParsedAddValidatorTx:
@@ -600,7 +597,6 @@ func (p *Parser) GenesisToTransactions(genesisBlock *ParsedGenesisBlock) ([]*typ
 				RewardsOwner: avTx.RewardsOwner,
 				Shares:       avTx.Shares,
 			}
-			transactionHash = avTx.TxID.String()
 
 		case *ParsedCreateChainTx:
 			unsignedTx = &platformvm.UnsignedCreateChainTx{
@@ -620,22 +616,14 @@ func (p *Parser) GenesisToTransactions(genesisBlock *ParsedGenesisBlock) ([]*typ
 				GenesisData: avTx.GenesisData,
 				SubnetAuth:  avTx.SubnetAuth,
 			}
-			transactionHash = avTx.TxID.String()
 		default:
 			return nil, errUnexpectedGenesisTx
 		}
 
-		transaction, err := pmapper.ParseTx(unsignedTx, false)
-		if err != nil {
-			return nil, err
-		}
-
-		transaction.TransactionIdentifier = &types.TransactionIdentifier{
-			Hash: transactionHash,
-		}
-		transactions = append(transactions, transaction)
+		tx := &platformvm.Tx{UnsignedTx: unsignedTx}
+		txs = append(txs, tx)
 	}
-	return transactions, nil
+	return txs, nil
 }
 
 func utxoToTransferableOutput(utxos []*avax.UTXO) []*avax.TransferableOutput {

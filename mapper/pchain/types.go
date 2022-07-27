@@ -1,5 +1,7 @@
 package pchain
 
+import "github.com/ava-labs/avalanchego/ids"
+
 const (
 	OpImportAvax      = "IMPORT_AVAX"
 	OpExportAvax      = "EXPORT_AVAX"
@@ -58,23 +60,31 @@ type StakingOptions struct {
 	RewardAddresses []string `json:"reward_addresses"`
 }
 
-type ImportExportMetadata struct {
-	SourceChainID      string `json:"source_chain_id"`
-	DestinationChainID string `json:"destination_chain_id"`
-	NetworkID          uint32 `json:"network_id"`
-	BlockchainID       string `json:"blockchain_id"`
+type Metadata struct {
+	NetworkID    uint32 `json:"network_id"`
+	BlockchainID ids.ID `json:"blockchain_id"`
+	*ImportMetadata
+	*ExportMetadata
+	*StakingMetadata
+}
+
+type ImportMetadata struct {
+	SourceChainID ids.ID `json:"source_chain_id"`
+}
+
+type ExportMetadata struct {
+	DestinationChain   string `json:"destination_chain"`
+	DestinationChainID ids.ID `json:"destination_chain_id"`
 }
 
 type StakingMetadata struct {
 	NodeID          string   `json:"node_id"`
+	RewardAddresses []string `json:"reward_addresses"`
 	Start           uint64   `json:"start"`
 	End             uint64   `json:"end"`
 	Wght            uint64   `json:"weight"`
 	Shares          uint32   `json:"shares"`
-	Memo            string   `json:"memo"`
-	NetworkID       uint32   `json:"network_id"`
-	BlockchainID    string   `json:"blockchain_id"`
 	Locktime        uint64   `json:"locktime"`
 	Threshold       uint32   `json:"threshold"`
-	RewardAddresses []string `json:"reward_addresses"`
+	Memo            string   `json:"memo"`
 }
