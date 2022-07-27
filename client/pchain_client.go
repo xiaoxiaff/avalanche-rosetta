@@ -2,9 +2,9 @@ package client
 
 import (
 	"context"
-	"github.com/ava-labs/avalanchego/api"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/api/info"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/indexer"
@@ -18,8 +18,8 @@ var _ PChainClient = &pchainClient{}
 
 type PChainClient interface {
 	// indexer.Client methods
-
 	GetContainerByIndex(ctx context.Context, index uint64, options ...rpc.Option) (indexer.Container, error)
+	GetContainerByID(ctx context.Context, containerID ids.ID, options ...rpc.Option) (indexer.Container, error)
 	GetLastAccepted(context.Context, ...rpc.Option) (indexer.Container, error)
 
 	// platformvm.Client methods

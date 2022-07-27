@@ -213,6 +213,25 @@ func (p *Parser) ParseBlockAtIndex(ctx context.Context, index uint64) (*ParsedBl
 	return p.parseBlockBytes(ctx, container.Bytes)
 }
 
+func (p *Parser) ParseBlockWithHash(ctx context.Context, hash string) (*ParsedBlock, error) {
+	err := p.initCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	hashID, err := ids.FromString(hash)
+	if err != nil {
+		return nil, err
+	}
+
+	container, err := p.pChainClient.GetContainerByID(ctx, hashID)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.parseBlockBytes(ctx, container.Bytes)
+}
+
 func (p *Parser) parseBlockBytes(ctx context.Context, proposerBytes []byte) (*ParsedBlock, error) {
 	errs := wrappers.Errs{}
 

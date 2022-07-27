@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
@@ -15,6 +16,7 @@ import (
 	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/pchain/indexer"
 )
 
 var (
@@ -48,7 +50,7 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 		hash = *request.BlockIdentifier.Hash
 	}
 
-	block, blockHash, err := b.getBlock(ctx, blockIndex, hash)
+	block, blockHash, blockTimestamp, err := b.getBlock(ctx, blockIndex, hash)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
@@ -82,8 +84,7 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 				Index: int64(block.Height()) - 1,
 				Hash:  block.Parent().String(),
 			},
-			//TODO: Find a way to get block timestamp. The following causes panic as there is no vm defined for the block
-			//Timestamp:    block.Timestamp().UnixMilli(),
+			Timestamp:    time.Unix(blockTimestamp, 0).UnixMilli(),
 			Transactions: transactions,
 		},
 	}
@@ -123,7 +124,7 @@ func (b *Backend) buildGenesisBlockResponse(ctx context.Context, networkIdentifi
 
 // BlockTransaction implements the /block/transaction endpoint.
 func (b *Backend) BlockTransaction(ctx context.Context, request *types.BlockTransactionRequest) (*types.BlockTransactionResponse, *types.Error) {
-	block, _, err := b.getBlock(ctx, request.BlockIdentifier.Index, request.BlockIdentifier.Hash)
+	block, _, _, err := b.getBlock(ctx, request.BlockIdentifier.Index, request.BlockIdentifier.Hash)
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
@@ -216,49 +217,58 @@ func (b *Backend) getChainIDs(ctx context.Context) (map[string]string, error) {
 	return b.chainIDs, nil
 }
 
-func (b *Backend) getBlock(ctx context.Context, index int64, hash string) (platformvm.Block, string, error) {
+func (b *Backend) getBlock(ctx context.Context, index int64, hash string) (platformvm.Block, string, int64, error) {
 	var blockId ids.ID
 	var err error
 
 	if index <= 0 && hash == "" {
-		return nil, "", errMissingBlockIndexHash
+		return nil, "", 0, errMissingBlockIndexHash
 	}
 
+	var parsedBlock *indexer.ParsedBlock
 	// Extract block id from hash parameter if it is non-empty, or from index if stated
 	if hash != "" {
-		blockId, err = ids.FromString(hash)
+		parsedBlock, err = b.indexerParser.ParseBlockWithHash(ctx, hash)
 		if err != nil {
-			return nil, "", err
-		}
-	} else if index > 0 {
-		blockIndex := uint64(index)
-		parsedBlock, err := b.indexerParser.ParseBlockAtIndex(ctx, blockIndex)
-		if err != nil {
-			return nil, "", err
+			return nil, "", 0, err
 		}
 
-		blockId = parsedBlock.BlockID
+	} else if index > 0 {
+		blockIndex := uint64(index)
+		parsedBlock, err = b.indexerParser.ParseBlockAtIndex(ctx, blockIndex)
+		if err != nil {
+			return nil, "", 0, err
+		}
+	}
+
+	blockId = parsedBlock.BlockID
+	blockTimestamp := parsedBlock.Proposer.Timestamp
+
+	// Unsigned blocks have empty proposer, in that case we return the block timestamp
+	// which is currently set to the genesis timestamp
+	if blockTimestamp == 0 {
+		blockTimestamp = parsedBlock.Timestamp
 	}
 
 	// Get the block bytes
 	var blockBytes []byte
 	blockBytes, err = b.pClient.GetBlock(ctx, blockId)
 	if err != nil {
-		return nil, "", err
+		return nil, "", 0, err
 	}
 
 	// Unmarshal the block
 	var block platformvm.Block
 	if _, err := b.codec.Unmarshal(blockBytes, &block); err != nil {
-		return nil, "", err
+		return nil, "", 0, err
 	}
 
 	// Verify block height matches specified height - if there is one
 	if index > 0 && block.Height() != uint64(index) {
-		return nil, "", fmt.Errorf("requested block index: %d, found: %d for block %s", index, block.Height(), blockId.String())
+		return nil, "", 0, fmt.Errorf("requested block index: %d, found: %d for block %s", index, block.Height(), blockId.String())
 	}
 
-	return block, blockId.String(), nil
+	return block, blockId.String(), blockTimestamp, nil
 }
 
 func (b *Backend) isGenesisBlockRequest(ctx context.Context, id *types.PartialBlockIdentifier) (bool, error) {
