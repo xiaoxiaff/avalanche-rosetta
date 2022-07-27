@@ -32,6 +32,7 @@ var (
 		OpAddValidator,
 		OpAddDelegator,
 		OpRewardValidator,
+		OpCreateChain,
 	}
 	CallMethods = []string{}
 )

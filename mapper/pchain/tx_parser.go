@@ -124,6 +124,7 @@ func (t *TxParser) Parse(tx platformvm.UnsignedTx) (*types.Transaction, error) {
 		id = v.ID()
 	case *platformvm.UnsignedCreateChainTx:
 		id = v.ID()
+		ops = t.createChainToOperation(v)
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		id = v.ID()
 	default:
@@ -284,6 +285,22 @@ func (*TxParser) rewardValidatorToOperation(v *platformvm.UnsignedRewardValidato
 			Status:              types.String(mapper.StatusSuccess),
 			Metadata: map[string]interface{}{
 				MetadataStakingTxId: v.TxID.String(),
+			},
+		},
+	}
+}
+
+func (*TxParser) createChainToOperation(v *platformvm.UnsignedCreateChainTx) []*types.Operation {
+	return []*types.Operation{
+		{
+			OperationIdentifier: &types.OperationIdentifier{Index: 0},
+			Type:                OpCreateChain,
+			Status:              types.String(mapper.StatusSuccess),
+			Metadata: map[string]interface{}{
+				MetadataSubnetID:  v.SubnetID.String(),
+				MetadataChainName: v.ChainName,
+				MetadataVMID:      v.VMID,
+				MetadataMemo:      v.Memo,
 			},
 		},
 	}
