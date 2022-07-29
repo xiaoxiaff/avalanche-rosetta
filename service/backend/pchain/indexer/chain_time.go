@@ -6,34 +6,41 @@ import (
 )
 
 type ChainTime struct {
-	sync.RWMutex
-	value time.Time
+	valueMutex sync.RWMutex
+	value      time.Time
 
-	proposedValue time.Time
+	proposedValueMutex sync.RWMutex
+	proposedValue      time.Time
 }
 
 func (t *ChainTime) Read() int64 {
-	t.RLock()
-	defer t.RUnlock()
+	t.valueMutex.RLock()
+	defer t.valueMutex.RUnlock()
 	return t.value.Unix()
 }
 
 func (t *ChainTime) Write(value time.Time) {
-	t.Lock()
+	t.valueMutex.Lock()
 	t.value = value
-	t.Unlock()
+	t.valueMutex.Unlock()
 }
 
 func (t *ChainTime) ProposeWrite(value time.Time) {
+	t.proposedValueMutex.Lock()
 	t.proposedValue = value
+	t.proposedValueMutex.Unlock()
 }
 
 func (t *ChainTime) ReadProposedWrite() int64 {
+	t.proposedValueMutex.RLock()
+	defer t.proposedValueMutex.RUnlock()
 	return t.proposedValue.Unix()
 }
 
 func (t *ChainTime) AcceptProposedWrite() {
-	if t.proposedValue.IsZero() {
+	t.proposedValueMutex.RLock()
+	defer t.proposedValueMutex.RUnlock()
+	if t.proposedValue.IsZero() || t.proposedValue.Unix() == 0 {
 		return
 	}
 
@@ -41,5 +48,7 @@ func (t *ChainTime) AcceptProposedWrite() {
 }
 
 func (t *ChainTime) RejectProposedWrite() {
+	t.proposedValueMutex.Lock()
 	t.proposedValue = time.Unix(0, 0)
+	t.proposedValueMutex.Unlock()
 }

@@ -34,7 +34,17 @@ type Backend struct {
 
 func (b *Backend) getGenesisBlock(ctx context.Context) (*indexer.ParsedGenesisBlock, error) {
 	// Initializing parser gives parsed genesis block
-	return b.indexerParser.Initialize(ctx)
+	if b.genesisBlock != nil {
+		return b.genesisBlock, nil
+	}
+	genesisBlock, err := b.indexerParser.Initialize(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b.genesisBlock = genesisBlock
+	b.genesisBlockIdentifier = b.buildGenesisBlockIdentifier(genesisBlock)
+
+	return genesisBlock, nil
 }
 
 func (b *Backend) buildGenesisBlockIdentifier(genesisBlock *indexer.ParsedGenesisBlock) *types.BlockIdentifier {

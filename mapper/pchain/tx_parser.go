@@ -122,11 +122,50 @@ func (t *TxParser) Parse(tx platformvm.UnsignedTx) (*types.Transaction, error) {
 		id = v.ID()
 	case *platformvm.UnsignedCreateSubnetTx:
 		id = v.ID()
+		ins, err := t.insToOperations(0, OpCreateSubnet, v.Ins, OpTypeInput)
+		if err != nil {
+			return nil, err
+		}
+
+		ops = append(ops, ins...)
+
+		outs, err := t.outsToOperations(len(ops), OpCreateSubnet, v.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
+		if err != nil {
+			return nil, err
+		}
+
+		ops = append(ops, outs...)
 	case *platformvm.UnsignedCreateChainTx:
 		id = v.ID()
 		ops = t.createChainToOperation(v)
+		ins, err := t.insToOperations(0, OpCreateChain, v.Ins, OpTypeInput)
+		if err != nil {
+			return nil, err
+		}
+
+		ops = append(ops, ins...)
+
+		outs, err := t.outsToOperations(len(ops), OpCreateChain, v.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
+		if err != nil {
+			return nil, err
+		}
+
+		ops = append(ops, outs...)
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		id = v.ID()
+		ins, err := t.insToOperations(0, OpAddSubnetValidator, v.Ins, OpTypeInput)
+		if err != nil {
+			return nil, err
+		}
+
+		ops = append(ops, ins...)
+
+		outs, err := t.outsToOperations(len(ops), OpAddSubnetValidator, v.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
+		if err != nil {
+			return nil, err
+		}
+
+		ops = append(ops, outs...)
 	default:
 		// unknown transactions ignore operations
 		ops = nil
@@ -160,56 +199,68 @@ func (t *TxParser) outsToOperations(
 
 	outs := make([]*types.Operation, 0)
 	for _, out := range txOut {
-		metadata := &OperationMetadata{
-			Type: metaType,
-		}
+		transferOut := out.Out
 
-		var outAddrFormat string
-		var transferOut avax.TransferableOut
-		if transferOutput, ok := out.Out.(*secp256k1fx.TransferOutput); ok {
-			metadata.Threshold = transferOutput.OutputOwners.Threshold
-			metadata.Locktime = transferOutput.OutputOwners.Locktime
-			transferOut = out.Out
-			tfOut, ok := out.Out.(*secp256k1fx.TransferOutput)
-			if ok {
-				transferOut = tfOut
-			}
-		} else if lockOut, ok := out.Out.(*stakeable.LockOut); ok {
-			metadata.Locktime = lockOut.Locktime
+		if lockOut, ok := transferOut.(*stakeable.LockOut); ok {
 			transferOut = lockOut.TransferableOut
 		}
-		transferOutput, ok := transferOut.(*secp256k1fx.TransferOutput)
-		if ok && transferOutput.Addrs != nil {
-			outAddrID := transferOutput.Addrs[0]
 
-			var err error
-			outAddrFormat, err = address.Format(chainIDAlias, t.hrp, outAddrID[:])
-			if err != nil {
-				return nil, err
-			}
+		transferOutput, ok := transferOut.(*secp256k1fx.TransferOutput)
+		if !ok {
+			return nil, errors.New("output type assertion failed")
 		}
 
-		opMetadata, err := mapper.MarshalJSONMap(metadata)
+		outOp, err := t.BuildOutputOperation(transferOutput, status, startIndex, opType, metaType, chainIDAlias)
 		if err != nil {
 			return nil, err
-		}
-
-		outAmount := new(big.Int).SetUint64(out.Out.Amount())
-		outOp := &types.Operation{
-			Type: opType,
-			OperationIdentifier: &types.OperationIdentifier{
-				Index: int64(startIndex),
-			},
-			Status:   status,
-			Account:  &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
-			Amount:   mapper.AvaxAmount(outAmount),
-			Metadata: opMetadata,
 		}
 		outs = append(outs, outOp)
 		startIndex++
 	}
 
 	return outs, nil
+}
+
+func (t *TxParser) BuildOutputOperation(
+	out *secp256k1fx.TransferOutput,
+	status *string,
+	startIndex int,
+	opType,
+	metaType string,
+	chainIDAlias string,
+) (*types.Operation, error) {
+	if len(out.Addrs) == 0 {
+		return nil, errors.New("empty output addresses")
+	}
+
+	outAddrID := out.Addrs[0]
+	outAddrFormat, err := address.Format(chainIDAlias, t.hrp, outAddrID[:])
+	if err != nil {
+		return nil, err
+	}
+
+	metadata := &OperationMetadata{
+		Type:      metaType,
+		Threshold: out.OutputOwners.Threshold,
+		Locktime:  out.OutputOwners.Locktime,
+		MultiSig:  len(out.Addrs) > 1,
+	}
+
+	opMetadata, err := mapper.MarshalJSONMap(metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.Operation{
+		Type: opType,
+		OperationIdentifier: &types.OperationIdentifier{
+			Index: int64(startIndex),
+		},
+		Status:   status,
+		Account:  &types.AccountIdentifier{Address: outAddrFormat, SubAccount: nil, Metadata: nil},
+		Amount:   mapper.AvaxAmount(big.NewInt(int64(out.Amount()))),
+		Metadata: opMetadata,
+	}, nil
 }
 
 func (t *TxParser) insToOperations(
@@ -284,7 +335,8 @@ func (*TxParser) rewardValidatorToOperation(v *platformvm.UnsignedRewardValidato
 			Type:                OpRewardValidator,
 			Status:              types.String(mapper.StatusSuccess),
 			Metadata: map[string]interface{}{
-				MetadataStakingTxId: v.TxID.String(),
+				MetadataStakingTxID: v.TxID.String(),
+				MetadataOpType:      OpTypeReward,
 			},
 		},
 	}
@@ -301,6 +353,7 @@ func (*TxParser) createChainToOperation(v *platformvm.UnsignedCreateChainTx) []*
 				MetadataChainName: v.ChainName,
 				MetadataVMID:      v.VMID,
 				MetadataMemo:      v.Memo,
+				MetadataOpType:    OpTypeCreateChain,
 			},
 		},
 	}

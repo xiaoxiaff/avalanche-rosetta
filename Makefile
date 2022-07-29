@@ -95,6 +95,10 @@ run-mainnet-offline:
 check-testnet-data:
 	rosetta-cli check:data --configuration-file=rosetta-cli-conf/testnet/config.json
 
+# Perform the P-chain Testnet data check
+check-p-chain-testnet-data:
+	rosetta-cli check:data --configuration-file=rosetta-cli-conf/testnet/config_p_chain.json
+
 # Perform the Testnet construction check
 check-testnet-construction:
 	rosetta-cli check:construction --configuration-file=rosetta-cli-conf/testnet/config.json

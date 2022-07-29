@@ -154,6 +154,11 @@ Run the construction check for ERC-20s:
 make check-testnet-construction-erc20
 ```
 
+To run the data check on p-chain:
+```bash
+make check-p-chain-testnet-data
+```
+
 ## Rebuild the ContractInfoToken.go autogen file.
 
 ```bash

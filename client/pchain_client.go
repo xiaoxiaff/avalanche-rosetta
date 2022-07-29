@@ -32,12 +32,22 @@ type PChainClient interface {
 		startUTXOID ids.ID,
 		options ...rpc.Option,
 	) ([][]byte, ids.ShortID, ids.ID, error)
+	GetAtomicUTXOs(
+		ctx context.Context,
+		addrs []ids.ShortID,
+		sourceChain string,
+		limit uint32,
+		startAddress ids.ShortID,
+		startUTXOID ids.ID,
+		options ...rpc.Option,
+	) ([][]byte, ids.ShortID, ids.ID, error)
 	GetRewardUTXOs(context.Context, *api.GetTxArgs, ...rpc.Option) ([][]byte, error)
 	GetHeight(ctx context.Context, options ...rpc.Option) (uint64, error)
 	GetBalance(ctx context.Context, addrs []ids.ShortID, options ...rpc.Option) (*platformvm.GetBalanceResponse, error)
 	GetTx(ctx context.Context, txID ids.ID, options ...rpc.Option) ([]byte, error)
 	GetBlock(ctx context.Context, blockID ids.ID, options ...rpc.Option) ([]byte, error)
 	IssueTx(ctx context.Context, tx []byte, options ...rpc.Option) (ids.ID, error)
+	GetStake(ctx context.Context, addrs []ids.ShortID, options ...rpc.Option) (uint64, [][]byte, error)
 
 	// avm.Client methods
 

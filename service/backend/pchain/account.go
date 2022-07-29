@@ -5,15 +5,16 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
-
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
 var (
@@ -35,6 +36,12 @@ func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 		balanceType = req.AccountIdentifier.SubAccount.Address
 	}
 
+	// fetch height before the balance fetch
+	preHeight, err := b.pClient.GetHeight(ctx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
+	}
+
 	balanceResponse, err := b.pClient.GetBalance(ctx, []ids.ShortID{addr})
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to get balance from input address")
@@ -50,12 +57,37 @@ func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 	case "locked_not_stakeable":
 		balanceValue = uint64(balanceResponse.LockedNotStakeable)
 	default:
-		balanceValue = uint64(balanceResponse.Balance)
+		balance, err := b.fetchBalance(ctx, req.AccountIdentifier.Address)
+		if err != nil {
+			return nil, service.WrapError(err, "unable to get balance from input address")
+		}
+		if balance < 0 {
+			return nil, service.WrapError(service.ErrInvalidInput, "negative balance")
+		}
+		balanceValue = uint64(balance)
 	}
 
+	blockIdentifier := &types.BlockIdentifier{}
+	if req.BlockIdentifier != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to fetch historical balance")
+	}
+
+	height, err := b.pClient.GetHeight(ctx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
+	}
+	if height != preHeight {
+		return nil, service.WrapError(service.ErrNotReady, "block number changed, pls retry")
+	}
+	_, hash, _, err := b.getBlock(ctx, int64(height), "")
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
+	}
+	blockIdentifier.Hash = hash
+	blockIdentifier.Index = int64(height)
+
 	return &types.AccountBalanceResponse{
-		//TODO: return block identifier once AvalancheGo exposes an API for it
-		//BlockIdentifier: ...
+		BlockIdentifier: blockIdentifier,
 		Balances: []*types.Amount{
 			{
 				Value:    strconv.FormatUint(balanceValue, 10),
@@ -86,6 +118,12 @@ func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 	var startAddr ids.ShortID
 	var startUTXOID ids.ID
 
+	// fetch height before the balance fetch
+	preHeight, err := b.pClient.GetHeight(ctx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
+	}
+
 	for {
 		var utxos [][]byte
 
@@ -109,9 +147,24 @@ func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 		}
 	}
 
+	height, err := b.pClient.GetHeight(ctx)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
+	}
+
+	if height != preHeight {
+		return nil, service.WrapError(service.ErrNotReady, "block number changed, pls retry")
+	}
+	_, hash, _, err := b.getBlock(ctx, int64(height), "")
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
+	}
+
 	return &types.AccountCoinsResponse{
-		//TODO: return block identifier once AvalancheGo exposes an API for it
-		// BlockIdentifier: ...
+		BlockIdentifier: &types.BlockIdentifier{
+			Index: int64(height),
+			Hash:  hash,
+		},
 		Coins: common.SortUnique(coins),
 	}, nil
 }
@@ -161,4 +214,94 @@ func (b *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos [][]b
 		coins = append(coins, coin)
 	}
 	return coins, nil
+}
+
+func (b *Backend) fetchBalance(ctx context.Context, addr string) (int64, *types.Error) {
+	balance := int64(0)
+
+	parsedAddr, err := address.ParseToID(addr)
+	if err != nil {
+		return 0, service.WrapError(service.ErrInvalidInput, "unable to convert address")
+	}
+
+	// Used for pagination
+	var startAddr ids.ShortID
+	var startUTXOID ids.ID
+
+	for {
+		var utxos [][]byte
+
+		// GetUTXOs controlled by addr
+		utxos, startAddr, startUTXOID, err = b.pClient.GetUTXOs(ctx, []ids.ShortID{parsedAddr}, b.getUTXOsPageSize, startAddr, startUTXOID)
+		if err != nil {
+			return 0, service.WrapError(service.ErrInternalError, "unable to get UTXOs")
+		}
+
+		for _, utxoBytes := range utxos {
+			utxo := avax.UTXO{}
+			_, err := b.codec.Unmarshal(utxoBytes, &utxo)
+			if err != nil {
+				return 0, service.WrapError(service.ErrInvalidInput, "unable to parse UTXO")
+			}
+
+			outIntf := utxo.Out
+			if lockedOut, ok := outIntf.(*stakeable.LockOut); ok {
+				outIntf = lockedOut.TransferableOut
+			}
+
+			out, ok := outIntf.(*secp256k1fx.TransferOutput)
+			if !ok {
+				return 0, service.WrapError(service.ErrBlockInvalidInput, "output type assertion failed")
+			}
+
+			// ignore multisig
+			if len(out.OutputOwners.Addrs) > 1 {
+				continue
+			}
+
+			balance += int64(out.Amt)
+		}
+
+		// Fetch next page only if there may be more UTXOs
+		if len(utxos) < int(b.getUTXOsPageSize) {
+			break
+		}
+	}
+
+	_, stakeUTXOs, err := b.pClient.GetStake(ctx, []ids.ShortID{parsedAddr})
+	if err != nil {
+		return 0, service.WrapError(service.ErrInvalidInput, "unable to get stake")
+	}
+
+	staked := int64(0)
+
+	for _, utxoBytes := range stakeUTXOs {
+		utxo := avax.TransferableOutput{}
+		_, err := b.codec.Unmarshal(utxoBytes, &utxo)
+		if err != nil {
+			return 0, service.WrapError(service.ErrInvalidInput, "unable to parse UTXO")
+		}
+
+		outIntf := utxo.Out
+		if lockedOut, ok := outIntf.(*stakeable.LockOut); ok {
+			outIntf = lockedOut.TransferableOut
+		}
+
+		out, ok := outIntf.(*secp256k1fx.TransferOutput)
+		if !ok {
+			return 0, service.WrapError(service.ErrBlockInvalidInput, "output type assertion failed")
+		}
+
+		// ignore multisig
+		if len(out.OutputOwners.Addrs) > 1 {
+			continue
+		}
+
+		staked += int64(out.Amt)
+	}
+
+	// TODO (stake should be in the balance or not)
+	balance += staked
+
+	return balance, nil
 }
