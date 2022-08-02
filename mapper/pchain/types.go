@@ -29,6 +29,9 @@ const (
 	MetadataVMID        = "vmid"
 	MetadataMemo        = "memo"
 	MetadataMessage     = "message"
+
+	UTXOTypeSharedMemory = "shared_memory"
+	IsAtomicUTXO         = "is_atomic"
 )
 
 var (

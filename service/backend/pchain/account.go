@@ -3,18 +3,20 @@ package pchain
 import (
 	"context"
 	"errors"
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
+	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"strconv"
+
+	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
-	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
 	"github.com/ava-labs/avalanche-rosetta/mapper"
 	"github.com/ava-labs/avalanche-rosetta/service"
-	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 )
 
 var (
@@ -59,7 +61,7 @@ func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 	default:
 		balance, err := b.fetchBalance(ctx, req.AccountIdentifier.Address)
 		if err != nil {
-			return nil, service.WrapError(err, "unable to get balance from input address")
+			return nil, service.WrapError(service.ErrInvalidInput, "unable to get balance from input address")
 		}
 		if balance < 0 {
 			return nil, service.WrapError(service.ErrInvalidInput, "negative balance")
@@ -101,7 +103,6 @@ func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 	if req.AccountIdentifier == nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "account identifier is not provided")
 	}
-
 	addr, err := address.ParseToID(req.AccountIdentifier.Address)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to convert address")
@@ -126,20 +127,52 @@ func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 
 	for {
 		var utxos [][]byte
-
-		// GetUTXOs controlled by addr
-		utxos, startAddr, startUTXOID, err = b.pClient.GetUTXOs(ctx, []ids.ShortID{addr}, b.getUTXOsPageSize, startAddr, startUTXOID)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, "unable to get UTXOs")
+		var utxoType string
+		if req.AccountIdentifier.SubAccount != nil {
+			utxoType = req.AccountIdentifier.SubAccount.Address
 		}
 
-		// convert raw UTXO bytes to Rosetta Coins
-		coinsPage, err := b.processUtxos(currencyAssetIDs, utxos)
 		if err != nil {
 			return nil, service.WrapError(service.ErrInternalError, err)
 		}
 
-		coins = append(coins, coinsPage...)
+		if utxoType == pmapper.UTXOTypeSharedMemory {
+			// it is an atomic utxo, then
+			// GetAtomicUTXOs for both C and X Chain
+
+			// C Chain
+			utxos, _, _, err = b.pClient.GetAtomicUTXOs(ctx, []ids.ShortID{addr}, "C", b.getUTXOsPageSize, startAddr, startUTXOID)
+			// convert raw UTXO bytes to Rosetta Coins
+			coinsPage, err := b.processUtxos(currencyAssetIDs, utxos, true)
+			if err != nil {
+				return nil, service.WrapError(service.ErrInternalError, err)
+			}
+			coins = append(coins, coinsPage...)
+
+			// X Chain
+			utxos, _, _, err = b.pClient.GetAtomicUTXOs(ctx, []ids.ShortID{addr}, "X", b.getUTXOsPageSize, startAddr, startUTXOID)
+			// convert raw UTXO bytes to Rosetta Coins
+			coinsPage, err = b.processUtxos(currencyAssetIDs, utxos, true)
+			if err != nil {
+				return nil, service.WrapError(service.ErrInternalError, err)
+			}
+			coins = append(coins, coinsPage...)
+		} else {
+			// P Chain
+			// GetUTXOs controlled by addr
+			utxos, startAddr, startUTXOID, err = b.pClient.GetAtomicUTXOs(ctx, []ids.ShortID{addr}, "", b.getUTXOsPageSize, startAddr, startUTXOID)
+			if err != nil {
+				return nil, service.WrapError(service.ErrInternalError, "unable to get UTXOs")
+			}
+
+			// convert raw UTXO bytes to Rosetta Coins
+			coinsPage, err := b.processUtxos(currencyAssetIDs, utxos, false)
+			if err != nil {
+				return nil, service.WrapError(service.ErrInternalError, err)
+			}
+
+			coins = append(coins, coinsPage...)
+		}
 
 		// Fetch next page only if there may be more UTXOs
 		if len(utxos) < int(b.getUTXOsPageSize) {
@@ -151,7 +184,6 @@ func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
 	}
-
 	if height != preHeight {
 		return nil, service.WrapError(service.ErrNotReady, "block number changed, pls retry")
 	}
@@ -161,9 +193,11 @@ func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 	}
 
 	return &types.AccountCoinsResponse{
+		//TODO: return block identifier once AvalancheGo exposes an API for it
+		// BlockIdentifier: ...
 		BlockIdentifier: &types.BlockIdentifier{
-			Index: int64(height),
 			Hash:  hash,
+			Index: int64(height),
 		},
 		Coins: common.SortUnique(coins),
 	}, nil
@@ -185,7 +219,7 @@ func (b *Backend) buildCurrencyAssetIDs(ctx context.Context, req *types.AccountC
 	return currencyAssetIDs, nil
 }
 
-func (b *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos [][]byte) ([]*types.Coin, error) {
+func (b *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos [][]byte, isAtomic bool) ([]*types.Coin, error) {
 	var coins []*types.Coin
 	for _, utxoBytes := range utxos {
 		utxo := avax.UTXO{}
@@ -209,6 +243,9 @@ func (b *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos [][]b
 			Amount: &types.Amount{
 				Value:    strconv.FormatUint(transferableOut.Amount(), 10),
 				Currency: mapper.AvaxCurrency,
+				Metadata: map[string]interface{}{
+					pmapper.IsAtomicUTXO: isAtomic,
+				},
 			},
 		}
 		coins = append(coins, coin)
