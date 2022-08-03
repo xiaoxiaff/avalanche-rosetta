@@ -16,16 +16,18 @@ import (
 )
 
 var (
-	errUnknownDestinationChain = errors.New("unknown destination chain")
+	errUnknownDestinationChain  = errors.New("unknown destination chain")
+	errNoMatchingInputAddresses = errors.New("no matching input addresses")
 )
 
 type TxParser struct {
-	hrp      string
-	chainIDs map[string]string
+	hrp             string
+	chainIDs        map[string]string
+	inputTxAccounts map[string]*types.AccountIdentifier
 }
 
-func NewTxParser(hrp string, chainIDs map[string]string) *TxParser {
-	return &TxParser{hrp: hrp, chainIDs: chainIDs}
+func NewTxParser(hrp string, chainIDs map[string]string, inputTxAccounts map[string]*types.AccountIdentifier) *TxParser {
+	return &TxParser{hrp: hrp, chainIDs: chainIDs, inputTxAccounts: inputTxAccounts}
 }
 
 func (t *TxParser) Parse(tx evm.Tx) ([]*types.Operation, error) {
@@ -33,7 +35,7 @@ func (t *TxParser) Parse(tx evm.Tx) ([]*types.Operation, error) {
 	case *evm.UnsignedExportTx:
 		return t.parseExportTx(unsignedTx)
 	case *evm.UnsignedImportTx:
-		return t.parseImportTx(unsignedTx), nil
+		return t.parseImportTx(unsignedTx)
 	default:
 		return nil, fmt.Errorf("unsupported tx type")
 	}
@@ -41,7 +43,7 @@ func (t *TxParser) Parse(tx evm.Tx) ([]*types.Operation, error) {
 
 func (t *TxParser) parseExportTx(exportTx *evm.UnsignedExportTx) ([]*types.Operation, error) {
 	var operations []*types.Operation
-	ins := insToOperations(0, mapper.OpExport, exportTx.Ins)
+	ins := t.insToOperations(0, mapper.OpExport, exportTx.Ins)
 
 	destinationChainId := exportTx.DestinationChain.String()
 	chainAlias, ok := t.chainIDs[destinationChainId]
@@ -59,17 +61,21 @@ func (t *TxParser) parseExportTx(exportTx *evm.UnsignedExportTx) ([]*types.Opera
 	return operations, nil
 }
 
-func (*TxParser) parseImportTx(importTx *evm.UnsignedImportTx) []*types.Operation {
+func (t *TxParser) parseImportTx(importTx *evm.UnsignedImportTx) ([]*types.Operation, error) {
 	var operations []*types.Operation
-	ins := importedInToOperations(0, mapper.OpImport, importTx.ImportedInputs)
+	ins, err := t.importedInToOperations(0, mapper.OpImport, importTx.ImportedInputs)
+	if err != nil {
+		return nil, err
+	}
+
 	operations = append(operations, ins...)
-	outs := outsToOperations(len(ins), mapper.OpImport, importTx.Outs)
+	outs := t.outsToOperations(len(ins), mapper.OpImport, importTx.Outs)
 	operations = append(operations, outs...)
 
-	return operations
+	return operations, nil
 }
 
-func insToOperations(startIdx int64, opType string, ins []evm.EVMInput) []*types.Operation {
+func (t *TxParser) insToOperations(startIdx int64, opType string, ins []evm.EVMInput) []*types.Operation {
 	idx := startIdx
 	var operations []*types.Operation
 	for _, in := range ins {
@@ -88,29 +94,37 @@ func insToOperations(startIdx int64, opType string, ins []evm.EVMInput) []*types
 	return operations
 }
 
-func importedInToOperations(startIdx int64, opType string, ins []*avax.TransferableInput) []*types.Operation {
+func (t *TxParser) importedInToOperations(startIdx int64, opType string, ins []*avax.TransferableInput) ([]*types.Operation, error) {
 	idx := startIdx
 	var operations []*types.Operation
 	for _, in := range ins {
 		inputAmount := new(big.Int).SetUint64(in.In.Amount())
+
+		utxoID := in.UTXOID.String()
+		account, ok := t.inputTxAccounts[utxoID]
+		if !ok {
+			return nil, errNoMatchingInputAddresses
+		}
+
 		operations = append(operations, &types.Operation{
 			OperationIdentifier: &types.OperationIdentifier{
 				Index: idx,
 			},
-			Type: opType,
+			Type:    opType,
+			Account: account,
 			// Negating input amount
 			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
 			CoinChange: &types.CoinChange{
-				CoinIdentifier: &types.CoinIdentifier{Identifier: in.UTXOID.String()},
+				CoinIdentifier: &types.CoinIdentifier{Identifier: utxoID},
 				CoinAction:     types.CoinSpent,
 			},
 		})
 		idx++
 	}
-	return operations
+	return operations, nil
 }
 
-func outsToOperations(startIdx int, opType string, outs []evm.EVMOutput) []*types.Operation {
+func (t *TxParser) outsToOperations(startIdx int, opType string, outs []evm.EVMOutput) []*types.Operation {
 	idx := startIdx
 	var operations []*types.Operation
 	for _, out := range outs {

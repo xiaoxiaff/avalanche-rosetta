@@ -227,9 +227,16 @@ func BuildPayloads(
 		if o.Amount.Value[0] != '-' {
 			continue
 		}
+
+		var coinIdentifier string
+
+		if o.CoinChange != nil && o.CoinChange.CoinIdentifier != nil {
+			coinIdentifier = o.CoinChange.CoinIdentifier.Identifier
+		}
+
 		accountIdentifierSigners = append(accountIdentifierSigners, Signer{
-			OperationIdentifier: o.OperationIdentifier,
-			AccountIdentifier:   o.Account,
+			CoinIdentifier:    coinIdentifier,
+			AccountIdentifier: o.Account,
 		})
 	}
 
@@ -273,24 +280,25 @@ func BuildPayloads(
 }
 
 type TxParser interface {
-	ParseTx(tx AvaxTx, isConstruction bool) ([]*types.Operation, error)
+	ParseTx(tx *RosettaTx, inputAddresses map[string]*types.AccountIdentifier) ([]*types.Operation, error)
 }
 
 func Parse(parser TxParser, payloadsTx *RosettaTx, isSigned bool) (*types.ConstructionParseResponse, *types.Error) {
 	// Convert input tx into operations
-	operations, err := parser.ParseTx(payloadsTx.Tx, true)
+	inputAddresses := getInputAddresses(payloadsTx)
+	operations, err := parser.ParseTx(payloadsTx, inputAddresses)
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "incorrect transaction input")
-	}
-
-	payloadSigners, err := payloadsTx.GetAccountIdentifiers(operations)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, err)
 	}
 
 	// Generate AccountIdentifierSigners if request is signed
 	var signers []*types.AccountIdentifier
 	if isSigned {
+		payloadSigners, err := payloadsTx.GetAccountIdentifiers(operations)
+		if err != nil {
+			return nil, service.WrapError(service.ErrInvalidInput, err)
+		}
+
 		signers = payloadSigners
 	}
 
@@ -298,6 +306,16 @@ func Parse(parser TxParser, payloadsTx *RosettaTx, isSigned bool) (*types.Constr
 		Operations:               operations,
 		AccountIdentifierSigners: signers,
 	}, nil
+}
+
+func getInputAddresses(tx *RosettaTx) map[string]*types.AccountIdentifier {
+	addresses := make(map[string]*types.AccountIdentifier)
+
+	for _, signer := range tx.AccountIdentifierSigners {
+		addresses[signer.CoinIdentifier] = signer.AccountIdentifier
+	}
+
+	return addresses
 }
 
 type TxCombiner interface {

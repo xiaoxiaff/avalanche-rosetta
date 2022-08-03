@@ -19,7 +19,6 @@ import (
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
 	"github.com/ava-labs/avalanche-rosetta/service"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
-	"github.com/ava-labs/avalanche-rosetta/service/backend/pchain/indexer"
 )
 
 var (
@@ -47,14 +46,16 @@ var (
 	opTypeOutput = "OUTPUT"
 
 	txFee = 1_000_000
+
+	coinId1 = "2ryRVCwNSjEinTViuvDkzX41uQzx3g4babXxZMD46ZV1a9X4Eg:0"
 )
 
-func buildRosettaSignerJson(signers []*types.AccountIdentifier) string {
+func buildRosettaSignerJson(coinIdentifiers []string, signers []*types.AccountIdentifier) string {
 	var importSigners []*common.Signer
 	for i, s := range signers {
 		importSigners = append(importSigners, &common.Signer{
-			OperationIdentifier: &types.OperationIdentifier{Index: int64(i)},
-			AccountIdentifier:   s,
+			CoinIdentifier:    coinIdentifiers[i],
+			AccountIdentifier: s,
 		})
 	}
 	bytes, _ := json.Marshal(importSigners)
@@ -65,7 +66,7 @@ func TestConstructionDerive(t *testing.T) {
 	pChainMock := &mocks.PChainClient{}
 	ctx := context.Background()
 	pChainMock.Mock.On("GetNetworkID", ctx).Return(uint32(5), nil)
-	backend := NewBackend(pChainMock, &indexer.Parser{}, ids.Empty, nil)
+	backend := NewBackend(pChainMock, nil, ids.Empty, nil)
 
 	t.Run("p-chain address", func(t *testing.T) {
 		src := "02e0d4392cfa224d4be19db416b3cf62e90fb2b7015e7b62a95c8cb490514943f6"
@@ -101,8 +102,8 @@ func TestExportTxConstruction(t *testing.T) {
 			Account:             pAccountIdentifier,
 			Amount:              mapper.AvaxAmount(big.NewInt(-1_000_000_000)),
 			CoinChange: &types.CoinChange{
-				CoinIdentifier: &types.CoinIdentifier{Identifier: "2ryRVCwNSjEinTViuvDkzX41uQzx3g4babXxZMD46ZV1a9X4Eg:0"},
-				CoinAction:     "coin_spent",
+				CoinIdentifier: &types.CoinIdentifier{Identifier: coinId1},
+				CoinAction:     types.CoinSpent,
 			},
 			Metadata: map[string]interface{}{
 				"type":        opTypeInput,
@@ -140,7 +141,7 @@ func TestExportTxConstruction(t *testing.T) {
 	}
 
 	signers := []*types.AccountIdentifier{pAccountIdentifier}
-	exportSigners := buildRosettaSignerJson(signers)
+	exportSigners := buildRosettaSignerJson([]string{coinId1}, signers)
 
 	unsignedExportTx := "0x0000000000120000000500000000000000000000000000000000000000000000000000000000000000000000000000000001f52a5a6dd8f1b3fe05204bdab4f6bcb5a7059f88d0443c636f6c158f838dd1a8000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8b87c0000000000000000000000001000000015445cd01d75b4a06b6b41939193c0b1c5544490d0000000065e8045f"
 	unsignedExportTxHash, _ := hex.DecodeString("44d579f5cb3c83f4137223a0368721734b622ec392007760eed97f3f1a40c595")
@@ -173,7 +174,7 @@ func TestExportTxConstruction(t *testing.T) {
 
 	ctx := context.Background()
 	clientMock := &mocks.PChainClient{}
-	backend := NewBackend(clientMock, &indexer.Parser{}, avaxAssetID, pChainNetworkIdentifier)
+	backend := NewBackend(clientMock, nil, avaxAssetID, pChainNetworkIdentifier)
 
 	t.Run("preprocess endpoint", func(t *testing.T) {
 		resp, err := backend.ConstructionPreprocess(
@@ -311,8 +312,8 @@ func TestImportTxConstruction(t *testing.T) {
 			Account:             cAccountIdentifier,
 			Amount:              mapper.AvaxAmount(big.NewInt(-1_000_000_000)),
 			CoinChange: &types.CoinChange{
-				CoinIdentifier: &types.CoinIdentifier{Identifier: "2ryRVCwNSjEinTViuvDkzX41uQzx3g4babXxZMD46ZV1a9X4Eg:0"},
-				CoinAction:     "coin_spent",
+				CoinIdentifier: &types.CoinIdentifier{Identifier: coinId1},
+				CoinAction:     types.CoinSpent,
 			},
 			Metadata: map[string]interface{}{
 				"type":        opTypeImport,
@@ -349,7 +350,7 @@ func TestImportTxConstruction(t *testing.T) {
 	}
 
 	signers := []*types.AccountIdentifier{cAccountIdentifier}
-	importSigners := buildRosettaSignerJson(signers)
+	importSigners := buildRosettaSignerJson([]string{coinId1}, signers)
 
 	unsignedImportTx := "0x000000000011000000050000000000000000000000000000000000000000000000000000000000000000000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000007000000003b8b87c0000000000000000000000001000000015445cd01d75b4a06b6b41939193c0b1c5544490d00000000000000007fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d500000001f52a5a6dd8f1b3fe05204bdab4f6bcb5a7059f88d0443c636f6c158f838dd1a8000000003d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa00000005000000003b9aca000000000100000000000000004ce8b27d"
 	unsignedImportTxHash, _ := hex.DecodeString("e9114ae12065d1f8631bc40729c806a3a4793de714001bfee66482f520dc1865")
@@ -381,7 +382,7 @@ func TestImportTxConstruction(t *testing.T) {
 
 	ctx := context.Background()
 	clientMock := &mocks.PChainClient{}
-	backend := NewBackend(clientMock, &indexer.Parser{}, avaxAssetID, pChainNetworkIdentifier)
+	backend := NewBackend(clientMock, nil, avaxAssetID, pChainNetworkIdentifier)
 
 	t.Run("preprocess endpoint", func(t *testing.T) {
 		resp, err := backend.ConstructionPreprocess(

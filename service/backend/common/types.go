@@ -30,8 +30,8 @@ type RosettaTx struct {
 }
 
 type Signer struct {
-	OperationIdentifier *types.OperationIdentifier `json:"operation_identifier"`
-	AccountIdentifier   *types.AccountIdentifier   `json:"account_identifier"`
+	CoinIdentifier    string                   `json:"coin_identifier,omitempty"`
+	AccountIdentifier *types.AccountIdentifier `json:"account_identifier"`
 }
 
 type rosettaTxWire struct {
@@ -91,9 +91,9 @@ func (t *RosettaTx) UnmarshalJSON(data []byte) error {
 func (t *RosettaTx) GetAccountIdentifiers(operations []*types.Operation) ([]*types.AccountIdentifier, error) {
 	var signers []*types.AccountIdentifier
 
-	operationToAccountMap := make(map[int64]*types.AccountIdentifier)
+	operationToAccountMap := make(map[string]*types.AccountIdentifier)
 	for _, data := range t.AccountIdentifierSigners {
-		operationToAccountMap[data.OperationIdentifier.Index] = data.AccountIdentifier
+		operationToAccountMap[data.CoinIdentifier] = data.AccountIdentifier
 	}
 
 	for i, op := range operations {
@@ -101,10 +101,17 @@ func (t *RosettaTx) GetAccountIdentifiers(operations []*types.Operation) ([]*typ
 		if op.Amount.Value[0] != '-' {
 			continue
 		}
-		signer := operationToAccountMap[op.OperationIdentifier.Index]
+
+		var coinIdentifier string
+		if op.CoinChange != nil && op.CoinChange.CoinIdentifier != nil {
+			coinIdentifier = op.CoinChange.CoinIdentifier.Identifier
+		}
+
+		signer := operationToAccountMap[coinIdentifier]
 		if signer == nil {
 			return nil, errors.New("not all operations have signers")
 		}
+		// TODO: remove this -
 		operations[i].Account = signer
 		signers = append(signers, signer)
 	}

@@ -1,86 +1,73 @@
 {
-	"id": "2WSa91XbRZ7h1cHvH7Xp5A3o9etXF4bRCEpj8jdhShXF8Jodt7",
-	"type": "*platformvm.ProposalBlock",
-	"parent": "2guuhVtf9anfhF1U5ngbVi4Kf9Wn68N5hguJ4dsDGsFouU9Adb",
-	"timestamp": 0,
-	"height": 1604,
-	"transactions": [
-		{
-			"id": "9uDu6E25SBoD9t4i2NLxFYM4VfgwxeaXaQz6Xh84K3Cvtc8BX",
-			"type": "*platformvm.UnsignedAddValidatorTx",
-			"block": "2WSa91XbRZ7h1cHvH7Xp5A3o9etXF4bRCEpj8jdhShXF8Jodt7",
-			"timestamp": 0,
-			"credentials": [
-				[
-					{
-						"address": "P-avax1d6q4n9lgj4e9umkn4td22apgl6n4rkgfddj9l0",
-						"publicKey": "AvdJiV3iZ+8ZGOfgCE00QPIog3fDW3nQ7Hu+/NQoQdAu",
-						"signature": "CSlRwVu5lRvLcrS3LuOeARQStpv+IHu2EmuTWDentd0XGUgyU3yf9ASQa/EdUp7G+BvJRE+IiYLyq7NYT1maWgE"
-					}
-				]
-			],
-			"fee": 0,
-			"outputs": [],
-			"networkID": 1,
-			"blockchainID": "11111111111111111111111111111111LpoYY",
-			"inputs": [
-				{
-					"txID": "2TpKwzP7vZdj9TxkEG9WVnpzNhHh3QR92MSBdmwMMRWk7Lcisd",
-					"outputIndex": 0,
-					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
-					"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
-					"input": {
-						"locktime": 0,
-						"input": {
-							"amount": 20000995000000,
-							"signatureIndices": [
-								0
-							]
-						}
-					}
-				}
-			],
-			"memo": "0x00000000",
-			"data": {
-				"shares": 100000,
-				"validator": {
-					"nodeID": "NodeID-7R6NeTcnqaBeCvS8zdJryQnmBBCPJXhcW",
-					"start": 1600747929,
-					"end": 1603426329,
-					"weight": 20000995000000
-				},
-				"rewardOwner": {
-					"addresses": [
-						"P-avax1d6q4n9lgj4e9umkn4td22apgl6n4rkgfddj9l0"
-					],
-					"locktime": 0,
-					"threshold": 1
-				},
-				"stake": [
-					{
-						"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
-						"fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
-						"output": {
-							"locktime": 0,
-							"output": {
-								"addresses": [
-									"P-avax1d6q4n9lgj4e9umkn4td22apgl6n4rkgfddj9l0"
-								],
-								"amount": 20000995000000,
-								"locktime": 0,
-								"threshold": 1
-							}
-						}
-					}
-				]
-			}
-		}
-	],
-	"proposer": {
-		"id": "11111111111111111111111111111111LpoYY",
-		"parent": "11111111111111111111111111111111LpoYY",
-		"nodeID": "NodeID-111111111111111111116DBWJs",
-		"pChainHeight": 0,
-		"timestamp": 0
-	}
+  "id": "2WSa91XbRZ7h1cHvH7Xp5A3o9etXF4bRCEpj8jdhShXF8Jodt7",
+  "type": "*platformvm.ProposalBlock",
+  "parent": "2guuhVtf9anfhF1U5ngbVi4Kf9Wn68N5hguJ4dsDGsFouU9Adb",
+  "timestamp": 1599696000000,
+  "height": 1604,
+  "transactions": [
+    {
+      "unsignedTx": {
+        "networkID": 1,
+        "blockchainID": "11111111111111111111111111111111LpoYY",
+        "outputs": [],
+        "inputs": [
+          {
+            "txID": "2TpKwzP7vZdj9TxkEG9WVnpzNhHh3QR92MSBdmwMMRWk7Lcisd",
+            "outputIndex": 0,
+            "assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+            "fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+            "input": {
+              "amount": 20000995000000,
+              "signatureIndices": [
+                0
+              ]
+            }
+          }
+        ],
+        "memo": "0x00000000",
+        "validator": {
+          "nodeID": "NodeID-7R6NeTcnqaBeCvS8zdJryQnmBBCPJXhcW",
+          "start": 1600747929,
+          "end": 1603426329,
+          "weight": 20000995000000
+        },
+        "stake": [
+          {
+            "assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
+            "fxID": "spdxUxVJQbX85MGxMHbKw1sHxMnSqJ3QBzDyDYEP3h6TLuxqQ",
+            "output": {
+              "addresses": [
+                "P-avax1d6q4n9lgj4e9umkn4td22apgl6n4rkgfddj9l0"
+              ],
+              "amount": 20000995000000,
+              "locktime": 0,
+              "threshold": 1
+            }
+          }
+        ],
+        "rewardsOwner": {
+          "addresses": [
+            "P-avax1d6q4n9lgj4e9umkn4td22apgl6n4rkgfddj9l0"
+          ],
+          "locktime": 0,
+          "threshold": 1
+        },
+        "shares": 100000
+      },
+      "credentials": [
+        {
+          "signatures": [
+            "0x092951c15bb9951bcb72b4b72ee39e011412b69bfe207bb6126b935837a7b5dd17194832537c9ff404906bf11d529ec6f81bc9444f888982f2abb3584f599a5a01"
+          ]
+        }
+      ]
+    }
+  ],
+  "proposer": {
+    "id": "11111111111111111111111111111111LpoYY",
+    "parent": "11111111111111111111111111111111LpoYY",
+    "nodeID": "NodeID-111111111111111111116DBWJs",
+    "pChainHeight": 0,
+    "timestamp": 0
+  }
 }

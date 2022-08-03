@@ -60,12 +60,12 @@ type cAtomicTxParser struct {
 	chainIDs map[string]string
 }
 
-func (c cAtomicTxParser) ParseTx(tx common.AvaxTx, isConstruction bool) ([]*types.Operation, error) {
-	cTx, ok := tx.(*cAtomicTx)
+func (c cAtomicTxParser) ParseTx(tx *common.RosettaTx, inputAddresses map[string]*types.AccountIdentifier) ([]*types.Operation, error) {
+	cTx, ok := tx.Tx.(*cAtomicTx)
 	if !ok {
 		return nil, errors.New("invalid transaction")
 	}
-	parser := cmapper.NewTxParser(c.hrp, c.chainIDs)
+	parser := cmapper.NewTxParser(c.hrp, c.chainIDs, inputAddresses)
 	return parser.Parse(*cTx.Tx)
 }
 

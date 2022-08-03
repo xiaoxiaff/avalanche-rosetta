@@ -19,6 +19,14 @@ var (
 	errInvalidTransaction = errors.New("invalid transaction")
 )
 
+type AccountBalance struct {
+	Total              uint64
+	Unlocked           uint64
+	Staked             uint64
+	LockedStakeable    uint64
+	LockedNotStakeable uint64
+}
+
 type pTx struct {
 	Tx           *platformvm.Tx
 	Codec        codec.Manager
@@ -64,13 +72,13 @@ type pTxParser struct {
 	chainIDs map[string]string
 }
 
-func (p pTxParser) ParseTx(tx common.AvaxTx, isConstruction bool) ([]*types.Operation, error) {
-	pTx, ok := tx.(*pTx)
+func (p pTxParser) ParseTx(tx *common.RosettaTx, inputAddresses map[string]*types.AccountIdentifier) ([]*types.Operation, error) {
+	pTx, ok := tx.Tx.(*pTx)
 	if !ok {
 		return nil, errInvalidTransaction
 	}
 
-	parser := pmapper.NewTxParser(isConstruction, p.hrp, p.chainIDs)
+	parser := pmapper.NewTxParser(true, p.hrp, p.chainIDs, inputAddresses, nil)
 	transactions, err := parser.Parse(pTx.Tx.UnsignedTx)
 	if err != nil {
 		return nil, err

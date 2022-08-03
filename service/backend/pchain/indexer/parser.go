@@ -2,28 +2,20 @@ package indexer
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/ava-labs/avalanchego/api"
 	"github.com/ava-labs/avalanchego/codec"
 	"github.com/ava-labs/avalanchego/genesis"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/constants"
-	"github.com/ava-labs/avalanchego/utils/crypto"
-	"github.com/ava-labs/avalanchego/utils/formatting"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
 	"github.com/ava-labs/avalanchego/utils/hashing"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
-	"github.com/ava-labs/avalanchego/vms/components/avax"
-	"github.com/ava-labs/avalanchego/vms/components/verify"
 	"github.com/ava-labs/avalanchego/vms/platformvm"
-	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/proposervm/block"
-	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 
 	"github.com/ava-labs/avalanche-rosetta/client"
 	"github.com/ava-labs/avalanche-rosetta/mapper"
@@ -31,37 +23,51 @@ import (
 )
 
 var (
-	errUnexpectedGenesisTx = errors.New("unexpected genesis tx")
+	errParserUninitialized = errors.New("uninitialized parser")
 )
 
-type Parser struct {
+const genesisTimestamp = 1599696000
+
+type Parser interface {
+	Initialize(ctx context.Context) (*ParsedGenesisBlock, error)
+	GetPlatformHeight(ctx context.Context) (uint64, error)
+	ParseCurrentBlock(ctx context.Context) (*ParsedBlock, error)
+	ParseBlockAtIndex(ctx context.Context, index uint64) (*ParsedBlock, error)
+	ParseBlockWithHash(ctx context.Context, hash string) (*ParsedBlock, error)
+}
+
+// Interface compliance
+var _ Parser = &parser{}
+
+type parser struct {
 	networkID   uint32
 	avaxAssetID ids.ID
 	aliaser     ids.Aliaser
 
 	codec codec.Manager
 
-	time ChainTime
-
 	ctx *snow.Context
 
 	pChainClient client.PChainClient
+
+	genesisTimestamp time.Time
 }
 
-func NewParser(pChainClient client.PChainClient) (*Parser, error) {
+func NewParser(pChainClient client.PChainClient) (*parser, error) {
 	errs := wrappers.Errs{}
 
 	aliaser := ids.NewAliaser()
 	errs.Add(aliaser.Alias(constants.PlatformChainID, mapper.PChainNetworkIdentifier))
 
-	return &Parser{
-		codec:        platformvm.Codec,
-		pChainClient: pChainClient,
-		aliaser:      aliaser,
+	return &parser{
+		codec:            platformvm.Codec,
+		pChainClient:     pChainClient,
+		aliaser:          aliaser,
+		genesisTimestamp: time.Unix(genesisTimestamp, 0),
 	}, errs.Err
 }
 
-func (p *Parser) initCtx(ctx context.Context) error {
+func (p *parser) initCtx(ctx context.Context) error {
 	if p.ctx == nil {
 		networkID, err := p.pChainClient.GetNetworkID(ctx)
 		if err != nil {
@@ -78,7 +84,7 @@ func (p *Parser) initCtx(ctx context.Context) error {
 	return nil
 }
 
-func (p *Parser) GetPlatformHeight(ctx context.Context) (uint64, error) {
+func (p *parser) GetPlatformHeight(ctx context.Context) (uint64, error) {
 	err := p.initCtx(ctx)
 	if err != nil {
 		return 0, err
@@ -87,50 +93,11 @@ func (p *Parser) GetPlatformHeight(ctx context.Context) (uint64, error) {
 	return p.pChainClient.GetHeight(ctx)
 }
 
-func (p *Parser) readTime() int64 {
-	return p.time.Read()
-}
-
-func (p *Parser) writeTime(t time.Time) {
-	p.time.Write(t)
-}
-
-func (p *Parser) formatAddress(addr []byte) (string, error) {
+func (p *parser) formatAddress(addr []byte) (string, error) {
 	return address.Format("P", constants.GetHRP(p.networkID), addr)
 }
 
-func (p *Parser) extractCredData(creds []verify.Verifiable, bytes []byte) ([][]CredData, error) {
-	credData := [][]CredData{}
-	errs := wrappers.Errs{}
-	ecdsaRecoveryFactory := crypto.FactorySECP256K1R{}
-
-	for _, cred := range creds {
-		switch castCred := cred.(type) {
-		case *secp256k1fx.Credential:
-			data := []CredData{}
-
-			for _, sig := range castCred.Sigs {
-				key, err := ecdsaRecoveryFactory.RecoverPublicKey(bytes, sig[:])
-				errs.Add(err)
-				addr, err := p.formatAddress(key.Address().Bytes())
-				errs.Add(err)
-				data = append(data, CredData{
-					Address:   addr,
-					PublicKey: base64.RawStdEncoding.EncodeToString(key.Bytes()),
-					Signature: base64.RawStdEncoding.EncodeToString(sig[:]),
-				})
-			}
-
-			credData = append(credData, data)
-		default:
-			errs.Add(fmt.Errorf("unexpected cred type found: %T", castCred))
-		}
-	}
-
-	return credData, errs.Err
-}
-
-func (p *Parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
+func (p *parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
 	err := p.initCtx(ctx)
 	if err != nil {
 		return nil, err
@@ -146,25 +113,26 @@ func (p *Parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
 	_, err = platformvm.GenesisCodec.Unmarshal(bytes, genesis)
 	errs.Add(err)
 	errs.Add(genesis.Initialize())
-	p.writeTime(time.Unix(int64(genesis.Timestamp), 0))
 
-	txs := make([]interface{}, len(genesis.Validators)+len(genesis.Chains))
+	blockTime := new(time.Time)
+	p.genesisTimestamp = time.Unix(int64(genesis.Timestamp), 0)
+	*blockTime = p.genesisTimestamp
 
-	for i, tx := range append(genesis.Validators, genesis.Chains...) {
-		parsedTx, err := p.parseTx(ctx, ids.Empty, *tx, true, 0)
-		errs.Add(err)
-		txs[i] = parsedTx
+	genesisTxs := append(genesis.Validators, genesis.Chains...)
+
+	// Genesis commit block's parent ID is the hash of genesis state
+	var genesisParentID ids.ID = hashing.ComputeHash256Array(bytes)
+
+	// Genesis Block is not indexed by the indexer, but its block ID can be accessed from block 0's parent id
+	genesisChildBlock, err := p.ParseBlockAtIndex(ctx, 1)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, utxo := range genesis.UTXOs {
 		utxo.UTXO.Out.InitCtx(p.ctx)
 	}
 
-	// Genesis commit block's parent ID is the hash of genesis state
-	var genesisParentID ids.ID = hashing.ComputeHash256Array(bytes)
-
-	// Genesis Block is not indexed by the indexer, but its block ID can be accessed from block 0's parent id
-	genesisChildBlock, _ := p.ParseBlockAtIndex(ctx, 1)
 	genesisBlockID := genesisChildBlock.ParentID
 
 	return &ParsedGenesisBlock{
@@ -173,8 +141,8 @@ func (p *Parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
 			Height:    0,
 			BlockID:   genesisBlockID,
 			BlockType: "GenesisBlock",
-			Timestamp: p.readTime(),
-			Txs:       txs,
+			Timestamp: (*blockTime).UnixMilli(),
+			Txs:       genesisTxs,
 			Proposer:  Proposer{},
 		},
 		GenesisBlockData: GenesisBlockData{
@@ -185,7 +153,7 @@ func (p *Parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
 	}, errs.Err
 }
 
-func (p *Parser) ParseCurrentBlock(ctx context.Context) (*ParsedBlock, error) {
+func (p *parser) ParseCurrentBlock(ctx context.Context) (*ParsedBlock, error) {
 	err := p.initCtx(ctx)
 	if err != nil {
 		return nil, err
@@ -199,7 +167,7 @@ func (p *Parser) ParseCurrentBlock(ctx context.Context) (*ParsedBlock, error) {
 	return p.ParseBlockAtIndex(ctx, height)
 }
 
-func (p *Parser) ParseBlockAtIndex(ctx context.Context, index uint64) (*ParsedBlock, error) {
+func (p *parser) ParseBlockAtIndex(ctx context.Context, index uint64) (*ParsedBlock, error) {
 	err := p.initCtx(ctx)
 	if err != nil {
 		return nil, err
@@ -213,7 +181,7 @@ func (p *Parser) ParseBlockAtIndex(ctx context.Context, index uint64) (*ParsedBl
 	return p.parseBlockBytes(ctx, container.Bytes)
 }
 
-func (p *Parser) ParseBlockWithHash(ctx context.Context, hash string) (*ParsedBlock, error) {
+func (p *parser) ParseBlockWithHash(ctx context.Context, hash string) (*ParsedBlock, error) {
 	err := p.initCtx(ctx)
 	if err != nil {
 		return nil, err
@@ -232,12 +200,25 @@ func (p *Parser) ParseBlockWithHash(ctx context.Context, hash string) (*ParsedBl
 	return p.parseBlockBytes(ctx, container.Bytes)
 }
 
-func (p *Parser) parseBlockBytes(ctx context.Context, proposerBytes []byte) (*ParsedBlock, error) {
+func (p *parser) parseBlockBytes(ctx context.Context, proposerBytes []byte) (*ParsedBlock, error) {
 	errs := wrappers.Errs{}
 
 	proposer, bytes, err := getProposerFromBytes(proposerBytes)
 	if err != nil {
 		return nil, fmt.Errorf("fetching proposer from block bytes errored with %w", err)
+	}
+
+	if p.genesisTimestamp.IsZero() {
+		return nil, errParserUninitialized
+	}
+
+	// Default block time to proposer timestamp if exists, otherwise to genesis block
+	blockTimestamp := new(time.Time)
+
+	if proposer.Timestamp > genesisTimestamp {
+		*blockTimestamp = time.Unix(proposer.Timestamp, 0)
+	} else {
+		*blockTimestamp = time.Unix(genesisTimestamp, 0)
 	}
 
 	var blk platformvm.Block
@@ -251,51 +232,49 @@ func (p *Parser) parseBlockBytes(ctx context.Context, proposerBytes []byte) (*Pa
 		Height:    blk.Height(),
 		BlockID:   blkID,
 		BlockType: fmt.Sprintf("%T", blk),
-		Timestamp: p.readTime(),
 		Proposer:  proposer,
 	}
 
 	switch castBlk := blk.(type) {
 	case *platformvm.ProposalBlock:
 		errs.Add(common.InitializeTx(ver, p.codec, castBlk.Tx))
-		tx, err := p.parseTx(ctx, blkID, castBlk.Tx, false, castBlk.Hght)
-		errs.Add(err)
 
 		parsedBlock.ParentID = castBlk.PrntID
-		parsedBlock.Txs = []interface{}{tx}
+		parsedBlock.Txs = []*platformvm.Tx{&castBlk.Tx}
 	case *platformvm.AtomicBlock:
 		errs.Add(common.InitializeTx(ver, p.codec, castBlk.Tx))
-		tx, err := p.parseTx(ctx, blkID, castBlk.Tx, false, castBlk.Hght)
-		errs.Add(err)
 
 		parsedBlock.ParentID = castBlk.PrntID
-		parsedBlock.Txs = []interface{}{tx}
+		parsedBlock.Txs = []*platformvm.Tx{&castBlk.Tx}
 	case *platformvm.StandardBlock:
-		var txs []interface{}
+		var txs []*platformvm.Tx
 
-		for _, tx := range castBlk.Txs {
+		for i, tx := range castBlk.Txs {
 			errs.Add(common.InitializeTx(ver, p.codec, *tx))
-			parsedTx, err := p.parseTx(ctx, blkID, *tx, false, castBlk.Hght)
-			errs.Add(err)
-
-			txs = append(txs, parsedTx)
+			txs = append(txs, castBlk.Txs[i])
 		}
 
 		parsedBlock.ParentID = castBlk.PrntID
 		parsedBlock.Txs = txs
 	case *platformvm.AbortBlock:
-		p.time.RejectProposedWrite()
-
 		parsedBlock.ParentID = castBlk.PrntID
-		parsedBlock.Txs = []interface{}{}
+		parsedBlock.Txs = []*platformvm.Tx{}
 	case *platformvm.CommitBlock:
-		p.time.AcceptProposedWrite()
-
 		parsedBlock.ParentID = castBlk.PrntID
-		parsedBlock.Txs = []interface{}{}
+		parsedBlock.Txs = []*platformvm.Tx{}
 	default:
 		errs.Add(fmt.Errorf("no handler exists for block type %T", castBlk))
 	}
+
+	// If the block has an advance time tx, use its timestamp as the block timestamp
+	for _, tx := range parsedBlock.Txs {
+		if att, ok := tx.UnsignedTx.(*platformvm.UnsignedAdvanceTimeTx); ok {
+			*blockTimestamp = att.Timestamp()
+			break
+		}
+	}
+
+	parsedBlock.Timestamp = (*blockTimestamp).UnixMilli()
 
 	return &parsedBlock, errs.Err
 }
@@ -320,339 +299,4 @@ func getProposerFromBytes(bytes []byte) (Proposer, []byte, error) {
 	default:
 		return Proposer{}, bytes, fmt.Errorf("no handler exists for proposer block type %T", castBlock)
 	}
-}
-
-func sumIns(utxos []*avax.TransferableInput) uint64 {
-	amt := uint64(0)
-
-	for _, utxo := range utxos {
-		amt += utxo.In.Amount()
-	}
-
-	return amt
-}
-
-func sumOuts(utxos []*avax.TransferableOutput) uint64 {
-	amt := uint64(0)
-
-	for _, utxo := range utxos {
-		amt += utxo.Out.Amount()
-	}
-
-	return amt
-}
-
-func standardizeIns(utxos []*avax.TransferableInput) error {
-	for _, u := range utxos {
-		switch castIn := u.In.(type) {
-		case *stakeable.LockIn:
-		case *secp256k1fx.TransferInput:
-			u.In = &stakeable.LockIn{
-				Locktime:       0,
-				TransferableIn: castIn,
-			}
-		default:
-			return fmt.Errorf("no handler exists for utxo out type %T", castIn)
-		}
-	}
-
-	return nil
-}
-
-func standardizeOuts(utxos []*avax.TransferableOutput) error {
-	for _, u := range utxos {
-		switch castOut := u.Out.(type) {
-		case *stakeable.LockOut:
-		case *secp256k1fx.TransferOutput:
-			u.Out = &stakeable.LockOut{
-				Locktime:        0,
-				TransferableOut: castOut,
-			}
-		default:
-			return fmt.Errorf("no handler exists for utxo out type %T", castOut)
-		}
-	}
-
-	return nil
-}
-
-func (p *Parser) parseTx(ctx context.Context, blkID ids.ID, tx platformvm.Tx, genesis bool, height uint64) (interface{}, error) {
-	errs := wrappers.Errs{}
-
-	tx.InitCtx(p.ctx)
-	tx.UnsignedTx.InitCtx(p.ctx)
-
-	creds, err := p.extractCredData(tx.Creds, tx.UnsignedBytes())
-	errs.Add(err)
-
-	parsedTx := ParsedTx{
-		TxType:    fmt.Sprintf("%T", tx.UnsignedTx),
-		BlockID:   blkID,
-		Timestamp: p.readTime(),
-		Creds:     creds,
-		TxID:      tx.ID(),
-	}
-
-	switch castTx := tx.UnsignedTx.(type) {
-	case *platformvm.UnsignedAddValidatorTx:
-		if !genesis {
-			parsedTx.Fee = sumIns(castTx.Ins) - sumOuts(append(castTx.Outs, castTx.Stake...))
-		}
-		castTx.BaseTx.InitCtx(p.ctx)
-
-		errs.Add(standardizeIns(castTx.Ins))
-		errs.Add(standardizeOuts(castTx.Outs))
-		errs.Add(standardizeOuts(castTx.Stake))
-
-		return &ParsedAddValidatorTx{
-			ParsedTx: parsedTx,
-			BaseTxData: BaseTxData{
-				Outs:   castTx.UTXOs(),
-				BaseTx: castTx.BaseTx.BaseTx,
-			},
-			AddValidatorData: AddValidatorData{
-				AddDelegatorData: AddDelegatorData{
-					Validator:    castTx.Validator,
-					RewardsOwner: castTx.RewardsOwner,
-					Stake:        castTx.Stake,
-				},
-				Shares: castTx.Shares,
-			},
-		}, errs.Err
-	case *platformvm.UnsignedAddDelegatorTx:
-		parsedTx.Fee = sumIns(castTx.Ins) - sumOuts(append(castTx.Outs, castTx.Stake...))
-		castTx.BaseTx.InitCtx(p.ctx)
-
-		errs.Add(standardizeIns(castTx.Ins))
-		errs.Add(standardizeOuts(castTx.Outs))
-		errs.Add(standardizeOuts(castTx.Stake))
-
-		return &ParsedAddDelegatorTx{
-			ParsedTx: parsedTx,
-			BaseTxData: BaseTxData{
-				Outs:   castTx.UTXOs(),
-				BaseTx: castTx.BaseTx.BaseTx,
-			},
-			AddDelegatorData: AddDelegatorData{
-				Validator:    castTx.Validator,
-				RewardsOwner: castTx.RewardsOwner,
-				Stake:        castTx.Stake,
-			},
-		}, errs.Err
-	case *platformvm.UnsignedAdvanceTimeTx:
-		p.time.ProposeWrite(castTx.Timestamp())
-		parsedTx.Fee = uint64(0)
-
-		return &ParsedAdvanceTimeTx{
-			ParsedTx: parsedTx,
-			AdvanceTimeData: AdvanceTimeData{
-				Time: castTx.Timestamp().Unix(),
-			},
-		}, nil
-	case *platformvm.UnsignedImportTx:
-		parsedTx.Fee = sumIns(append(castTx.Ins, castTx.ImportedInputs...)) - sumOuts(castTx.Outs)
-		castTx.BaseTx.InitCtx(p.ctx)
-
-		errs.Add(standardizeIns(castTx.Ins))
-		errs.Add(standardizeIns(castTx.ImportedInputs))
-		errs.Add(standardizeOuts(castTx.Outs))
-
-		return &ParsedImportTx{
-			ParsedTx: parsedTx,
-			BaseTxData: BaseTxData{
-				Outs:   castTx.UTXOs(),
-				BaseTx: castTx.BaseTx.BaseTx,
-			},
-			ImportData: ImportData{
-				SourceChain:    castTx.SourceChain,
-				ImportedInputs: castTx.ImportedInputs,
-			},
-		}, errs.Err
-	case *platformvm.UnsignedExportTx:
-		parsedTx.Fee = sumIns(castTx.Ins) - sumOuts(append(castTx.Outs, castTx.ExportedOutputs...))
-		castTx.BaseTx.InitCtx(p.ctx)
-
-		errs.Add(standardizeIns(castTx.Ins))
-		errs.Add(standardizeOuts(castTx.ExportedOutputs))
-		errs.Add(standardizeOuts(castTx.Outs))
-
-		return &ParsedExportTx{
-			ParsedTx: parsedTx,
-			BaseTxData: BaseTxData{
-				Outs:   castTx.UTXOs(),
-				BaseTx: castTx.BaseTx.BaseTx,
-			},
-			ExportData: ExportData{
-				DestinationChain: castTx.DestinationChain,
-				ExportedOutputs:  castTx.ExportedOutputs,
-			},
-		}, errs.Err
-	case *platformvm.UnsignedCreateSubnetTx:
-		parsedTx.Fee = sumIns(castTx.Ins) - sumOuts(castTx.Outs)
-		castTx.BaseTx.InitCtx(p.ctx)
-
-		errs.Add(standardizeIns(castTx.Ins))
-		errs.Add(standardizeOuts(castTx.Outs))
-
-		return &ParsedCreateSubnetTx{
-			ParsedTx: parsedTx,
-			BaseTxData: BaseTxData{
-				Outs:   castTx.UTXOs(),
-				BaseTx: castTx.BaseTx.BaseTx,
-			},
-			CreateSubnetData: CreateSubnetData{
-				Owner: castTx.Owner,
-			},
-		}, errs.Err
-	case *platformvm.UnsignedRewardValidatorTx:
-		outs := []*avax.UTXO{}
-
-		pChainHeight, err := p.GetPlatformHeight(ctx)
-		if err != nil {
-			errs.Add(err)
-			return nil, errs.Err
-		}
-
-		if height+1 > pChainHeight {
-			errs.Add(fmt.Errorf("reward UTXOs are not ready yet, waiting for height %d", height+1))
-			return nil, errs.Err
-		}
-
-		rewardUTXOs, err := p.pChainClient.GetRewardUTXOs(ctx, &api.GetTxArgs{
-			TxID:     castTx.TxID,
-			Encoding: formatting.Hex,
-		})
-		errs.Add(err)
-
-		for _, bytes := range rewardUTXOs {
-			var utxo avax.UTXO
-			_, err = p.codec.Unmarshal(bytes, &utxo)
-			errs.Add(err)
-			utxo.Out.InitCtx(p.ctx)
-			outs = append(outs, &utxo)
-		}
-
-		parsedTx.Fee = uint64(0)
-
-		return &ParsedRewardValidatorTx{
-			ParsedTx: parsedTx,
-			BaseTxData: BaseTxData{
-				BaseTx: avax.BaseTx{
-					// [RewardValidatorTxs] do not have any inputs
-					Ins: []*avax.TransferableInput{},
-				},
-				Outs: outs,
-			},
-			RewardValidatorData: RewardValidatorData{
-				TxID: castTx.TxID,
-			},
-		}, errs.Err
-	case *platformvm.UnsignedCreateChainTx:
-		parsedTx.Fee = sumIns(castTx.Ins) - sumOuts(castTx.Outs)
-		castTx.BaseTx.InitCtx(p.ctx)
-
-		errs.Add(standardizeIns(castTx.Ins))
-		errs.Add(standardizeOuts(castTx.Outs))
-
-		return &ParsedCreateChainTx{
-			ParsedTx: parsedTx,
-			BaseTxData: BaseTxData{
-				Outs:   castTx.UTXOs(),
-				BaseTx: castTx.BaseTx.BaseTx,
-			},
-			CreateChainData: CreateChainData{
-				SubnetID:    castTx.SubnetID,
-				ChainName:   castTx.ChainName,
-				VMID:        castTx.VMID,
-				FxIDs:       castTx.FxIDs,
-				GenesisData: castTx.GenesisData,
-				SubnetAuth:  castTx.SubnetAuth,
-			},
-		}, errs.Err
-	case *platformvm.UnsignedAddSubnetValidatorTx:
-		parsedTx.Fee = sumIns(castTx.Ins) - sumOuts(castTx.Outs)
-		castTx.BaseTx.InitCtx(p.ctx)
-
-		errs.Add(standardizeIns(castTx.Ins))
-		errs.Add(standardizeOuts(castTx.Outs))
-
-		return &ParsedAddSubnetValidatorTx{
-			ParsedTx: parsedTx,
-			BaseTxData: BaseTxData{
-				Outs:   castTx.UTXOs(),
-				BaseTx: castTx.BaseTx.BaseTx,
-			},
-			AddSubnetValidatorData: AddSubnetValidatorData{
-				Validator:  castTx.Validator,
-				SubnetAuth: castTx.SubnetAuth,
-			},
-		}, errs.Err
-	default:
-		errs.Add(fmt.Errorf("no handler exists for tx type %T", castTx))
-	}
-
-	return nil, errs.Err
-}
-
-func (p *Parser) GenesisToTxs(genesisBlock *ParsedGenesisBlock) ([]*platformvm.Tx, error) {
-	var unsignedTx platformvm.UnsignedTx
-
-	txs := make([]*platformvm.Tx, 0)
-	for i := range genesisBlock.Txs {
-		switch avTx := genesisBlock.Txs[i].(type) {
-		case *ParsedAddValidatorTx:
-			unsignedTx = &platformvm.UnsignedAddValidatorTx{
-				BaseTx: platformvm.BaseTx{
-					BaseTx: avax.BaseTx{
-						NetworkID:    avTx.NetworkID,
-						BlockchainID: avTx.BlockchainID,
-						Outs:         utxoToTransferableOutput(avTx.Outs),
-						Ins:          avTx.Ins,
-						Memo:         avTx.Memo,
-					},
-				},
-				Validator:    avTx.Validator,
-				Stake:        avTx.Stake,
-				RewardsOwner: avTx.RewardsOwner,
-				Shares:       avTx.Shares,
-			}
-
-		case *ParsedCreateChainTx:
-			unsignedTx = &platformvm.UnsignedCreateChainTx{
-				BaseTx: platformvm.BaseTx{
-					BaseTx: avax.BaseTx{
-						NetworkID:    avTx.NetworkID,
-						BlockchainID: avTx.BlockchainID,
-						Outs:         utxoToTransferableOutput(avTx.Outs),
-						Ins:          avTx.Ins,
-						Memo:         avTx.Memo,
-					},
-				},
-				SubnetID:    avTx.SubnetID,
-				ChainName:   avTx.ChainName,
-				VMID:        avTx.VMID,
-				FxIDs:       avTx.FxIDs,
-				GenesisData: avTx.GenesisData,
-				SubnetAuth:  avTx.SubnetAuth,
-			}
-		default:
-			return nil, errUnexpectedGenesisTx
-		}
-
-		tx := &platformvm.Tx{UnsignedTx: unsignedTx}
-		txs = append(txs, tx)
-	}
-	return txs, nil
-}
-
-func utxoToTransferableOutput(utxos []*avax.UTXO) []*avax.TransferableOutput {
-	var outputs []*avax.TransferableOutput
-	for _, utxo := range utxos {
-		output := &avax.TransferableOutput{
-			Asset: avax.Asset{ID: utxo.AssetID()},
-			Out:   utxo.Out.(avax.TransferableOut),
-		}
-		outputs = append(outputs, output)
-	}
-	return outputs
 }

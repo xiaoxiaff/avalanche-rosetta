@@ -1,46 +1,22 @@
 {
-	"id": "2DxASWodkHwmQURYjddSysMYiWoR2cArEaLEh6s6114gy2zSD4",
-	"type": "*platformvm.ProposalBlock",
-	"parent": "guP5pc9yADiupb6riw8fPaWwNTpw5kPwhF43nM2csamDqrrNH",
-	"timestamp": 0,
-	"height": 131476,
-	"transactions": [
-		{
-			"id": "2U9eR7zZPZ5Li69MxmFhVxwntZFTcQn5MqcFAt6vrHB5oFfWVf",
-			"type": "*platformvm.UnsignedRewardValidatorTx",
-			"block": "2DxASWodkHwmQURYjddSysMYiWoR2cArEaLEh6s6114gy2zSD4",
-			"timestamp": 0,
-			"credentials": [],
-			"fee": 0,
-			"outputs": [
-				{
-					"txID": "jWgE5KiiCejNYbYGDzhu9WAXrAdgwav9EXuycNVdB62rSU4tH",
-					"outputIndex": 7,
-					"assetID": "FvwEAhmxKfeiG8SnEvq42hc6whRyY3EFYAvebMqDNDGCgxN5Z",
-					"output": {
-						"addresses": [
-							"P-avax1a45dgarmwutzng4r25l25lnfltzetsrcjyp0m2"
-						],
-						"amount": 21173514157,
-						"locktime": 0,
-						"threshold": 1
-					}
-				}
-			],
-			"networkID": 0,
-			"blockchainID": "11111111111111111111111111111111LpoYY",
-			"inputs": [],
-			"memo": "0x",
-			"data": {
-				"txID": "jWgE5KiiCejNYbYGDzhu9WAXrAdgwav9EXuycNVdB62rSU4tH"
-			}
-		}
-	],
-	"proposer": {
-		"id": "11111111111111111111111111111111LpoYY",
-		"parent": "11111111111111111111111111111111LpoYY",
-		"nodeID": "NodeID-111111111111111111116DBWJs",
-		"pChainHeight": 0,
-		"timestamp": 0
-	}
+  "id": "2DxASWodkHwmQURYjddSysMYiWoR2cArEaLEh6s6114gy2zSD4",
+  "type": "*platformvm.ProposalBlock",
+  "parent": "guP5pc9yADiupb6riw8fPaWwNTpw5kPwhF43nM2csamDqrrNH",
+  "timestamp": 1599696000000,
+  "height": 131476,
+  "transactions": [
+    {
+      "unsignedTx": {
+        "txID": "jWgE5KiiCejNYbYGDzhu9WAXrAdgwav9EXuycNVdB62rSU4tH"
+      },
+      "credentials": []
+    }
+  ],
+  "proposer": {
+    "id": "11111111111111111111111111111111LpoYY",
+    "parent": "11111111111111111111111111111111LpoYY",
+    "nodeID": "NodeID-111111111111111111116DBWJs",
+    "pChainHeight": 0,
+    "timestamp": 0
+  }
 }

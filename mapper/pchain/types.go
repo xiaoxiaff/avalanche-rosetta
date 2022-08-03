@@ -2,6 +2,8 @@ package pchain
 
 import (
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/vms/components/avax"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 )
 
 const (
@@ -13,6 +15,7 @@ const (
 	OpCreateChain        = "CREATE_CHAIN"
 	OpCreateSubnet       = "CREATE_SUBNET"
 	OpAddSubnetValidator = "ADD_SUBNET_VALIDATOR"
+	OpAdvanceTime        = "ADVANCE_TIME"
 
 	OpTypeImport      = "IMPORT"
 	OpTypeExport      = "EXPORT"
@@ -22,6 +25,7 @@ const (
 	OpTypeReward      = "REWARD"
 	OpTypeCreateChain = "CREATE_CHAIN"
 
+	MetadataTxType      = "tx_type"
 	MetadataOpType      = "type"
 	MetadataStakingTxID = "staking_tx_id"
 	MetadataSubnetID    = "subnet_id"
@@ -30,8 +34,11 @@ const (
 	MetadataMemo        = "memo"
 	MetadataMessage     = "message"
 
-	UTXOTypeSharedMemory = "shared_memory"
-	IsAtomicUTXO         = "is_atomic"
+	SubAccountTypeSharedMemory       = "shared_memory"
+	SubAccountTypeUnlocked           = "unlocked"
+	SubaccounttypelockedStakeable    = "locked_stakeable"
+	SubaccounttypelockedNotStakeable = "locked_not_stakeable"
+	SubAccountTypeStaked             = "staked"
 )
 
 var (
@@ -53,7 +60,6 @@ type OperationMetadata struct {
 	SigIndices  []uint32 `json:"sig_indices,omitempty"`
 	Locktime    uint64   `json:"locktime"`
 	Threshold   uint32   `json:"threshold,omitempty"`
-	MultiSig    bool     `json:"multi_sig,omitempty"`
 	StakingTxID string   `json:"staking_tx_id,omitempty"`
 }
 
@@ -103,27 +109,8 @@ type StakingMetadata struct {
 	Memo            string   `json:"memo"`
 }
 
-func TimestampForBlock(block int64) int64 {
-	// url := "https://testnet.avascan.info/blockchain/p/block/" + strconv.FormatInt(block, 10)
-	// resp, err := http.Get(url)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// //We Read the response body on the line below.
-	// body, err := ioutil.ReadAll(resp.Body)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// //Convert the body to type string
-	// sb := string(body)
-	// idx := strings.Index(sb, "data-timestamp=")
-	// startIdx := idx + len("data-timestamp=") + 1
-	// endIdx := strings.Index(sb, "data-timestamp-full=") - 2
-	// timestampStr := sb[startIdx:endIdx]
-	// timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println(timestamp)
-	return 1657819573000 - block
+type DependencyTx struct {
+	ID          ids.ID
+	Tx          *platformvm.Tx
+	RewardUTXOs []*avax.UTXO
 }

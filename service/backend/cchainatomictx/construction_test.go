@@ -37,12 +37,12 @@ var (
 	avaxAssetID, _ = ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
 )
 
-func buildRosettaSignerJson(signers []*types.AccountIdentifier) string {
+func buildRosettaSignerJson(coinIdentifiers []string, signers []*types.AccountIdentifier) string {
 	var importSigners []*common.Signer
 	for i, s := range signers {
 		importSigners = append(importSigners, &common.Signer{
-			OperationIdentifier: &types.OperationIdentifier{Index: int64(i)},
-			AccountIdentifier:   s,
+			CoinIdentifier:    coinIdentifiers[i],
+			AccountIdentifier: s,
 		})
 	}
 	bytes, _ := json.Marshal(importSigners)
@@ -116,7 +116,7 @@ func TestExportTxConstruction(t *testing.T) {
 	}
 
 	signers := []*types.AccountIdentifier{cAccountIdentifier}
-	exportSigners := buildRosettaSignerJson(signers)
+	exportSigners := buildRosettaSignerJson([]string{""}, signers)
 
 	unsignedExportTx := "0x000000000001000000057fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d50000000000000000000000000000000000000000000000000000000000000000000000013158e80abd5a1e1aa716003c9db096792c37962100000000009896803d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa0000000000000030000000013d9bdac0ed1d761330cf680efdeb1a42159eb387d6d2950c96f7d28f61bbe2aa000000070000000000944dd20000000000000000000000010000000176da56a4600f1ba6f40fc3735f71e3f06c31d7590000000024739402"
 	unsignedExportTxHash, _ := hex.DecodeString("75afdcba5bf36457ba9edd65b07f40dcd3111d3c98a53550025af931b7500a7b")
@@ -355,7 +355,7 @@ func TestImportTxConstruction(t *testing.T) {
 	}
 
 	signers := []*types.AccountIdentifier{pAccountIdentifier, pAccountIdentifier}
-	importSigners := buildRosettaSignerJson(signers)
+	importSigners := buildRosettaSignerJson([]string{coinId1, coinId2}, signers)
 
 	wrappedUnsignedImportTx := `{"tx":"` + unsignedImportTx + `","signers":` + importSigners + `}`
 

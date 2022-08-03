@@ -7,15 +7,16 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm"
 	"github.com/ava-labs/avalanchego/vms/platformvm/validator"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	"github.com/coinbase/rosetta-sdk-go/types"
 )
 
-func buildImport() *platformvm.UnsignedImportTx {
-
+func buildImport() (*platformvm.UnsignedImportTx, map[string]*types.AccountIdentifier) {
 	avaxAssetID, _ := ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
 	sourceChain, _ := ids.FromString("2JVSBoinj9C2J33VntvzYtVJNZdN2NKiwwKjcumHUWEb5DbBrm")
 	outAddr1, _ := address.ParseToID("P-fuji1xm0r37l6gyf2mly4pmzc0tz6wnwqkugedh95fk")
 	outAddr2, _ := address.ParseToID("P-fuji1fmragvegm5k26qzlt6vy0ghhdr508u6r4a5rxj")
 	outAddr3, _ := address.ParseToID("P-fuji1j3sw805usytrsymfwxxrcwfqguyarumn45cllj")
+	importAddr, _ := address.ParseToID("C-fuji1xm0r37l6gyf2mly4pmzc0tz6wnwqkugedh95fk")
 	importedTxId, _ := ids.FromString("2DtYhzCvo9LRYMRJ6sCtYJ4aNPRpsibp46ETNyY6H5Cox1VLvX")
 	impTx := &platformvm.UnsignedImportTx{
 		BaseTx: platformvm.BaseTx{
@@ -30,11 +31,23 @@ func buildImport() *platformvm.UnsignedImportTx {
 						Amt: 8000000,
 						OutputOwners: secp256k1fx.OutputOwners{
 							Locktime:  0,
-							Threshold: 2,
-							Addrs:     []ids.ShortID{outAddr1, outAddr2, outAddr3},
+							Threshold: 1,
+							Addrs:     []ids.ShortID{outAddr1},
 						},
 					},
-				}},
+				},
+					{ //  this will be skipped as it is multisig
+						Asset: avax.Asset{ID: avaxAssetID},
+						FxID:  [32]byte{},
+						Out: &secp256k1fx.TransferOutput{
+							Amt: 8000000,
+							OutputOwners: secp256k1fx.OutputOwners{
+								Locktime:  0,
+								Threshold: 2,
+								Addrs:     []ids.ShortID{outAddr1, outAddr2, outAddr3},
+							},
+						},
+					}},
 				Ins:  nil,
 				Memo: []byte{},
 			},
@@ -57,10 +70,13 @@ func buildImport() *platformvm.UnsignedImportTx {
 		}},
 	}
 
-	return impTx
+	inputTxAccounts := map[string]*types.AccountIdentifier{}
+	inputTxAccounts[impTx.ImportedInputs[0].String()] = &types.AccountIdentifier{Address: importAddr.String()}
+
+	return impTx, inputTxAccounts
 }
 
-func buildExport() *platformvm.UnsignedExportTx {
+func buildExport() (*platformvm.UnsignedExportTx, map[string]*types.AccountIdentifier) {
 	avaxAssetID, _ := ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
 	outAddr, _ := address.ParseToID("P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399")
 	exportOutAddr, _ := address.ParseToID("P-fuji1wmd9dfrqpud6daq0cde47u0r7pkrr46ep60399")
@@ -110,10 +126,13 @@ func buildExport() *platformvm.UnsignedExportTx {
 		}},
 	}
 
-	return exTx
+	inputTxAccounts := map[string]*types.AccountIdentifier{}
+	inputTxAccounts[exTx.Ins[0].String()] = &types.AccountIdentifier{Address: outAddr.String()}
+
+	return exTx, inputTxAccounts
 }
 
-func buildAddDelegator() *platformvm.UnsignedAddDelegatorTx {
+func buildAddDelegator() (*platformvm.UnsignedAddDelegatorTx, map[string]*types.AccountIdentifier) {
 	avaxAssetID, _ := ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
 	txId, _ := ids.FromString("2JQGX1MBdszAaeV6eApCZm7CBpc917qWiyQ2cygFRJ6WteDkre")
 	outAddr, _ := address.ParseToID("P-fuji1gdkq8g208e3j4epyjmx65jglsw7vauh86l47ac")
@@ -174,11 +193,13 @@ func buildAddDelegator() *platformvm.UnsignedAddDelegatorTx {
 		},
 	}
 
-	return tx
+	inputTxAccounts := map[string]*types.AccountIdentifier{}
+	inputTxAccounts[tx.Ins[0].String()] = &types.AccountIdentifier{Address: stakeAddr.String()}
 
+	return tx, inputTxAccounts
 }
 
-func buildValidatorTx() *platformvm.UnsignedAddValidatorTx {
+func buildValidatorTx() (*platformvm.UnsignedAddValidatorTx, map[string]*types.AccountIdentifier) {
 	avaxAssetID, _ := ids.FromString("U8iRqJoiJm8xZHAacmvYyZVwqQx6uDNtQeP3CQ6fcgQk3JqnK")
 
 	txId, _ := ids.FromString("88tfp1Pkw9vyKrRtVNiMrghFBrre6Q6CzqPW1t7StDNX9PJEo")
@@ -229,5 +250,8 @@ func buildValidatorTx() *platformvm.UnsignedAddValidatorTx {
 		},
 		Shares: 20000}
 
-	return addvalidator
+	inputTxAccounts := map[string]*types.AccountIdentifier{}
+	inputTxAccounts[addvalidator.Ins[0].String()] = &types.AccountIdentifier{Address: stakeAddr.String()}
+
+	return addvalidator, inputTxAccounts
 }

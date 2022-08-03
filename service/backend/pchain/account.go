@@ -3,15 +3,18 @@ package pchain
 import (
 	"context"
 	"errors"
-	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
+	"strconv"
+	"time"
+
 	"github.com/ava-labs/avalanchego/vms/platformvm/stakeable"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
-	"strconv"
 
+	pmapper "github.com/ava-labs/avalanche-rosetta/mapper/pchain"
 	"github.com/ava-labs/avalanche-rosetta/service/backend/common"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
@@ -20,76 +23,60 @@ import (
 )
 
 var (
-	errUnableToParseUTXO  = errors.New("unable to parse UTXO")
-	errUnableToGetUTXOOut = errors.New("unable to get UTXO output")
+	errUnableToGetUTXOs           = errors.New("unable to get UTXOs")
+	errUnableToParseUTXO          = errors.New("unable to parse UTXO")
+	errUnableToGetUTXOOut         = errors.New("unable to get UTXO output")
+	errTotalOverflow              = errors.New("overflow while calculating total balance")
+	errUnlockedOverflow           = errors.New("overflow while calculating unlocked balance")
+	errLockedOverflow             = errors.New("overflow while calculating locked balance")
+	errNotStakeableOverflow       = errors.New("overflow while calculating locked not stakeable balance")
+	errLockedNotStakeableOverflow = errors.New("overflow while calculating locked not stakeable balance")
+	errUnlockedStakeableOverflow  = errors.New("overflow while calculating unlocked stakeable balance")
 )
 
 func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceRequest) (*types.AccountBalanceResponse, *types.Error) {
 	if req.AccountIdentifier == nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "account indentifier is not provided")
 	}
-	addr, err := address.ParseToID(req.AccountIdentifier.Address)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unable to convert address")
+	if req.BlockIdentifier != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to fetch historical balance")
 	}
 
 	var balanceType string
 	if req.AccountIdentifier.SubAccount != nil {
 		balanceType = req.AccountIdentifier.SubAccount.Address
 	}
+	fetchImportable := balanceType == pmapper.SubAccountTypeSharedMemory
 
-	// fetch height before the balance fetch
-	preHeight, err := b.pClient.GetHeight(ctx)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
-	}
-
-	balanceResponse, err := b.pClient.GetBalance(ctx, []ids.ShortID{addr})
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unable to get balance from input address")
+	height, balance, typedErr := b.fetchBalance(ctx, req.AccountIdentifier.Address, fetchImportable)
+	if typedErr != nil {
+		return nil, typedErr
 	}
 
 	var balanceValue uint64
-
 	switch balanceType {
-	case "unlocked":
-		balanceValue = uint64(balanceResponse.Unlocked)
-	case "locked_stakeable":
-		balanceValue = uint64(balanceResponse.LockedStakeable)
-	case "locked_not_stakeable":
-		balanceValue = uint64(balanceResponse.LockedNotStakeable)
+	case pmapper.SubAccountTypeUnlocked:
+		balanceValue = balance.Unlocked
+	case pmapper.SubaccounttypelockedStakeable:
+		balanceValue = balance.LockedStakeable
+	case pmapper.SubaccounttypelockedNotStakeable:
+		balanceValue = balance.LockedNotStakeable
+	case pmapper.SubAccountTypeStaked:
+		balanceValue = balance.Staked
 	default:
-		balance, err := b.fetchBalance(ctx, req.AccountIdentifier.Address)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInvalidInput, "unable to get balance from input address")
-		}
-		if balance < 0 {
-			return nil, service.WrapError(service.ErrInvalidInput, "negative balance")
-		}
-		balanceValue = uint64(balance)
+		balanceValue = balance.Total
 	}
 
-	blockIdentifier := &types.BlockIdentifier{}
-	if req.BlockIdentifier != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unable to fetch historical balance")
-	}
-
-	height, err := b.pClient.GetHeight(ctx)
+	block, err := b.getBlockDetails(ctx, int64(height), "")
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
 	}
-	if height != preHeight {
-		return nil, service.WrapError(service.ErrNotReady, "block number changed, pls retry")
-	}
-	_, hash, _, err := b.getBlock(ctx, int64(height), "")
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
-	}
-	blockIdentifier.Hash = hash
-	blockIdentifier.Index = int64(height)
 
 	return &types.AccountBalanceResponse{
-		BlockIdentifier: blockIdentifier,
+		BlockIdentifier: &types.BlockIdentifier{
+			Index: int64(height),
+			Hash:  block.BlockID.String(),
+		},
 		Balances: []*types.Amount{
 			{
 				Value:    strconv.FormatUint(balanceValue, 10),
@@ -113,94 +100,138 @@ func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 		return nil, wrappedErr
 	}
 
-	var coins []*types.Coin
+	var subAccountAddress string
+	if req.AccountIdentifier.SubAccount != nil {
+		subAccountAddress = req.AccountIdentifier.SubAccount.Address
+	}
+	fetchSharedMemory := subAccountAddress == pmapper.SubAccountTypeSharedMemory
 
-	// Used for pagination
-	var startAddr ids.ShortID
-	var startUTXOID ids.ID
+	height, utxos, _, typedErr := b.fetchUTXOsAndStakedOutputs(ctx, addr, false, fetchSharedMemory)
+	if typedErr != nil {
+		return nil, typedErr
+	}
 
-	// fetch height before the balance fetch
-	preHeight, err := b.pClient.GetHeight(ctx)
+	// convert raw UTXO bytes to Rosetta Coins
+	coins, err := b.processUtxos(currencyAssetIDs, utxos)
 	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
+		return nil, service.WrapError(service.ErrInternalError, err)
 	}
 
-	for {
-		var utxos [][]byte
-		var utxoType string
-		if req.AccountIdentifier.SubAccount != nil {
-			utxoType = req.AccountIdentifier.SubAccount.Address
-		}
-
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, err)
-		}
-
-		if utxoType == pmapper.UTXOTypeSharedMemory {
-			// it is an atomic utxo, then
-			// GetAtomicUTXOs for both C and X Chain
-
-			// C Chain
-			utxos, _, _, err = b.pClient.GetAtomicUTXOs(ctx, []ids.ShortID{addr}, "C", b.getUTXOsPageSize, startAddr, startUTXOID)
-			// convert raw UTXO bytes to Rosetta Coins
-			coinsPage, err := b.processUtxos(currencyAssetIDs, utxos, true)
-			if err != nil {
-				return nil, service.WrapError(service.ErrInternalError, err)
-			}
-			coins = append(coins, coinsPage...)
-
-			// X Chain
-			utxos, _, _, err = b.pClient.GetAtomicUTXOs(ctx, []ids.ShortID{addr}, "X", b.getUTXOsPageSize, startAddr, startUTXOID)
-			// convert raw UTXO bytes to Rosetta Coins
-			coinsPage, err = b.processUtxos(currencyAssetIDs, utxos, true)
-			if err != nil {
-				return nil, service.WrapError(service.ErrInternalError, err)
-			}
-			coins = append(coins, coinsPage...)
-		} else {
-			// P Chain
-			// GetUTXOs controlled by addr
-			utxos, startAddr, startUTXOID, err = b.pClient.GetAtomicUTXOs(ctx, []ids.ShortID{addr}, "", b.getUTXOsPageSize, startAddr, startUTXOID)
-			if err != nil {
-				return nil, service.WrapError(service.ErrInternalError, "unable to get UTXOs")
-			}
-
-			// convert raw UTXO bytes to Rosetta Coins
-			coinsPage, err := b.processUtxos(currencyAssetIDs, utxos, false)
-			if err != nil {
-				return nil, service.WrapError(service.ErrInternalError, err)
-			}
-
-			coins = append(coins, coinsPage...)
-		}
-
-		// Fetch next page only if there may be more UTXOs
-		if len(utxos) < int(b.getUTXOsPageSize) {
-			break
-		}
-	}
-
-	height, err := b.pClient.GetHeight(ctx)
-	if err != nil {
-		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
-	}
-	if height != preHeight {
-		return nil, service.WrapError(service.ErrNotReady, "block number changed, pls retry")
-	}
-	_, hash, _, err := b.getBlock(ctx, int64(height), "")
+	block, err := b.getBlockDetails(ctx, int64(height), "")
 	if err != nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "unable to get height")
 	}
 
 	return &types.AccountCoinsResponse{
-		//TODO: return block identifier once AvalancheGo exposes an API for it
-		// BlockIdentifier: ...
 		BlockIdentifier: &types.BlockIdentifier{
-			Hash:  hash,
 			Index: int64(height),
+			Hash:  block.BlockID.String(),
 		},
 		Coins: common.SortUnique(coins),
 	}, nil
+}
+
+func (b *Backend) fetchBalance(ctx context.Context, addrString string, fetchImportable bool) (uint64, *AccountBalance, *types.Error) {
+	addr, err := address.ParseToID(addrString)
+	if err != nil {
+		return 0, nil, service.WrapError(service.ErrInvalidInput, "unable to convert address")
+	}
+
+	height, utxos, stakedUTXOBytes, typedErr := b.fetchUTXOsAndStakedOutputs(ctx, addr, true, fetchImportable)
+	if typedErr != nil {
+		return 0, nil, typedErr
+	}
+
+	balance, err := b.getBalancesWithoutMultisig(utxos)
+	if err != nil {
+		return 0, nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	// parse staked UTXO bytes to UTXO structs
+	stakedAmount, err := b.calculateStakedAmount(stakedUTXOBytes)
+	if err != nil {
+		return 0, nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	balance.Staked = stakedAmount
+	balance.Total += stakedAmount
+
+	return height, balance, nil
+}
+
+// Copy of the platformvm service's GetBalance implementation.
+// This is needed as multisig UTXOs are cleaned in parseUTXOs and its output must be used for the calculations. Ref:
+// https://github.com/ava-labs/avalanchego/blob/0950acab667e0c16a55e9a9bb72bcbe25c3b88cf/vms/platformvm/service.go#L184
+func (b *Backend) getBalancesWithoutMultisig(utxos []avax.UTXO) (*AccountBalance, error) {
+	currentTime := uint64(time.Now().Unix())
+
+	accountBalance := &AccountBalance{
+		Total:              0,
+		Staked:             0,
+		Unlocked:           0,
+		LockedStakeable:    0,
+		LockedNotStakeable: 0,
+	}
+
+utxoFor:
+	for _, utxo := range utxos {
+		switch out := utxo.Out.(type) {
+		case *secp256k1fx.TransferOutput:
+			if out.Locktime <= currentTime {
+				newBalance, err := math.Add64(accountBalance.Unlocked, out.Amount())
+				if err != nil {
+					return nil, errUnlockedOverflow
+				}
+				accountBalance.Unlocked = newBalance
+			} else {
+				newBalance, err := math.Add64(accountBalance.LockedNotStakeable, out.Amount())
+				if err != nil {
+					return nil, errNotStakeableOverflow
+				}
+				accountBalance.LockedNotStakeable = newBalance
+			}
+		case *stakeable.LockOut:
+			innerOut, ok := out.TransferableOut.(*secp256k1fx.TransferOutput)
+			switch {
+			case !ok:
+				continue utxoFor
+			case innerOut.Locktime > currentTime:
+				newBalance, err := math.Add64(accountBalance.LockedNotStakeable, out.Amount())
+				if err != nil {
+					return nil, errLockedNotStakeableOverflow
+				}
+				accountBalance.LockedNotStakeable = newBalance
+			case out.Locktime <= currentTime:
+				newBalance, err := math.Add64(accountBalance.Unlocked, out.Amount())
+				if err != nil {
+					return nil, errUnlockedOverflow
+				}
+				accountBalance.Unlocked = newBalance
+			default:
+				newBalance, err := math.Add64(accountBalance.LockedStakeable, out.Amount())
+				if err != nil {
+					return nil, errUnlockedStakeableOverflow
+				}
+				accountBalance.LockedStakeable = newBalance
+			}
+		default:
+			continue utxoFor
+		}
+	}
+
+	lockedBalance, err := math.Add64(accountBalance.LockedStakeable, accountBalance.LockedNotStakeable)
+	if err != nil {
+		return nil, errLockedOverflow
+	}
+
+	totalBalance, err := math.Add64(accountBalance.Unlocked, lockedBalance)
+	if err != nil {
+		return nil, errTotalOverflow
+	}
+
+	accountBalance.Total = totalBalance
+
+	return accountBalance, nil
 }
 
 func (b *Backend) buildCurrencyAssetIDs(ctx context.Context, req *types.AccountCoinsRequest) (map[ids.ID]struct{}, *types.Error) {
@@ -219,104 +250,84 @@ func (b *Backend) buildCurrencyAssetIDs(ctx context.Context, req *types.AccountC
 	return currencyAssetIDs, nil
 }
 
-func (b *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos [][]byte, isAtomic bool) ([]*types.Coin, error) {
-	var coins []*types.Coin
-	for _, utxoBytes := range utxos {
-		utxo := avax.UTXO{}
-		_, err := b.codec.Unmarshal(utxoBytes, &utxo)
-		if err != nil {
-			return nil, errUnableToParseUTXO
-		}
-
-		// Skip UTXO if req.Currencies is specified but it doesn't contain the UTXOs asset
-		if _, ok := currencyAssetIDs[utxo.AssetID()]; len(currencyAssetIDs) > 0 && !ok {
-			continue
-		}
-
-		transferableOut, ok := utxo.Out.(avax.TransferableOut)
-		if !ok {
-			return nil, errUnableToGetUTXOOut
-		}
-
-		coin := &types.Coin{
-			CoinIdentifier: &types.CoinIdentifier{Identifier: utxo.UTXOID.String()},
-			Amount: &types.Amount{
-				Value:    strconv.FormatUint(transferableOut.Amount(), 10),
-				Currency: mapper.AvaxCurrency,
-				Metadata: map[string]interface{}{
-					pmapper.IsAtomicUTXO: isAtomic,
-				},
-			},
-		}
-		coins = append(coins, coin)
+// Fetches UTXOs and staked outputs for the given account.
+//
+// Since these APIs don't return the corresponding block height or hash,
+// which is needed for both /account/balance and /account/coins, chain height is checked before and after
+// and if they differ, an error is returned.
+func (b *Backend) fetchUTXOsAndStakedOutputs(
+	ctx context.Context,
+	addr ids.ShortID,
+	fetchStaked bool,
+	fetchSharedMemory bool,
+) (uint64, []avax.UTXO, [][]byte, *types.Error) {
+	// fetch preHeight before the balance fetch
+	preHeight, err := b.pClient.GetHeight(ctx)
+	if err != nil {
+		return 0, nil, nil, service.WrapError(service.ErrInvalidInput, "unable to get postHeight")
 	}
-	return coins, nil
+
+	var sourceChains []string
+	if fetchSharedMemory {
+		sourceChains = []string{
+			mapper.CChainNetworkIdentifier,
+			mapper.XChainNetworkIdentifier,
+		}
+	} else {
+		sourceChains = []string{""}
+	}
+
+	var utxoBytes [][]byte
+
+	for _, sc := range sourceChains {
+		// fetch all UTXOs for addr
+		chainUtxoBytes, err := b.getAccountUTXOs(ctx, addr, sc)
+		if err != nil {
+
+		}
+		utxoBytes = append(utxoBytes, chainUtxoBytes...)
+	}
+
+	if err != nil {
+		return 0, nil, nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	var stakedUTXOBytes [][]byte
+	if fetchStaked {
+		// fetch staked outputs for addr
+		_, stakedUTXOBytes, err = b.pClient.GetStake(ctx, []ids.ShortID{addr})
+		if err != nil {
+			return 0, nil, nil, service.WrapError(service.ErrInvalidInput, "unable to get stake")
+		}
+	}
+
+	// fetch postHeight after the balance fetch and compare with preHeight
+	postHeight, err := b.pClient.GetHeight(ctx)
+	if err != nil {
+		return 0, nil, nil, service.WrapError(service.ErrInvalidInput, "unable to get postHeight")
+	}
+	if postHeight != preHeight {
+		return 0, nil, nil, service.WrapError(service.ErrInternalError, "new block added while fetching utxos")
+	}
+
+	// parse UTXO bytes to UTXO structs
+	utxos, err := b.parseUTXOs(utxoBytes)
+	if err != nil {
+		return 0, nil, nil, service.WrapError(service.ErrInternalError, err)
+	}
+
+	return postHeight, utxos, stakedUTXOBytes, nil
 }
 
-func (b *Backend) fetchBalance(ctx context.Context, addr string) (int64, *types.Error) {
-	balance := int64(0)
-
-	parsedAddr, err := address.ParseToID(addr)
-	if err != nil {
-		return 0, service.WrapError(service.ErrInvalidInput, "unable to convert address")
-	}
-
-	// Used for pagination
-	var startAddr ids.ShortID
-	var startUTXOID ids.ID
-
-	for {
-		var utxos [][]byte
-
-		// GetUTXOs controlled by addr
-		utxos, startAddr, startUTXOID, err = b.pClient.GetUTXOs(ctx, []ids.ShortID{parsedAddr}, b.getUTXOsPageSize, startAddr, startUTXOID)
-		if err != nil {
-			return 0, service.WrapError(service.ErrInternalError, "unable to get UTXOs")
-		}
-
-		for _, utxoBytes := range utxos {
-			utxo := avax.UTXO{}
-			_, err := b.codec.Unmarshal(utxoBytes, &utxo)
-			if err != nil {
-				return 0, service.WrapError(service.ErrInvalidInput, "unable to parse UTXO")
-			}
-
-			outIntf := utxo.Out
-			if lockedOut, ok := outIntf.(*stakeable.LockOut); ok {
-				outIntf = lockedOut.TransferableOut
-			}
-
-			out, ok := outIntf.(*secp256k1fx.TransferOutput)
-			if !ok {
-				return 0, service.WrapError(service.ErrBlockInvalidInput, "output type assertion failed")
-			}
-
-			// ignore multisig
-			if len(out.OutputOwners.Addrs) > 1 {
-				continue
-			}
-
-			balance += int64(out.Amt)
-		}
-
-		// Fetch next page only if there may be more UTXOs
-		if len(utxos) < int(b.getUTXOsPageSize) {
-			break
-		}
-	}
-
-	_, stakeUTXOs, err := b.pClient.GetStake(ctx, []ids.ShortID{parsedAddr})
-	if err != nil {
-		return 0, service.WrapError(service.ErrInvalidInput, "unable to get stake")
-	}
-
-	staked := int64(0)
+func (b *Backend) calculateStakedAmount(stakeUTXOs [][]byte) (uint64, error) {
+	staked := uint64(0)
 
 	for _, utxoBytes := range stakeUTXOs {
 		utxo := avax.TransferableOutput{}
+
 		_, err := b.codec.Unmarshal(utxoBytes, &utxo)
 		if err != nil {
-			return 0, service.WrapError(service.ErrInvalidInput, "unable to parse UTXO")
+			return 0, errUnableToParseUTXO
 		}
 
 		outIntf := utxo.Out
@@ -326,7 +337,7 @@ func (b *Backend) fetchBalance(ctx context.Context, addr string) (int64, *types.
 
 		out, ok := outIntf.(*secp256k1fx.TransferOutput)
 		if !ok {
-			return 0, service.WrapError(service.ErrBlockInvalidInput, "output type assertion failed")
+			return 0, errUnableToParseUTXO
 		}
 
 		// ignore multisig
@@ -334,11 +345,100 @@ func (b *Backend) fetchBalance(ctx context.Context, addr string) (int64, *types.
 			continue
 		}
 
-		staked += int64(out.Amt)
+		staked += out.Amt
 	}
 
-	// TODO (stake should be in the balance or not)
-	balance += staked
+	return staked, nil
+}
 
-	return balance, nil
+func (b *Backend) parseUTXOs(utxoBytes [][]byte) ([]avax.UTXO, error) {
+	var utxos []avax.UTXO
+
+	// when results are paginated, duplicate UTXOs may be provided. guarantee uniqueness
+	utxoIDs := make(map[string]struct{})
+	for _, bytes := range utxoBytes {
+		utxo := avax.UTXO{}
+		_, err := b.codec.Unmarshal(bytes, &utxo)
+		if err != nil {
+			return nil, errUnableToParseUTXO
+		}
+
+		if _, ok := utxoIDs[utxo.UTXOID.String()]; ok {
+			continue
+		}
+
+		utxoIDs[utxo.UTXOID.String()] = struct{}{}
+
+		// Skip multisig UTXOs
+		addressable, ok := utxo.Out.(avax.Addressable)
+		if !ok {
+			return nil, errUnableToGetUTXOOut
+		}
+		if len(addressable.Addresses()) > 1 {
+			continue
+		}
+
+		utxos = append(utxos, utxo)
+	}
+
+	return utxos, nil
+}
+
+func (b *Backend) getAccountUTXOs(ctx context.Context, addr ids.ShortID, sourceChain string) ([][]byte, error) {
+	var utxos [][]byte
+
+	// Used for pagination
+	var startAddr ids.ShortID
+	var startUTXOID ids.ID
+	for {
+		var utxoPage [][]byte
+		var err error
+
+		// GetUTXOs controlled by addr
+		utxoPage, startAddr, startUTXOID, err = b.pClient.GetAtomicUTXOs(
+			ctx,
+			[]ids.ShortID{addr},
+			sourceChain,
+			b.getUTXOsPageSize,
+			startAddr,
+			startUTXOID,
+		)
+		if err != nil {
+			return nil, errUnableToGetUTXOs
+		}
+
+		utxos = append(utxos, utxoPage...)
+
+		// Fetch next page only if there may be more UTXOs
+		if len(utxoPage) < int(b.getUTXOsPageSize) {
+			break
+		}
+	}
+
+	return utxos, nil
+}
+
+func (b *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos []avax.UTXO) ([]*types.Coin, error) {
+	var coins []*types.Coin
+	for _, utxo := range utxos {
+		// Skip UTXO if req.Currencies is specified but it doesn't contain the UTXOs asset
+		if _, ok := currencyAssetIDs[utxo.AssetID()]; len(currencyAssetIDs) > 0 && !ok {
+			continue
+		}
+
+		amounter, ok := utxo.Out.(avax.Amounter)
+		if !ok {
+			return nil, errUnableToGetUTXOOut
+		}
+
+		coin := &types.Coin{
+			CoinIdentifier: &types.CoinIdentifier{Identifier: utxo.UTXOID.String()},
+			Amount: &types.Amount{
+				Value:    strconv.FormatUint(amounter.Amount(), 10),
+				Currency: mapper.AvaxCurrency,
+			},
+		}
+		coins = append(coins, coin)
+	}
+	return coins, nil
 }

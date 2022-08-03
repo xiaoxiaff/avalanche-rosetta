@@ -22,7 +22,7 @@ type Backend struct {
 	networkIdentifier      *types.NetworkIdentifier
 	fac                    *crypto.FactorySECP256K1R
 	pClient                client.PChainClient
-	indexerParser          *indexer.Parser
+	indexerParser          indexer.Parser
 	getUTXOsPageSize       uint32
 	codec                  codec.Manager
 	codecVersion           uint16
@@ -56,7 +56,7 @@ func (b *Backend) buildGenesisBlockIdentifier(genesisBlock *indexer.ParsedGenesi
 
 func NewBackend(
 	pClient client.PChainClient,
-	indexerParser *indexer.Parser,
+	indexerParser indexer.Parser,
 	assetID ids.ID,
 	networkIdentifier *types.NetworkIdentifier,
 ) *Backend {

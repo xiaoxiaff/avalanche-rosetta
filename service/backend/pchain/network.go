@@ -54,7 +54,7 @@ func (b *Backend) NetworkStatus(ctx context.Context, req *types.NetworkRequest) 
 			Index: int64(currentBlock.Height),
 			Hash:  currentBlock.BlockID.String(),
 		},
-		CurrentBlockTimestamp:  mapper.UnixToUnixMilli(currentBlock.Timestamp),
+		CurrentBlockTimestamp:  currentBlock.Timestamp,
 		GenesisBlockIdentifier: b.genesisBlockIdentifier,
 		SyncStatus:             mapper.StageSynced,
 		Peers:                  peers,

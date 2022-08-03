@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
+	"github.com/ava-labs/avalanchego/snow"
 	"github.com/ava-labs/avalanchego/utils/constants"
+	"github.com/ava-labs/avalanchego/vms/platformvm"
 
 	mocks "github.com/ava-labs/avalanche-rosetta/mocks/client"
 
@@ -16,15 +17,13 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/indexer"
 	"github.com/ava-labs/avalanchego/utils/formatting"
-	"github.com/ava-labs/avalanchego/vms/platformvm"
-
 	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/mock"
 )
 
 var (
-	p *Parser
+	p *parser
 	g *ParsedGenesisBlock
 )
 
@@ -93,7 +92,6 @@ func TestMain(m *testing.M) {
 	}
 
 	g, err = p.Initialize(ctx)
-	p.writeTime(time.Unix(0, 0))
 
 	if err != nil {
 		panic(err)
@@ -107,7 +105,7 @@ func TestGenesisBlockCreateChainTxs(t *testing.T) {
 
 	g.Txs = g.Txs[(len(g.Txs) - 2):]
 	for _, tx := range g.Txs {
-		castTx := tx.(*ParsedCreateChainTx)
+		castTx := tx.UnsignedTx.(*platformvm.UnsignedCreateChainTx)
 		castTx.GenesisData = []byte{}
 	}
 
@@ -137,12 +135,9 @@ func TestGenesisBlockParseTxs(t *testing.T) {
 
 	ctx := context.Background()
 	g, err := p.Initialize(ctx)
-	p.writeTime(time.Unix(0, 0))
 
-	rosettaTransactions, err := p.GenesisToTxs(g)
-	assert.Nil(t, err)
-
-	j, err := stdjson.Marshal(rosettaTransactions)
+	initializeTxCtx(g.Txs, p.ctx)
+	j, err := stdjson.MarshalIndent(g, "", "  ")
 	if err != nil {
 		panic(err)
 	}
@@ -151,12 +146,17 @@ func TestGenesisBlockParseTxs(t *testing.T) {
 	a.JSONEq(string(ret), string(j))
 }
 
+func initializeTxCtx(txs []*platformvm.Tx, ctx *snow.Context) {
+	for _, tx := range txs {
+		tx.UnsignedTx.InitCtx(ctx)
+	}
+}
+
 func TestFixtures(t *testing.T) {
 	ctx := context.Background()
 	a := assert.New(t)
 
 	for _, idx := range idxs {
-		p.writeTime(time.Unix(0, 0))
 		// +1 because we do -1 inside parseBlockAtIndex
 		// and ins/outs are based on container ids
 		// instead of block ids
@@ -165,6 +165,7 @@ func TestFixtures(t *testing.T) {
 			panic(err)
 		}
 
+		initializeTxCtx(block.Txs, p.ctx)
 		j, err := stdjson.Marshal(block)
 		if err != nil {
 			panic(err)

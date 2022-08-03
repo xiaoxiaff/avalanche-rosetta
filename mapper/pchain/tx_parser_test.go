@@ -21,14 +21,13 @@ var (
 )
 
 func TestMapInOperation(t *testing.T) {
-	addValidatorTx := buildValidatorTx()
+	addValidatorTx, inputAccounts := buildValidatorTx()
 
 	assert.Equal(t, 1, len(addValidatorTx.Ins))
 	assert.Equal(t, 0, len(addValidatorTx.Outs))
 
 	avaxIn := addValidatorTx.Ins[0]
-
-	parser := NewTxParser(false, constants.FujiHRP, chainIDs)
+	parser := NewTxParser(false, constants.FujiHRP, chainIDs, inputAccounts, nil)
 	rosettaInOp, err := parser.insToOperations(9, OpAddValidator, []*avax.TransferableInput{avaxIn}, OpTypeInput)
 	assert.Nil(t, err)
 
@@ -45,15 +44,15 @@ func TestMapInOperation(t *testing.T) {
 }
 
 func TestMapOutOperation(t *testing.T) {
-	addDelegatorTx := buildAddDelegator()
+	addDelegatorTx, inputAccounts := buildAddDelegator()
 
 	assert.Equal(t, 1, len(addDelegatorTx.Ins))
 	assert.Equal(t, 1, len(addDelegatorTx.Outs))
 
 	avaxOut := addDelegatorTx.Outs[0]
 
-	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
-	rosettaOutOp, err := parser.outsToOperations(0, OpAddDelegator, []*avax.TransferableOutput{avaxOut}, OpTypeOutput, mapper.PChainNetworkIdentifier)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs, inputAccounts, nil)
+	rosettaOutOp, err := parser.outsToOperations(0, 0, OpAddDelegator, ids.Empty, []*avax.TransferableOutput{avaxOut}, OpTypeOutput, mapper.PChainNetworkIdentifier)
 	assert.Nil(t, err)
 
 	assert.Equal(t, int64(0), rosettaOutOp[0].OperationIdentifier.Index)
@@ -71,13 +70,12 @@ func TestMapOutOperation(t *testing.T) {
 }
 
 func TestMapAddValidatorTx(t *testing.T) {
-
-	addvalidatorTx := buildValidatorTx()
+	addvalidatorTx, inputAccounts := buildValidatorTx()
 
 	assert.Equal(t, 1, len(addvalidatorTx.Ins))
 	assert.Equal(t, 0, len(addvalidatorTx.Outs))
 
-	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs, inputAccounts, nil)
 	rosettaTransaction, err := parser.Parse(addvalidatorTx)
 	assert.Nil(t, err)
 
@@ -94,14 +92,13 @@ func TestMapAddValidatorTx(t *testing.T) {
 }
 
 func TestMapAddDelegatorTx(t *testing.T) {
-
-	addDelegatorTx := buildAddDelegator()
+	addDelegatorTx, inputAccounts := buildAddDelegator()
 
 	assert.Equal(t, 1, len(addDelegatorTx.Ins))
 	assert.Equal(t, 1, len(addDelegatorTx.Outs))
 	assert.Equal(t, 1, len(addDelegatorTx.Stake))
 
-	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs, inputAccounts, nil)
 	rosettaTransaction, err := parser.Parse(addDelegatorTx)
 	assert.Nil(t, err)
 
@@ -134,18 +131,17 @@ func TestMapAddDelegatorTx(t *testing.T) {
 	assert.Equal(t, OpTypeStakeOutput, rosettaTransaction.Operations[2].Metadata["type"])
 }
 func TestMapImportTx(t *testing.T) {
-
-	importTx := buildImport()
+	importTx, inputAccounts := buildImport()
 
 	assert.Equal(t, 0, len(importTx.Ins))
-	assert.Equal(t, 1, len(importTx.Outs))
+	assert.Equal(t, 2, len(importTx.Outs))
 	assert.Equal(t, 1, len(importTx.ImportedInputs))
 
-	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs, inputAccounts, nil)
 	rosettaTransaction, err := parser.Parse(importTx)
 	assert.Nil(t, err)
 
-	total := len(importTx.Ins) + len(importTx.Outs) + len(importTx.ImportedInputs)
+	total := len(importTx.Ins) + len(importTx.Outs) + len(importTx.ImportedInputs) - 1 // - 1 for the multisig output
 	assert.Equal(t, total, len(rosettaTransaction.Operations))
 
 	cntTxType, cntInputMeta, cntOutputMeta, cntMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpImportAvax, OpTypeImport)
@@ -160,13 +156,13 @@ func TestMapImportTx(t *testing.T) {
 }
 
 func TestMapExportTx(t *testing.T) {
-	exportTx := buildExport()
+	exportTx, inputAccounts := buildExport()
 
 	assert.Equal(t, 1, len(exportTx.Ins))
 	assert.Equal(t, 1, len(exportTx.Outs))
 	assert.Equal(t, 1, len(exportTx.ExportedOutputs))
 
-	parser := NewTxParser(true, constants.FujiHRP, chainIDs)
+	parser := NewTxParser(true, constants.FujiHRP, chainIDs, inputAccounts, nil)
 	rosettaTransaction, err := parser.Parse(exportTx)
 	assert.Nil(t, err)
 
