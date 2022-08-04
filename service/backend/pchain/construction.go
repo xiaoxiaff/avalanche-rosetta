@@ -168,7 +168,6 @@ func (b *Backend) buildStakingMetadata(options map[string]interface{}) (*pmapper
 		NodeID:          preprocessOptions.NodeID,
 		Start:           preprocessOptions.Start,
 		End:             preprocessOptions.End,
-		Wght:            preprocessOptions.Wght,
 		Memo:            preprocessOptions.Memo,
 		Locktime:        preprocessOptions.Locktime,
 		Threshold:       preprocessOptions.Threshold,

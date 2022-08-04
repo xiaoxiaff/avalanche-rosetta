@@ -21,6 +21,7 @@ import (
 
 var (
 	errMissingBlockIndexHash = errors.New("a positive block index, a block hash or both must be specified")
+	errMismatchedHeight      = errors.New("provided block height does not match height of the block with given hash")
 	errTxInitialize          = errors.New("tx initalize error")
 )
 
@@ -54,6 +55,7 @@ func (b *Backend) Block(ctx context.Context, request *types.BlockRequest) (*type
 	if err != nil {
 		return nil, service.WrapError(service.ErrClientError, err)
 	}
+	blockIndex = int64(block.Height)
 
 	transactions, err := b.parseTransactions(ctx, request.NetworkIdentifier, block.Txs)
 	if err != nil {
@@ -281,19 +283,42 @@ func (b *Backend) getBlockDetails(ctx context.Context, index int64, hash string)
 		return nil, errMissingBlockIndexHash
 	}
 
-	var parsedBlock *indexer.ParsedBlock
-	var err error
+	blockHeight := uint64(index)
+
 	// Extract block id from hash parameter if it is non-empty, or from index if stated
 	if hash != "" {
-		parsedBlock, err = b.indexerParser.ParseBlockWithHash(ctx, hash)
-	} else if index > 0 {
-		parsedBlock, err = b.indexerParser.ParseBlockAtIndex(ctx, uint64(index))
-	}
-	if err != nil {
-		return nil, err
+		height, err := b.getBlockHeight(ctx, hash)
+		if err != nil {
+			return nil, err
+		}
+
+		if blockHeight > 0 && height != blockHeight {
+			return nil, errMismatchedHeight
+		}
+		blockHeight = height
 	}
 
-	return parsedBlock, nil
+	return b.indexerParser.ParseBlockAtIndex(ctx, blockHeight)
+}
+
+func (b *Backend) getBlockHeight(ctx context.Context, hash string) (uint64, error) {
+	blockId, err := ids.FromString(hash)
+	if err != nil {
+		return 0, err
+	}
+
+	blockBytes, err := b.pClient.GetBlock(ctx, blockId)
+	if err != nil {
+		return 0, err
+	}
+
+	var block platformvm.Block
+	_, err = b.codec.Unmarshal(blockBytes, &block)
+	if err != nil {
+		return 0, err
+	}
+
+	return block.Height(), nil
 }
 
 func (b *Backend) isGenesisBlockRequest(ctx context.Context, id *types.PartialBlockIdentifier) (bool, error) {

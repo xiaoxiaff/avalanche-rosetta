@@ -36,7 +36,7 @@ func NewBackend(cClient client.Client, avaxAssetId ids.ID) *Backend {
 	}
 }
 
-func (*Backend) ShouldHandleRequest(req interface{}) bool {
+func (b *Backend) ShouldHandleRequest(req interface{}) bool {
 	switch r := req.(type) {
 	case *types.AccountBalanceRequest:
 		return cmapper.IsCChainBech32Address(r.AccountIdentifier)
@@ -51,14 +51,19 @@ func (*Backend) ShouldHandleRequest(req interface{}) bool {
 	case *types.ConstructionPayloadsRequest:
 		return cmapper.IsAtomicOpType(r.Operations[0].Type)
 	case *types.ConstructionParseRequest:
-		return cmapper.IsEvmAtomicTx(r.Transaction)
+		return b.isCchainAtomicTx(r.Transaction)
 	case *types.ConstructionCombineRequest:
-		return cmapper.IsEvmAtomicTx(r.UnsignedTransaction)
+		return b.isCchainAtomicTx(r.UnsignedTransaction)
 	case *types.ConstructionHashRequest:
-		return cmapper.IsEvmAtomicTx(r.SignedTransaction)
+		return b.isCchainAtomicTx(r.SignedTransaction)
 	case *types.ConstructionSubmitRequest:
-		return cmapper.IsEvmAtomicTx(r.SignedTransaction)
+		return b.isCchainAtomicTx(r.SignedTransaction)
 	}
 
 	return false
+}
+
+func (b *Backend) isCchainAtomicTx(transaction string) bool {
+	_, err := b.parsePayloadTxFromString(transaction)
+	return err == nil
 }

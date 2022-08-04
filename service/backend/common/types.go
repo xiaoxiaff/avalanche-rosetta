@@ -96,7 +96,7 @@ func (t *RosettaTx) GetAccountIdentifiers(operations []*types.Operation) ([]*typ
 		operationToAccountMap[data.CoinIdentifier] = data.AccountIdentifier
 	}
 
-	for i, op := range operations {
+	for _, op := range operations {
 		// Skip positive amounts
 		if op.Amount.Value[0] != '-' {
 			continue
@@ -111,8 +111,7 @@ func (t *RosettaTx) GetAccountIdentifiers(operations []*types.Operation) ([]*typ
 		if signer == nil {
 			return nil, errors.New("not all operations have signers")
 		}
-		// TODO: remove this -
-		operations[i].Account = signer
+
 		signers = append(signers, signer)
 	}
 

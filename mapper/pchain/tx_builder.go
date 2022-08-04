@@ -163,7 +163,7 @@ func buildAddValidatorTx(
 			NodeID: nodeID,
 			Start:  sMetadata.Start,
 			End:    sMetadata.End,
-			Wght:   sMetadata.Wght,
+			Wght:   sumOutputAmounts(stakeOutputs),
 		},
 		RewardsOwner: rewardsOwner,
 		Shares:       sMetadata.Shares,
@@ -221,7 +221,7 @@ func buildAddDelegatorTx(
 			NodeID: nodeID,
 			Start:  sMetadata.Start,
 			End:    sMetadata.End,
-			Wght:   sMetadata.Wght,
+			Wght:   sumOutputAmounts(stakeOutputs),
 		},
 		RewardsOwner: rewardsOwner,
 	}}
@@ -388,4 +388,12 @@ func buildOutputs(
 	avax.SortTransferableOutputs(exported, codec)
 
 	return outs, stakeOutputs, exported, nil
+}
+
+func sumOutputAmounts(stakeOutputs []*avax.TransferableOutput) uint64 {
+	var stakeOutputAmountSum uint64
+	for _, out := range stakeOutputs {
+		stakeOutputAmountSum += out.Output().Amount()
+	}
+	return stakeOutputAmountSum
 }
