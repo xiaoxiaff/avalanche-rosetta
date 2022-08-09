@@ -52,7 +52,7 @@ func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 		Balances: []*types.Amount{
 			{
 				Value:    strconv.FormatUint(balanceValue, 10),
-				Currency: mapper.AvaxCurrency,
+				Currency: mapper.AtomicAvaxCurrency,
 			},
 		},
 	}, nil
@@ -143,7 +143,7 @@ func (b *Backend) processUtxos(sourceChain string, utxos [][]byte) ([]*types.Coi
 			CoinIdentifier: &types.CoinIdentifier{Identifier: utxo.UTXOID.String()},
 			Amount: &types.Amount{
 				Value:    strconv.FormatUint(transferableOut.Amount(), 10),
-				Currency: mapper.AvaxCurrency,
+				Currency: mapper.AtomicAvaxCurrency,
 				Metadata: map[string]interface{}{
 					"source_chain": sourceChain,
 				},

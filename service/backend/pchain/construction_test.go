@@ -104,7 +104,7 @@ func TestExportTxConstruction(t *testing.T) {
 			RelatedOperations:   nil,
 			Type:                opExportAvax,
 			Account:             pAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(-1_000_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(-1_000_000_000)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: coinId1},
 				CoinAction:     types.CoinSpent,
@@ -119,7 +119,7 @@ func TestExportTxConstruction(t *testing.T) {
 			OperationIdentifier: &types.OperationIdentifier{Index: 1},
 			Type:                opExportAvax,
 			Account:             cAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(999_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(999_000_000)),
 			Metadata: map[string]interface{}{
 				"type":      opTypeExport,
 				"threshold": 1.0,
@@ -314,7 +314,7 @@ func TestImportTxConstruction(t *testing.T) {
 			RelatedOperations:   nil,
 			Type:                opImportAvax,
 			Account:             cAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(-1_000_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(-1_000_000_000)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: coinId1},
 				CoinAction:     types.CoinSpent,
@@ -329,7 +329,7 @@ func TestImportTxConstruction(t *testing.T) {
 			OperationIdentifier: &types.OperationIdentifier{Index: 1},
 			Type:                opImportAvax,
 			Account:             pAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(999_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(999_000_000)),
 			Metadata: map[string]interface{}{
 				"type":      opTypeOutput,
 				"threshold": 1.0,
@@ -525,7 +525,7 @@ func TestAddValidatorTxConstruction(t *testing.T) {
 			RelatedOperations:   nil,
 			Type:                opAddValidator,
 			Account:             pAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(-2_000_000_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(-2_000_000_000_000)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: coinId1},
 				CoinAction:     "coin_spent",
@@ -540,7 +540,7 @@ func TestAddValidatorTxConstruction(t *testing.T) {
 			OperationIdentifier: &types.OperationIdentifier{Index: 1},
 			Type:                opAddValidator,
 			Account:             pAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(2_000_000_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(2_000_000_000_000)),
 			Metadata: map[string]interface{}{
 				"type":      opTypeStake,
 				"locktime":  0.0,
@@ -748,7 +748,7 @@ func TestAddDelegatorTxConstruction(t *testing.T) {
 			RelatedOperations:   nil,
 			Type:                opAddDelegator,
 			Account:             pAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(-25_000_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(-25_000_000_000)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: coinId1},
 				CoinAction:     "coin_spent",
@@ -763,7 +763,7 @@ func TestAddDelegatorTxConstruction(t *testing.T) {
 			OperationIdentifier: &types.OperationIdentifier{Index: 1},
 			Type:                opAddDelegator,
 			Account:             pAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(25_000_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(25_000_000_000)),
 			Metadata: map[string]interface{}{
 				"type":      opTypeStake,
 				"locktime":  0.0,

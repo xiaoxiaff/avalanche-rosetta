@@ -57,7 +57,7 @@ func TestMapOutOperation(t *testing.T) {
 
 	assert.Equal(t, int64(0), rosettaOutOp[0].OperationIdentifier.Index)
 	assert.Equal(t, "P-fuji1gdkq8g208e3j4epyjmx65jglsw7vauh86l47ac", rosettaOutOp[0].Account.Address)
-	assert.Equal(t, mapper.AvaxCurrency, rosettaOutOp[0].Amount.Currency)
+	assert.Equal(t, mapper.AtomicAvaxCurrency, rosettaOutOp[0].Amount.Currency)
 	assert.Equal(t, "996649063", rosettaOutOp[0].Amount.Value)
 	assert.Equal(t, OpTypeOutput, rosettaOutOp[0].Metadata["type"])
 	assert.Nil(t, rosettaOutOp[0].Status)

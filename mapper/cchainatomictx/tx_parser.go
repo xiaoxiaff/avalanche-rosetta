@@ -87,7 +87,7 @@ func (t *TxParser) insToOperations(startIdx int64, opType string, ins []evm.EVMI
 			Type:    opType,
 			Account: &types.AccountIdentifier{Address: in.Address.Hex()},
 			// Negating input amount
-			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
+			Amount: mapper.AtomicAvaxAmount(new(big.Int).Neg(inputAmount)),
 		})
 		idx++
 	}
@@ -113,7 +113,7 @@ func (t *TxParser) importedInToOperations(startIdx int64, opType string, ins []*
 			Type:    opType,
 			Account: account,
 			// Negating input amount
-			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
+			Amount: mapper.AtomicAvaxAmount(new(big.Int).Neg(inputAmount)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: utxoID},
 				CoinAction:     types.CoinSpent,
@@ -137,7 +137,7 @@ func (t *TxParser) outsToOperations(startIdx int, opType string, outs []evm.EVMO
 			Type:              opType,
 			Amount: &types.Amount{
 				Value:    strconv.FormatUint(out.Amount, 10),
-				Currency: mapper.AvaxCurrency,
+				Currency: mapper.AtomicAvaxCurrency,
 			},
 		})
 		idx++
@@ -173,7 +173,7 @@ func (t *TxParser) exportedOutputsToOperations(
 			Type:              opType,
 			Amount: &types.Amount{
 				Value:    strconv.FormatUint(out.Out.Amount(), 10),
-				Currency: mapper.AvaxCurrency,
+				Currency: mapper.AtomicAvaxCurrency,
 			},
 		})
 		idx++

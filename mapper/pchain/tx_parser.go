@@ -368,7 +368,7 @@ func (t *TxParser) insToOperations(
 			Status:  status,
 			Account: account,
 			// Negating input amount
-			Amount: mapper.AvaxAmount(new(big.Int).Neg(inputAmount)),
+			Amount: mapper.AtomicAvaxAmount(new(big.Int).Neg(inputAmount)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{
 					Identifier: utxoID,
@@ -553,7 +553,7 @@ func (t *TxParser) buildOutputOperation(
 		CoinChange: coinChange,
 		Status:     status,
 		Account:    &types.AccountIdentifier{Address: outAddrFormat},
-		Amount:     mapper.AvaxAmount(outBigAmount),
+		Amount:     mapper.AtomicAvaxAmount(outBigAmount),
 		Metadata:   opMetadata,
 	}, nil
 }

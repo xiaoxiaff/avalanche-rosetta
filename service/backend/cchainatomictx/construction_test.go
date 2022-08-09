@@ -86,7 +86,7 @@ func TestExportTxConstruction(t *testing.T) {
 			RelatedOperations:   nil,
 			Type:                opExport,
 			Account:             cAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(-10_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(-10_000_000)),
 		},
 		{
 			OperationIdentifier: &types.OperationIdentifier{Index: 1},
@@ -95,7 +95,7 @@ func TestExportTxConstruction(t *testing.T) {
 			},
 			Type:    opExport,
 			Account: pAccountIdentifier,
-			Amount:  mapper.AvaxAmount(big.NewInt(9_719_250)),
+			Amount:  mapper.AtomicAvaxAmount(big.NewInt(9_719_250)),
 		},
 	}
 
@@ -295,7 +295,7 @@ func TestImportTxConstruction(t *testing.T) {
 			OperationIdentifier: &types.OperationIdentifier{Index: 0},
 			Type:                opImport,
 			Account:             pAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(-15_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(-15_000_000)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: coinId1},
 				CoinAction:     types.CoinSpent,
@@ -305,7 +305,7 @@ func TestImportTxConstruction(t *testing.T) {
 			OperationIdentifier: &types.OperationIdentifier{Index: 1},
 			Type:                opImport,
 			Account:             pAccountIdentifier,
-			Amount:              mapper.AvaxAmount(big.NewInt(-5_000_000)),
+			Amount:              mapper.AtomicAvaxAmount(big.NewInt(-5_000_000)),
 			CoinChange: &types.CoinChange{
 				CoinIdentifier: &types.CoinIdentifier{Identifier: coinId2},
 				CoinAction:     types.CoinSpent,
@@ -319,7 +319,7 @@ func TestImportTxConstruction(t *testing.T) {
 			},
 			Type:    opImport,
 			Account: cAccountIdentifier,
-			Amount:  mapper.AvaxAmount(big.NewInt(19_692_050)),
+			Amount:  mapper.AtomicAvaxAmount(big.NewInt(19_692_050)),
 		},
 	}
 

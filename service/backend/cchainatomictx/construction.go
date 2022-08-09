@@ -202,7 +202,7 @@ func (b *Backend) calculateSuggestedFee(ctx context.Context, gasUsed *big.Int) (
 
 	suggestedFeeEth := new(big.Int).Mul(gasUsed, baseFee)
 	suggestedFee := new(big.Int).Div(suggestedFeeEth, mapper.X2crate)
-	return mapper.AvaxAmount(suggestedFee), nil
+	return mapper.AtomicAvaxAmount(suggestedFee), nil
 }
 
 func (b *Backend) ConstructionPayloads(

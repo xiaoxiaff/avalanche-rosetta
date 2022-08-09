@@ -73,7 +73,7 @@ func TestAccountBalance(t *testing.T) {
 					Address: pChainAddr,
 				},
 				Currencies: []*types.Currency{
-					mapper.AvaxCurrency,
+					mapper.AtomicAvaxCurrency,
 				},
 			},
 		)
@@ -82,7 +82,7 @@ func TestAccountBalance(t *testing.T) {
 			Balances: []*types.Amount{
 				{
 					Value:    "5000000000", // 1B + 2B from UTXOs, 1B from staked
-					Currency: mapper.AvaxCurrency,
+					Currency: mapper.AtomicAvaxCurrency,
 				},
 			},
 		}
@@ -117,7 +117,7 @@ func TestAccountBalance(t *testing.T) {
 					Address: pChainAddr,
 				},
 				Currencies: []*types.Currency{
-					mapper.AvaxCurrency,
+					mapper.AtomicAvaxCurrency,
 				},
 			},
 		)
@@ -143,10 +143,10 @@ func TestAccountCoins(t *testing.T) {
 		// Mock on GetAssetDescription
 		mockAssetDescription := &avm.GetAssetDescriptionReply{
 			Name:         "Avalanche",
-			Symbol:       mapper.AvaxCurrency.Symbol,
+			Symbol:       mapper.AtomicAvaxCurrency.Symbol,
 			Denomination: 9,
 		}
-		pChainMock.Mock.On("GetAssetDescription", ctx, mapper.AvaxCurrency.Symbol).Return(mockAssetDescription, nil)
+		pChainMock.Mock.On("GetAssetDescription", ctx, mapper.AtomicAvaxCurrency.Symbol).Return(mockAssetDescription, nil)
 
 		// Mock on GetUTXOs
 		utxo0Bytes := makeUtxoBytes(t, backend, utxos[0].id, utxos[0].amount)
@@ -178,7 +178,7 @@ func TestAccountCoins(t *testing.T) {
 					Address: pChainAddr,
 				},
 				Currencies: []*types.Currency{
-					mapper.AvaxCurrency,
+					mapper.AtomicAvaxCurrency,
 				},
 			})
 
@@ -194,7 +194,7 @@ func TestAccountCoins(t *testing.T) {
 					},
 					Amount: &types.Amount{
 						Value:    "1000000000",
-						Currency: mapper.AvaxCurrency,
+						Currency: mapper.AtomicAvaxCurrency,
 					},
 				},
 				{
@@ -203,7 +203,7 @@ func TestAccountCoins(t *testing.T) {
 					},
 					Amount: &types.Amount{
 						Value:    "2000000000",
-						Currency: mapper.AvaxCurrency,
+						Currency: mapper.AtomicAvaxCurrency,
 					},
 				},
 			},
@@ -221,10 +221,10 @@ func TestAccountCoins(t *testing.T) {
 		// Mock on GetAssetDescription
 		mockAssetDescription := &avm.GetAssetDescriptionReply{
 			Name:         "Avalanche",
-			Symbol:       mapper.AvaxCurrency.Symbol,
+			Symbol:       mapper.AtomicAvaxCurrency.Symbol,
 			Denomination: 9,
 		}
-		pChainMock.Mock.On("GetAssetDescription", ctx, mapper.AvaxCurrency.Symbol).Return(mockAssetDescription, nil)
+		pChainMock.Mock.On("GetAssetDescription", ctx, mapper.AtomicAvaxCurrency.Symbol).Return(mockAssetDescription, nil)
 
 		// Mock on GetUTXOs
 		utxo0Bytes := makeUtxoBytes(t, backend, utxos[0].id, utxos[0].amount)
@@ -257,7 +257,7 @@ func TestAccountCoins(t *testing.T) {
 					SubAccount: &types.SubAccountIdentifier{Address: pmapper.SubAccountTypeSharedMemory},
 				},
 				Currencies: []*types.Currency{
-					mapper.AvaxCurrency,
+					mapper.AtomicAvaxCurrency,
 				},
 			})
 
@@ -273,7 +273,7 @@ func TestAccountCoins(t *testing.T) {
 					},
 					Amount: &types.Amount{
 						Value:    "1000000000",
-						Currency: mapper.AvaxCurrency,
+						Currency: mapper.AtomicAvaxCurrency,
 					},
 				},
 				{
@@ -282,7 +282,7 @@ func TestAccountCoins(t *testing.T) {
 					},
 					Amount: &types.Amount{
 						Value:    "2000000000",
-						Currency: mapper.AvaxCurrency,
+						Currency: mapper.AtomicAvaxCurrency,
 					},
 				},
 			},

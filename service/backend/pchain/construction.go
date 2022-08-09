@@ -154,7 +154,7 @@ func (b *Backend) getBaseTxFee(ctx context.Context) (*types.Amount, error) {
 	}
 
 	feeAmount := new(big.Int).SetUint64(uint64(fees.TxFee))
-	suggestedFee := mapper.AvaxAmount(feeAmount)
+	suggestedFee := mapper.AtomicAvaxAmount(feeAmount)
 	return suggestedFee, nil
 }
 
@@ -175,7 +175,7 @@ func (b *Backend) buildStakingMetadata(options map[string]interface{}) (*pmapper
 		Shares:          preprocessOptions.Shares,
 	}
 
-	zeroAvax := mapper.AvaxAmount(big.NewInt(0))
+	zeroAvax := mapper.AtomicAvaxAmount(big.NewInt(0))
 
 	return &pmapper.Metadata{StakingMetadata: stakingMetadata}, zeroAvax, nil
 }

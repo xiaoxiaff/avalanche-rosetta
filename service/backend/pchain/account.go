@@ -80,7 +80,7 @@ func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 		Balances: []*types.Amount{
 			{
 				Value:    strconv.FormatUint(balanceValue, 10),
-				Currency: mapper.AvaxCurrency,
+				Currency: mapper.AtomicAvaxCurrency,
 			},
 		},
 	}, nil
@@ -435,7 +435,7 @@ func (b *Backend) processUtxos(currencyAssetIDs map[ids.ID]struct{}, utxos []ava
 			CoinIdentifier: &types.CoinIdentifier{Identifier: utxo.UTXOID.String()},
 			Amount: &types.Amount{
 				Value:    strconv.FormatUint(amounter.Amount(), 10),
-				Currency: mapper.AvaxCurrency,
+				Currency: mapper.AtomicAvaxCurrency,
 			},
 		}
 		coins = append(coins, coin)
