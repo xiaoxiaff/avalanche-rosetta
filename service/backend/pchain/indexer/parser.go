@@ -123,7 +123,7 @@ func (p *parser) Initialize(ctx context.Context) (*ParsedGenesisBlock, error) {
 	// Genesis commit block's parent ID is the hash of genesis state
 	var genesisParentID ids.ID = hashing.ComputeHash256Array(bytes)
 
-	// Genesis Block is not indexed by the indexer, but its block ID can be accessed from block 0's parent id
+	// Genesis Block is not indexed by the indexer, but its block ID can be accessed from block 1's parent id
 	genesisChildBlock, err := p.ParseBlockAtIndex(ctx, 1)
 	if err != nil {
 		return nil, err
@@ -173,6 +173,7 @@ func (p *parser) ParseBlockAtIndex(ctx context.Context, index uint64) (*ParsedBl
 		return nil, err
 	}
 
+	// Indexer in AVAX p-chain has the offset which starts with block 1 as 0
 	container, err := p.pChainClient.GetContainerByIndex(ctx, index-1)
 	if err != nil {
 		return nil, err
