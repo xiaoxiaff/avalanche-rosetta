@@ -9,6 +9,7 @@ import (
 const (
 	MetadataAtomicTxGas = "atomic_tx_gas"
 	MetadataNonce       = "nonce"
+	MetadataSourceChain = "source_chain"
 )
 
 type Metadata struct {

@@ -1,0 +1,67 @@
+peTx(10){
+  c_chain_import{
+    print_message({
+      "C-Chain Import Transaction":"before we start"
+    });
+    c_chain_import.network = {"network":"Fuji", "blockchain":"Avalanche"};
+    currency = {"symbol":"AVAX", "decimals":9};
+
+    sender = find_balance({
+      "minimum_balance":{
+        "value": "1",
+        "currency": {{currency}}
+      },
+      "require_coin": true
+    });
+
+    print_message({
+      "sender":{{sender}}
+    });
+
+    fee = "5000000"; // 0.005 AVAX
+    sender_amount = 0 - {{sender.balance.value}};
+    output_amount = {{sender.balance.value}} - {{fee}};
+
+    print_message({
+      "sender_amount":{{sender_amount}},
+      "sender_balance_value": {{sender.balance.value}}
+    });
+
+    c_chain_import.confirmation_depth = "1";
+    // c_chain_import.dry_run = true;
+    c_chain_import.operations = [
+          {
+            "operation_identifier": {"index": 0},
+            "type": "IMPORT",
+            "account": {
+              "address": {{sender.account_identifier.address}}
+            },
+            "amount": {
+              "value": {{sender_amount}},
+              "currency": {{currency}}
+            },
+            "coin_change": {
+              "coin_identifier": {{sender.coin}},
+              "coin_action": "coin_spent"
+            }
+          },
+          {
+            "operation_identifier": {"index": 1},
+            "type": "IMPORT",
+            "account": {
+              "address": "0x3158e80abD5A1e1aa716003C9Db096792C379621"
+            },
+            "amount": {
+              "value": {{output_amount}},
+              "currency": {{currency}}
+            }
+          }
+        ];
+
+    c_chain_import.preprocess_metadata = {"source_chain":"P"};
+
+    print_message({
+      "c_chain_import operations": {{c_chain_import.operations}}
+    });
+  }
+}

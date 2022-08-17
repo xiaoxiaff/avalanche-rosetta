@@ -262,6 +262,9 @@ func BuildPayloads(
 
 	var metadata pmapper.Metadata
 	err = mapper.UnmarshalJSONMap(req.Metadata, &metadata)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInternalError, err)
+	}
 
 	if metadata.ExportMetadata != nil {
 		rosettaTx.DestinationChain = metadata.DestinationChain

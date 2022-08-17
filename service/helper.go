@@ -33,7 +33,7 @@ func makeGenesisBlock(hash string) *types.Block {
 	}
 }
 
-func blockHeaderFromInput(
+func BlockHeaderFromInput(
 	ctx context.Context,
 	c client.Client,
 	input *types.PartialBlockIdentifier,

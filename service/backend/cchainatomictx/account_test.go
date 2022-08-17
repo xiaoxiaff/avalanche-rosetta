@@ -2,6 +2,7 @@ package cchainatomictx
 
 import (
 	"context"
+	"math/big"
 	"strconv"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/components/avax"
 	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
+	ethtypes "github.com/ava-labs/coreth/core/types"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -47,7 +49,11 @@ func TestAccountBalance(t *testing.T) {
 		evmMock.
 			On("GetAtomicUTXOs", mock.Anything, []string{accountAddress}, "X", backend.getUTXOsPageSize, "", "").
 			Return([][]byte{}, api.Index{}, nil)
+		evmMock.
+			On("HeaderByNumber", mock.Anything, mock.Anything).
+			Return(&ethtypes.Header{Number: big.NewInt(42), Extra: []byte("test header")}, nil)
 
+			//
 		resp, apiErr := backend.AccountBalance(context.Background(), &types.AccountBalanceRequest{
 			NetworkIdentifier: &types.NetworkIdentifier{},
 			AccountIdentifier: &types.AccountIdentifier{
@@ -89,6 +95,9 @@ func TestAccountCoins(t *testing.T) {
 		evmMock.
 			On("GetAtomicUTXOs", mock.Anything, []string{accountAddress}, "X", backend.getUTXOsPageSize, "", "").
 			Return([][]byte{}, api.Index{}, nil)
+		evmMock.
+			On("HeaderByNumber", mock.Anything, mock.Anything).
+			Return(&ethtypes.Header{Number: big.NewInt(42), Extra: []byte("test header")}, nil)
 
 		resp, apiErr := backend.AccountCoins(context.Background(), &types.AccountCoinsRequest{
 			NetworkIdentifier: &types.NetworkIdentifier{},

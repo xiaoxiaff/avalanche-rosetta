@@ -27,9 +27,23 @@ func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 	if req.AccountIdentifier == nil {
 		return nil, service.WrapError(service.ErrInvalidInput, "account identifier is not provided")
 	}
+	preHeader, err := service.BlockHeaderFromInput(ctx, b.cClient, req.BlockIdentifier)
+	if err != nil {
+		return nil, err
+	}
+
 	coins, wrappedErr := b.getAccountCoins(ctx, req.AccountIdentifier.Address)
 	if wrappedErr != nil {
 		return nil, wrappedErr
+	}
+
+	postHeader, terr := service.BlockHeaderFromInput(ctx, b.cClient, req.BlockIdentifier)
+	if err != nil {
+		return nil, err
+	}
+
+	if postHeader.Number.Int64() != preHeader.Number.Int64() {
+		return nil, service.WrapError(service.ErrInternalError, "new block added while fetching utxos")
 	}
 
 	var balanceValue uint64
@@ -46,9 +60,14 @@ func (b *Backend) AccountBalance(ctx context.Context, req *types.AccountBalanceR
 		}
 	}
 
+	if terr != nil {
+		return nil, terr
+	}
 	return &types.AccountBalanceResponse{
-		//TODO: return block identifier once AvalancheGo exposes an API for it
-		//BlockIdentifier: ...
+		BlockIdentifier: &types.BlockIdentifier{
+			Index: postHeader.Number.Int64(),
+			Hash:  postHeader.Hash().String(),
+		},
 		Balances: []*types.Amount{
 			{
 				Value:    strconv.FormatUint(balanceValue, 10),
@@ -67,9 +86,21 @@ func (b *Backend) AccountCoins(ctx context.Context, req *types.AccountCoinsReque
 		return nil, wrappedErr
 	}
 
+	// get the tip
+	blockHeader, err := b.cClient.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, service.WrapError(service.ErrInvalidInput, "unable to get tip")
+	}
+
+	if blockHeader == nil {
+		return nil, service.WrapError(service.ErrClientError, "latest block not found")
+	}
+
 	return &types.AccountCoinsResponse{
-		//TODO: return block identifier once AvalancheGo exposes an API for it
-		// BlockIdentifier: ...
+		BlockIdentifier: &types.BlockIdentifier{
+			Index: blockHeader.Number.Int64(),
+			Hash:  blockHeader.Hash().String(),
+		},
 		Coins: common.SortUnique(coins),
 	}, nil
 }

@@ -1,0 +1,72 @@
+addValidator(10){
+    add_validator{
+        print_message({
+            "Add Validator Validation":"Before we start"
+        });
+
+        add_validator.network = {"network":"Fuji", "blockchain":"Avalanche", "sub_network_identifier": {"network": "P"}};
+        currency = {"symbol":"AVAX", "decimals":18};
+        print_message({
+            "Add Validator Validation":"Before find balance"
+        });
+        sender = find_balance({
+            "minimum_balance":{
+                "value":"2000000000", // get at least 2 avax
+                "currency":{{currency}}
+            },
+            "sub_account_identifier":{
+                "address": "shared_memory"
+            },
+            "require_coin": true
+        });
+        print_message({
+                    "Add Validator Validation":"After find balance"
+        });
+
+        print_message({
+            "sender":{{sender}}
+        });
+        sender_amount = 0 - {{sender.balance.value}};
+
+        add_validator.confirmation_depth = "1";
+
+        add_validator.operations = [
+            {
+                "operation_identifier":{"index":0},
+                "type":"ADD_VALIDATOR",
+                "account":{"address":"P-fuji1tupmzrrvpwn4nujq2j9rtdsl6fxaxueuul6u38"},
+                "amount":{
+                    "value":{{sender_amount}},
+                    "currency":{{currency}}
+                },
+                "coin_change":{"coin_action":"coin_spent", "coin_identifier":{{sender.coin}}},
+                "metadata":{"type":"INPUT","sig_indices":[0]}
+            },
+            {
+                "operation_identifier":{"index":1},
+                "type":"ADD_VALIDATOR",
+                "account":{"address":"P-fuji1tupmzrrvpwn4nujq2j9rtdsl6fxaxueuul6u38"},
+                "amount":{
+                    "value":{{sender.balance.value}},
+                    "currency":{{currency}}
+                },
+                "metadata":{"type":"STAKE","threshold":1}
+            }
+        ];
+
+        add_validator.preprocess_metadata = {
+            "node_id":          "NodeID-6eyZt4RN2gfxSgGGMQQLGgPoTB7oq93EK",
+            "start":            1659048885,
+            "end":              1659308085,
+            "weight":           2498712500,
+            "shares":           100000,
+            "locktime":         0,
+            "threshold":        1,
+            "reward_addresses": ["P-fuji1tupmzrrvpwn4nujq2j9rtdsl6fxaxueuul6u38"]
+        };
+
+        print_message({
+            "add validator operations": {{add_validator.operations}}
+        });
+    }
+}

@@ -68,7 +68,7 @@ func (s AccountService) AccountBalance(
 		return s.cChainAtomicTxBackend.AccountBalance(ctx, req)
 	}
 
-	header, terr := blockHeaderFromInput(ctx, s.client, req.BlockIdentifier)
+	header, terr := BlockHeaderFromInput(ctx, s.client, req.BlockIdentifier)
 	if terr != nil {
 		return nil, terr
 	}

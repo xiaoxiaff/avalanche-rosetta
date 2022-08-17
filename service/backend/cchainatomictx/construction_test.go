@@ -328,6 +328,10 @@ func TestImportTxConstruction(t *testing.T) {
 		"source_chain":  "P",
 	}
 
+	preprocess_metadata := map[string]interface{}{
+		"source_chain": "P",
+	}
+
 	suggestedFeeValue := "307950"
 
 	payloadsMetadata := map[string]interface{}{
@@ -386,6 +390,7 @@ func TestImportTxConstruction(t *testing.T) {
 		req := &types.ConstructionPreprocessRequest{
 			NetworkIdentifier: networkIdentifier,
 			Operations:        importOperations,
+			Metadata:          preprocess_metadata,
 		}
 
 		resp, apiErr := backend.ConstructionPreprocess(ctx, req)

@@ -62,12 +62,16 @@ func (b *Backend) ConstructionPreprocess(
 
 	switch firstIn.Type {
 	case mapper.OpImport:
-		chain, _, _, err := address.Parse(firstIn.Account.Address)
-		if err != nil {
-			return nil, service.WrapError(service.ErrInternalError, err)
+		v, ok := req.Metadata[cmapper.MetadataSourceChain]
+		if !ok {
+			return nil, service.WrapError(service.ErrInvalidInput, "source_chain metadata not found")
+		}
+		stringObj, ok := v.(string)
+		if !ok {
+			return nil, service.WrapError(service.ErrInvalidInput, "metadata sourcechain is not a valid string")
 		}
 
-		preprocessOptions.SourceChain = chain
+		preprocessOptions.SourceChain = stringObj
 	case mapper.OpExport:
 		chain, _, _, err := address.Parse(firstOut.Account.Address)
 		if err != nil {
