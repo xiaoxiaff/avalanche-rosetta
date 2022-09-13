@@ -60,33 +60,34 @@ func NewTxParser(
 
 func (t *TxParser) Parse(tx platformvm.UnsignedTx) (*types.Transaction, error) {
 	var ops []*types.Operation
+	var skippedOuts []*types.Operation
 	var txType string
 	var err error
 	switch unsignedTx := tx.(type) {
 	case *platformvm.UnsignedExportTx:
 		txType = OpExportAvax
-		ops, err = t.parseExportTx(unsignedTx)
+		ops, skippedOuts, err = t.parseExportTx(unsignedTx)
 	case *platformvm.UnsignedImportTx:
 		txType = OpImportAvax
-		ops, err = t.parseImportTx(unsignedTx)
+		ops, skippedOuts, err = t.parseImportTx(unsignedTx)
 	case *platformvm.UnsignedAddValidatorTx:
 		txType = OpAddValidator
-		ops, err = t.parseAddValidatorTx(unsignedTx)
+		ops, skippedOuts, err = t.parseAddValidatorTx(unsignedTx)
 	case *platformvm.UnsignedAddDelegatorTx:
 		txType = OpAddDelegator
-		ops, err = t.parseAddDelegatorTx(unsignedTx)
+		ops, skippedOuts, err = t.parseAddDelegatorTx(unsignedTx)
 	case *platformvm.UnsignedRewardValidatorTx:
 		txType = OpRewardValidator
-		ops, err = t.parseRewardValidatorTx(unsignedTx)
+		ops, skippedOuts, err = t.parseRewardValidatorTx(unsignedTx)
 	case *platformvm.UnsignedCreateSubnetTx:
 		txType = OpCreateSubnet
-		ops, err = t.parseCreateSubnetTx(unsignedTx)
+		ops, skippedOuts, err = t.parseCreateSubnetTx(unsignedTx)
 	case *platformvm.UnsignedCreateChainTx:
 		txType = OpCreateChain
-		ops, err = t.parseCreateChainTx(unsignedTx)
+		ops, skippedOuts, err = t.parseCreateChainTx(unsignedTx)
 	case *platformvm.UnsignedAddSubnetValidatorTx:
 		txType = OpAddSubnetValidator
-		ops, err = t.parseAddSubnetValidatorTx(unsignedTx)
+		ops, skippedOuts, err = t.parseAddSubnetValidatorTx(unsignedTx)
 	case *platformvm.UnsignedAdvanceTimeTx:
 		txType = OpAdvanceTime
 		// no op tx
@@ -110,101 +111,102 @@ func (t *TxParser) Parse(tx platformvm.UnsignedTx) (*types.Transaction, error) {
 		},
 		Operations: ops,
 		Metadata: map[string]interface{}{
-			MetadataTxType: txType,
+			MetadataTxType:      txType,
+			MetadataSkippedOuts: skippedOuts,
 		},
 	}, nil
 }
 
-func (t *TxParser) parseExportTx(tx *platformvm.UnsignedExportTx) ([]*types.Operation, error) {
-	ops, err := t.baseTxToCombinedOperations(&tx.BaseTx, OpExportAvax)
+func (t *TxParser) parseExportTx(tx *platformvm.UnsignedExportTx) ([]*types.Operation, []*types.Operation, error) {
+	ops, skippedOuts, err := t.baseTxToCombinedOperations(&tx.BaseTx, OpExportAvax)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	chainID := tx.DestinationChain.String()
 	chainIDAlias, ok := t.chainIDs[chainID]
 	if !ok {
-		return nil, errUnknownDestinationChain
+		return nil, nil, errUnknownDestinationChain
 	}
 
-	exportedOuts, err := t.outsToOperations(len(ops), len(tx.Outs), OpExportAvax, tx.ID(), tx.ExportedOutputs, OpTypeExport, chainIDAlias)
+	exportedOuts, skippedExportOuts, err := t.outsToOperations(len(ops), len(tx.Outs), OpExportAvax, tx.ID(), tx.ExportedOutputs, OpTypeExport, chainIDAlias)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ops = append(ops, exportedOuts...)
 
-	return ops, nil
+	return ops, append(skippedOuts, skippedExportOuts...), nil
 }
 
-func (t *TxParser) parseImportTx(tx *platformvm.UnsignedImportTx) ([]*types.Operation, error) {
+func (t *TxParser) parseImportTx(tx *platformvm.UnsignedImportTx) ([]*types.Operation, []*types.Operation, error) {
 	ops := []*types.Operation{}
 
 	ins, err := t.insToOperations(0, OpImportAvax, tx.Ins, OpTypeInput)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ops = append(ops, ins...)
 	importedIns, err := t.insToOperations(len(ops), OpImportAvax, tx.ImportedInputs, OpTypeImport)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ops = append(ops, importedIns...)
-	outs, err := t.outsToOperations(len(ops), 0, OpImportAvax, tx.ID(), tx.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
+	outs, skippedOuts, err := t.outsToOperations(len(ops), 0, OpImportAvax, tx.ID(), tx.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ops = append(ops, outs...)
 
-	return ops, nil
+	return ops, skippedOuts, nil
 }
 
-func (t *TxParser) parseAddValidatorTx(tx *platformvm.UnsignedAddValidatorTx) ([]*types.Operation, error) {
-	ops, err := t.baseTxToCombinedOperations(&tx.BaseTx, OpAddValidator)
+func (t *TxParser) parseAddValidatorTx(tx *platformvm.UnsignedAddValidatorTx) ([]*types.Operation, []*types.Operation, error) {
+	ops, skippedOuts, err := t.baseTxToCombinedOperations(&tx.BaseTx, OpAddValidator)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	stakeOuts, err := t.outsToOperations(len(ops), len(tx.Outs), OpAddValidator, tx.ID(), tx.Stake, OpTypeStakeOutput, mapper.PChainNetworkIdentifier)
+	stakeOuts, skippedStakeOuts, err := t.outsToOperations(len(ops), len(tx.Outs), OpAddValidator, tx.ID(), tx.Stake, OpTypeStakeOutput, mapper.PChainNetworkIdentifier)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ops = append(ops, stakeOuts...)
 
-	return ops, nil
+	return ops, append(skippedOuts, skippedStakeOuts...), nil
 }
 
-func (t *TxParser) parseAddDelegatorTx(tx *platformvm.UnsignedAddDelegatorTx) ([]*types.Operation, error) {
-	ops, err := t.baseTxToCombinedOperations(&tx.BaseTx, OpAddDelegator)
+func (t *TxParser) parseAddDelegatorTx(tx *platformvm.UnsignedAddDelegatorTx) ([]*types.Operation, []*types.Operation, error) {
+	ops, skippedOuts, err := t.baseTxToCombinedOperations(&tx.BaseTx, OpAddDelegator)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	stakeOuts, err := t.outsToOperations(len(ops), len(tx.Outs), OpAddDelegator, tx.ID(), tx.Stake, OpTypeStakeOutput, mapper.PChainNetworkIdentifier)
+	stakeOuts, skippedStakeOuts, err := t.outsToOperations(len(ops), len(tx.Outs), OpAddDelegator, tx.ID(), tx.Stake, OpTypeStakeOutput, mapper.PChainNetworkIdentifier)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ops = append(ops, stakeOuts...)
 
-	return ops, nil
+	return ops, append(skippedOuts, skippedStakeOuts...), nil
 }
 
-func (t *TxParser) parseRewardValidatorTx(tx *platformvm.UnsignedRewardValidatorTx) ([]*types.Operation, error) {
+func (t *TxParser) parseRewardValidatorTx(tx *platformvm.UnsignedRewardValidatorTx) ([]*types.Operation, []*types.Operation, error) {
 	ops := []*types.Operation{}
 	id := tx.TxID
 
 	if t.dependencyTxs == nil {
-		return nil, errNoDependencyTxs
+		return nil, nil, errNoDependencyTxs
 	}
 	rewardOuts := t.dependencyTxs[id.String()]
 	if rewardOuts == nil {
-		return nil, errNoMatchingRewardOutputs
+		return nil, nil, errNoMatchingRewardOutputs
 	}
-	outs, err := t.utxosToOperations(0, OpRewardValidator, rewardOuts.RewardUTXOs, OpTypeReward, mapper.PChainNetworkIdentifier)
+	outs, skippedOuts, err := t.utxosToOperations(0, OpRewardValidator, rewardOuts.RewardUTXOs, OpTypeReward, mapper.PChainNetworkIdentifier)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Add staking tx id to reward UTXOs
@@ -214,64 +216,64 @@ func (t *TxParser) parseRewardValidatorTx(tx *platformvm.UnsignedRewardValidator
 
 	ops = append(ops, outs...)
 
-	return ops, nil
+	return ops, skippedOuts, nil
 }
 
-func (t *TxParser) parseCreateSubnetTx(tx *platformvm.UnsignedCreateSubnetTx) ([]*types.Operation, error) {
+func (t *TxParser) parseCreateSubnetTx(tx *platformvm.UnsignedCreateSubnetTx) ([]*types.Operation, []*types.Operation, error) {
 	return t.baseTxToCombinedOperations(&tx.BaseTx, OpCreateSubnet)
 }
 
-func (t *TxParser) parseAddSubnetValidatorTx(tx *platformvm.UnsignedAddSubnetValidatorTx) ([]*types.Operation, error) {
+func (t *TxParser) parseAddSubnetValidatorTx(tx *platformvm.UnsignedAddSubnetValidatorTx) ([]*types.Operation, []*types.Operation, error) {
 	return t.baseTxToCombinedOperations(&tx.BaseTx, OpAddSubnetValidator)
 }
 
-func (t *TxParser) parseCreateChainTx(tx *platformvm.UnsignedCreateChainTx) ([]*types.Operation, error) {
+func (t *TxParser) parseCreateChainTx(tx *platformvm.UnsignedCreateChainTx) ([]*types.Operation, []*types.Operation, error) {
 	ops := []*types.Operation{}
 
 	ins, err := t.insToOperations(0, OpCreateChain, tx.Ins, OpTypeInput)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ops = append(ops, ins...)
 
-	outs, err := t.outsToOperations(len(ops), 0, OpCreateChain, tx.ID(), tx.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
+	outs, skippedOuts, err := t.outsToOperations(len(ops), 0, OpCreateChain, tx.ID(), tx.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ops = append(ops, outs...)
 
-	return ops, nil
+	return ops, skippedOuts, nil
 }
 
-func (t *TxParser) baseTxToCombinedOperations(tx *platformvm.BaseTx, txType string) ([]*types.Operation, error) {
+func (t *TxParser) baseTxToCombinedOperations(tx *platformvm.BaseTx, txType string) ([]*types.Operation, []*types.Operation, error) {
 	ops := []*types.Operation{}
 
-	ins, outs, err := t.baseTxToOperations(tx, txType)
+	ins, outs, skippedOuts, err := t.baseTxToOperations(tx, txType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ops = append(ops, ins...)
 	ops = append(ops, outs...)
 
-	return ops, nil
+	return ops, skippedOuts, nil
 }
 
-func (t *TxParser) baseTxToOperations(tx *platformvm.BaseTx, txType string) ([]*types.Operation, []*types.Operation, error) {
+func (t *TxParser) baseTxToOperations(tx *platformvm.BaseTx, txType string) ([]*types.Operation, []*types.Operation, []*types.Operation, error) {
 
 	ins, err := t.insToOperations(0, txType, tx.Ins, OpTypeInput)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	outs, err := t.outsToOperations(len(ins), 0, txType, tx.ID(), tx.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
+	outs, skippedOuts, err := t.outsToOperations(len(ins), 0, txType, tx.ID(), tx.Outs, OpTypeOutput, mapper.PChainNetworkIdentifier)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return ins, outs, nil
+	return ins, outs, skippedOuts, nil
 }
 
 func (t *TxParser) shouldSkipOperation(metaType string) bool {
@@ -373,12 +375,9 @@ func (t *TxParser) outsToOperations(
 	txOut []*avax.TransferableOutput,
 	metaType string,
 	chainIDAlias string,
-) ([]*types.Operation, error) {
+) ([]*types.Operation, []*types.Operation, error) {
 	outs := []*types.Operation{}
-
-	if t.shouldSkipOperation(metaType) {
-		return outs, nil
-	}
+	skippedOuts := []*types.Operation{}
 
 	status := types.String(mapper.StatusSuccess)
 	if t.isConstruction {
@@ -394,7 +393,7 @@ func (t *TxParser) outsToOperations(
 
 		transferOutput, ok := transferOut.(*secp256k1fx.TransferOutput)
 		if !ok {
-			return nil, errOutputTypeAssertion
+			return nil, nil, errOutputTypeAssertion
 		}
 
 		// Rosetta cannot handle multisig at the moment. In order to pass data validation,
@@ -415,14 +414,18 @@ func (t *TxParser) outsToOperations(
 			chainIDAlias,
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		outs = append(outs, outOp)
+		if t.shouldSkipOperation(metaType) {
+			skippedOuts = append(skippedOuts, outOp)
+		} else {
+			outs = append(outs, outOp)
+		}
 		startIndex++
 	}
 
-	return outs, nil
+	return outs, skippedOuts, nil
 }
 
 func (t *TxParser) utxosToOperations(
@@ -431,12 +434,9 @@ func (t *TxParser) utxosToOperations(
 	utxos []*avax.UTXO,
 	metaType string,
 	chainIDAlias string,
-) ([]*types.Operation, error) {
+) ([]*types.Operation, []*types.Operation, error) {
 	outs := []*types.Operation{}
-
-	if t.shouldSkipOperation(metaType) {
-		return outs, nil
-	}
+	skippedOuts := []*types.Operation{}
 
 	status := types.String(mapper.StatusSuccess)
 	if t.isConstruction {
@@ -452,7 +452,7 @@ func (t *TxParser) utxosToOperations(
 		out, ok := outIntf.(*secp256k1fx.TransferOutput)
 
 		if !ok {
-			return nil, errOutputTypeAssertion
+			return nil, nil, errOutputTypeAssertion
 		}
 
 		// Rosetta cannot handle multisig at the moment. In order to pass data validation,
@@ -473,14 +473,18 @@ func (t *TxParser) utxosToOperations(
 			chainIDAlias,
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		outs = append(outs, outOp)
+		if t.shouldSkipOperation(metaType) {
+			skippedOuts = append(skippedOuts, outOp)
+		} else {
+			outs = append(outs, outOp)
+		}
 		startIndex++
 	}
 
-	return outs, nil
+	return outs, skippedOuts, nil
 }
 
 func (t *TxParser) buildOutputOperation(

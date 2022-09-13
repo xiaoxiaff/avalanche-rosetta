@@ -26,6 +26,7 @@ const (
 	OpTypeCreateChain = "CREATE_CHAIN"
 
 	MetadataTxType      = "tx_type"
+	MetadataSkippedOuts = "skipped_outs"
 	MetadataOpType      = "type"
 	MetadataStakingTxID = "staking_tx_id"
 	MetadataSubnetID    = "subnet_id"

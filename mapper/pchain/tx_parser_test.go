@@ -52,7 +52,7 @@ func TestMapOutOperation(t *testing.T) {
 	avaxOut := addDelegatorTx.Outs[0]
 
 	parser := NewTxParser(true, constants.FujiHRP, chainIDs, inputAccounts, nil)
-	rosettaOutOp, err := parser.outsToOperations(0, 0, OpAddDelegator, ids.Empty, []*avax.TransferableOutput{avaxOut}, OpTypeOutput, mapper.PChainNetworkIdentifier)
+	rosettaOutOp, _, err := parser.outsToOperations(0, 0, OpAddDelegator, ids.Empty, []*avax.TransferableOutput{avaxOut}, OpTypeOutput, mapper.PChainNetworkIdentifier)
 	assert.Nil(t, err)
 
 	assert.Equal(t, int64(0), rosettaOutOp[0].OperationIdentifier.Index)
@@ -153,6 +153,43 @@ func TestMapImportTx(t *testing.T) {
 
 	assert.Equal(t, types.CoinSpent, rosettaTransaction.Operations[0].CoinChange.CoinAction)
 	assert.Nil(t, rosettaTransaction.Operations[1].CoinChange)
+}
+
+func TestNonConstructionMapExportTx(t *testing.T) {
+	exportTx, inputAccounts := buildExport()
+
+	assert.Equal(t, 1, len(exportTx.Ins))
+	assert.Equal(t, 1, len(exportTx.Outs))
+	assert.Equal(t, 1, len(exportTx.ExportedOutputs))
+
+	parser := NewTxParser(false, constants.FujiHRP, chainIDs, inputAccounts, nil)
+	rosettaTransaction, err := parser.Parse(exportTx)
+	assert.Nil(t, err)
+
+	total := len(exportTx.Ins) + len(exportTx.Outs)
+	assert.Equal(t, total, len(rosettaTransaction.Operations))
+
+	cntTxType, cntInputMeta, cntOutputMeta, cntMetaType := verifyRosettaTransaction(rosettaTransaction.Operations, OpExportAvax, OpTypeExport)
+
+	assert.Equal(t, 2, cntTxType)
+	assert.Equal(t, 1, cntInputMeta)
+	assert.Equal(t, 1, cntOutputMeta)
+	assert.Equal(t, 0, cntMetaType)
+
+	txType, ok := rosettaTransaction.Metadata[MetadataTxType].(string)
+	assert.True(t, ok)
+	assert.Equal(t, OpExportAvax, txType)
+
+	// Verify that skipped output is exactly the same as normal export output
+	skippedOuts, ok := rosettaTransaction.Metadata[MetadataSkippedOuts].([]*types.Operation)
+	assert.True(t, ok)
+
+	parser = NewTxParser(true, constants.FujiHRP, chainIDs, inputAccounts, nil)
+	rosettaTransaction, err = parser.Parse(exportTx)
+	out := rosettaTransaction.Operations[2]
+	out.Status = types.String(mapper.StatusSuccess)
+	out.CoinChange = skippedOuts[0].CoinChange
+	assert.Equal(t, []*types.Operation{out}, skippedOuts)
 }
 
 func TestMapExportTx(t *testing.T) {
