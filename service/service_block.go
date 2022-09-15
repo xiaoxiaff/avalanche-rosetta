@@ -5,11 +5,11 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/ids"
+	corethTypes "github.com/ava-labs/coreth/core/types"
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/coinbase/rosetta-sdk-go/utils"
-
-	corethTypes "github.com/ava-labs/coreth/core/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	"github.com/ava-labs/avalanche-rosetta/client"
@@ -29,6 +29,7 @@ type BlockService struct {
 
 	genesisBlock  *types.Block
 	pChainBackend BlockBackend
+	pChainBlockID *ids.ID
 }
 
 // NewBlockService returns a new block servicer
@@ -110,7 +111,14 @@ func (s *BlockService) Block(
 		return nil, terr
 	}
 
-	crosstx, terr := s.parseCrossChainTransactions(block)
+	if s.pChainBlockID == nil {
+		id, err := s.client.GetBlockchainID(ctx, mapper.PChainNetworkIdentifier)
+		if err != nil {
+			return nil, WrapError(ErrInternalError, err)
+		}
+		s.pChainBlockID = &id
+	}
+	crosstx, terr := s.parseCrossChainTransactions(block, request.NetworkIdentifier)
 	if terr != nil {
 		return nil, terr
 	}
@@ -222,10 +230,11 @@ func (s *BlockService) fetchTransaction(
 
 func (s *BlockService) parseCrossChainTransactions(
 	block *corethTypes.Block,
+	networkIdentifier *types.NetworkIdentifier,
 ) ([]*types.Transaction, *types.Error) {
 	result := []*types.Transaction{}
 
-	crossTxs, err := mapper.CrossChainTransactions(s.config.AvaxAssetID, block, s.config.AP5Activation)
+	crossTxs, err := mapper.CrossChainTransactions(s.config.AvaxAssetID, block, s.config.AP5Activation, networkIdentifier, s.pChainBlockID)
 	if err != nil {
 		return nil, WrapError(ErrInternalError, err)
 	}

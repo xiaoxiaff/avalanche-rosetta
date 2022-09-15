@@ -45,6 +45,7 @@ const (
 	StatusSuccess = "SUCCESS"
 	StatusFailure = "FAILURE"
 
+	MetadataSkippedOuts    = "skipped_outs"
 	MetaDestinationChainID = "destination_chain"
 	MetaAddressFormat      = "address_format"
 	AddressFormatBech32    = "bech32"

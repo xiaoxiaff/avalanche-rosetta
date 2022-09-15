@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"strconv"
 	"strings"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/formatting/address"
+	"github.com/ava-labs/avalanchego/vms/secp256k1fx"
 	ethtypes "github.com/ava-labs/coreth/core/types"
 	"github.com/ava-labs/coreth/plugin/evm"
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -134,15 +138,18 @@ func crossChainTransaction(
 	rawIdx int,
 	avaxAssetID string,
 	tx *evm.Tx,
-) ([]*types.Operation, error) {
+	networkIdentifier *types.NetworkIdentifier,
+	pChainBlockID *ids.ID,
+) ([]*types.Operation, []*types.Operation, error) {
 	var (
-		ops = []*types.Operation{}
-		idx = int64(rawIdx)
+		ops        = []*types.Operation{}
+		skippedOps = []*types.Operation{}
+		idx        = int64(rawIdx)
 	)
 
 	// Prepare transaction for ID calcuation
 	if err := tx.Sign(evm.Codec, nil); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	switch t := tx.UnsignedAtomicTx.(type) {
@@ -222,16 +229,51 @@ func crossChainTransaction(
 			ops = append(ops, op)
 			idx++
 		}
+		// Only process exporting to P-chain right now
+		if t.DestinationChain == *pChainBlockID {
+			hrp, err := GetHRP(networkIdentifier)
+			if err != nil {
+				return nil, nil, err
+			}
+			for _, out := range t.ExportedOutputs {
+				var addr string
+				transferOutput := out.Output().(*secp256k1fx.TransferOutput)
+				if transferOutput != nil && len(transferOutput.Addrs) > 0 {
+					var err error
+					addr, err = address.Format("P", hrp, transferOutput.Addrs[0][:])
+					if err != nil {
+						return nil, nil, err
+					}
+				}
+
+				skippedOps = append(skippedOps, &types.Operation{
+					OperationIdentifier: &types.OperationIdentifier{
+						Index: int64(idx),
+					},
+					Account: &types.AccountIdentifier{Address: addr},
+					Type:    OpExport,
+					Status:  types.String(StatusSuccess),
+					Amount: &types.Amount{
+						Value:    strconv.FormatUint(out.Out.Amount(), 10),
+						Currency: AtomicAvaxCurrency,
+					},
+				})
+				idx++
+			}
+		}
+
 	default:
-		return nil, fmt.Errorf("unsupported transaction: %T", t)
+		return nil, nil, fmt.Errorf("unsupported transaction: %T", t)
 	}
-	return ops, nil
+	return ops, skippedOps, nil
 }
 
 func CrossChainTransactions(
 	avaxAssetID string,
 	block *ethtypes.Block,
 	ap5Activation uint64,
+	networkIdentifier *types.NetworkIdentifier,
+	pChainBlockID *ids.ID,
 ) ([]*types.Transaction, error) {
 	transactions := []*types.Transaction{}
 
@@ -246,12 +288,14 @@ func CrossChainTransactions(
 	}
 
 	ops := []*types.Operation{}
+	skippedOps := []*types.Operation{}
 	for _, tx := range atomicTxs {
-		txOps, err := crossChainTransaction(len(ops), avaxAssetID, tx)
+		txOps, skippedTxOps, err := crossChainTransaction(len(ops), avaxAssetID, tx, networkIdentifier, pChainBlockID)
 		if err != nil {
 			return nil, err
 		}
 		ops = append(ops, txOps...)
+		skippedOps = append(skippedOps, skippedTxOps...)
 	}
 
 	// TODO: migrate to using atomic transaction ID instead of marking as a block
@@ -264,6 +308,9 @@ func CrossChainTransactions(
 			Hash: block.Hash().String(),
 		},
 		Operations: ops,
+		Metadata: map[string]interface{}{
+			MetadataSkippedOuts: skippedOps,
+		},
 	})
 
 	return transactions, nil
